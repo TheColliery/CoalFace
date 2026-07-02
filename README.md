@@ -81,7 +81,7 @@ claude plugin marketplace add TheColliery/CoalFace
 claude plugin install coalface@coalface
 ```
 
-**Other agents** (design-supported, unverified) — the skill is a folder copy; e.g. Antigravity auto-discovers skills copied into a customizations root:
+**Antigravity** — *design-supported, unverified.* Antigravity has no plugin manager: a skill is installed by copying its folder into a customizations root, which Antigravity auto-discovers at session start (no install command, no manifest):
 
 ```powershell
 git clone https://github.com/TheColliery/CoalFace.git --depth 1
@@ -91,7 +91,9 @@ Copy-Item -Recurse CoalFace/skills/coalface "$env:USERPROFILE\.gemini\config\ski
 Remove-Item -Recurse -Force CoalFace   # optional cleanup
 ```
 
-On any other platform, point the agent at [`skills/coalface/SKILL.md`](skills/coalface/SKILL.md) — the contract is self-contained (spawning rides your platform's native subagent tool). The conductor hook and the `/coalface:update` command stay Claude-Code-only.
+Start a new Antigravity session; `coalface` appears in the skills list. The conductor hook + `/coalface:update` stay Claude-Code-only (Antigravity has no hooks), so there is no standing `auto` directive — convene it with `/coalface` or by pointing the agent at the skill.
+
+**Other concurrent-subagent platforms** (Cursor, Codex, Copilot, Amp, Goose, … — *design-supported, unverified*) — the skill file is the whole contract: point your agent at [`skills/coalface/SKILL.md`](skills/coalface/SKILL.md) (it convenes via your platform's native subagent tool, no API; no one-command installer, and the conductor hook + `/coalface:update` are Claude-Code-only). **The fan-out discipline is cross-agent by design but proven only on Claude Code — re-verify concurrent-subagent support on yours.** A platform with no concurrent fan-out runs the same contract as a sequential pipeline (no speedup, discipline kept).
 
 ## ⚙️ Configure
 
