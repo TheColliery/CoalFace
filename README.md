@@ -97,17 +97,15 @@ Start a new Antigravity session; `coalface` appears in the skills list. The cond
 
 ## ⚙️ Configure
 
-Everything is tunable in `.coalface.json` — global `~/.claude/.coalface.json` overlaid per key by the nearest project `.coalface.json` (project wins; the lookup walks up from the cwd and stops at your home dir). A fully-commented factory template ships at [`platform-configs/.coalface.json`](platform-configs/.coalface.json); the single source of truth for the keys is [`scripts/lib/config-schema.mjs`](scripts/lib/config-schema.mjs). Every key is optional; an out-of-range value clamps to its default on read.
+Everything is tunable in `.coalface.json` — global `~/.claude/.coalface.json` overlaid per key by the nearest project `.coalface.json` (project wins; the lookup walks up from the cwd and stops at your home dir). Every key is optional; an out-of-range value clamps to its default on read. The high-impact keys:
 
-| Key | Type | Default | What it does |
-|---|---|---|---|
-| `coalfaceMode` | `auto` · `on` · `off` | `auto` | The discipline mode. `auto` — the agent judges; any fan-out of ≥ `autoFanoutFloor` units rides the contract. `on` — scout every prompt, fan out everything decomposable. `off` — CoalFace fully out; your platform's native fan-out untouched. |
-| `bandwidth` | int `1-100` | `25` | Percent of the platform's available subagent width a wave may use (effective width = floor(platform width × bandwidth%)). `100` = saturate — fastest AND starves every sibling session on the box; never the default. Orthogonal to the wallet: how FAST the same budget burns, never how much. |
-| `autoFanoutFloor` | int `1-50` | `4` | Fan-out size (units) at/above which an `auto`-mode fan-out must ride the contract; below it, 1-2-sub ad-hoc spawns keep zero ceremony. |
-| `updateMode` | `ask` · `auto` · `remind` · `off` | `ask` | Self-update handling. The hook never networks — it only schedules; the agent verifies and offers, consent-gated. Its own off-switch, orthogonal to `coalfaceMode`. |
-| `updateCheckDays` | int `1-365` | `14` | Days between self-update checks. |
+| Key | Default | What it does |
+|---|---|---|
+| `coalfaceMode` | `auto` | The discipline mode. `auto` — the agent judges; any fan-out of ≥ `autoFanoutFloor` units rides the contract. `on` — scout every prompt. `off` — CoalFace fully out; your platform's native fan-out untouched. |
+| `bandwidth` | `25` | Percent of the platform's available subagent width a wave may use (`100` = saturate — starves every sibling session; never the default). Orthogonal to the wallet: how FAST the same budget burns, never how much. |
+| `autoFanoutFloor` | `4` | Fan-out size (units) at/above which an `auto`-mode fan-out must ride the contract; below it, 1-2-sub ad-hoc spawns keep zero ceremony. |
 
-Check for updates any time with **`/coalface:update`** — the agent compares the latest tag to the installed version and offers `claude plugin update coalface@coalface`.
+Full key reference: every key + default lives in [`scripts/lib/config-schema.mjs`](scripts/lib/config-schema.mjs) and the commented template [`platform-configs/.coalface.json`](platform-configs/.coalface.json).
 
 ## 📊 Benchmark
 
