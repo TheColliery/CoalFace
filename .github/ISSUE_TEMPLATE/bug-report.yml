@@ -1,0 +1,44 @@
+name: "Bug report"
+description: "The skill contract, the conductor hook, a swarm run, or a script misbehaves"
+title: "[bug] <component>: <one-line summary>"
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - skill contract (skills/coalface/SKILL.md + references)
+        - scout / partition (spot list, interval merge, taxonomy routing)
+        - waves / bandwidth (width, AIMD backoff, worker spawn)
+        - QC / apply (scope+spec checks, anchor apply, snapshot/rollback, domain gate)
+        - wallet / receipt (solo-baseline estimate, receipt content)
+        - conductor hook (hooks/coalface-conductor.js — directive, config read)
+        - self-update (conductor schedule + commands/update.md)
+        - config (config-schema.mjs / .coalface.json)
+        - verify / build / test scripts
+        - plugin / packaging
+        - docs
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: CoalFace version + platform
+      placeholder: "v0.1.0-beta.1 · Claude Code on Windows 11"  # version-pin: tracks .claude-plugin/plugin.json — bump on release
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce + what happened
+      description: "Exact prompt/commands and exact output. For a swarm bug, the receipt block (redact anything private) and what you expected the swarm to do."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: "What you expected to happen instead."
+    validations:
+      required: false

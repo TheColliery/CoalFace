@@ -1,0 +1,28 @@
+{
+  // Fan-out discipline mode. auto (default) = the agent judges when a prompt warrants
+  // fan-out; any fan-out of >= autoFanoutFloor units rides the /coalface contract
+  // (scout -> partition -> anchor-edit orders -> QC -> single-writer apply -> receipt),
+  // while 1-2-sub ad-hoc spawns keep zero ceremony. on = scout EVERY prompt and fan out
+  // everything decomposable (opt-in; costs scouting on every prompt). off = CoalFace
+  // fully out; your platform's native fan-out is untouched.
+  "coalfaceMode": "auto",
+  // Percent of the platform's available subagent width a wave may use — effective wave
+  // width = floor(platform width x bandwidth%). 100 = saturate: fastest, AND it starves
+  // every sibling session on the same box/account (they share one rate limit) — allowed,
+  // never the default. Setting above your account's real capacity is safe: AIMD backoff
+  // settles at the real capacity (like setting a 100 MB/s download on a 10 MB/s line).
+  // Orthogonal to the wallet: this sets how FAST the same budget burns, never how much.
+  "bandwidth": 25,
+  // Fan-out size (units) at/above which an auto-mode fan-out must ride the CoalFace
+  // contract. Below the floor, ad-hoc spawning stays zero-ceremony. Range 1-50.
+  "autoFanoutFloor": 4,
+  // Self-update (kind-1, orthogonal to the discipline — its own off-switch). The
+  // SessionStart hook only SCHEDULES a check via a throttled local stamp (no network);
+  // the AGENT verifies the latest tag and offers `claude plugin update coalface@coalface`
+  // (/coalface:update), consent-gated. ask = on the first due session, ask once how to
+  // handle updates; auto = standing consent to check + offer; remind = a free reminder,
+  // you run it; off = silent.
+  "updateMode": "ask",
+  // Days between self-update checks (1-365; out-of-range clamps to 14 on read).
+  "updateCheckDays": 14
+}

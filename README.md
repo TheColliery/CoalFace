@@ -1,0 +1,129 @@
+<div align="center">
+
+# ⛏️ CoalFace
+
+> *A coal face is the active surface of the seam — the one place the whole crew swarms to cut coal.* This one disciplines your agent's swarm.
+
+**A fan-out discipline for swarm work.** When a task decomposes into many units — a bulk refactor, a repo-wide sweep, a 100-spot edit, a corpus batch — CoalFace runs the fan-out as a disciplined factory instead of an ad-hoc swarm: a mandatory scout, a deterministic partition, workers returning anchor-edit orders as text, mechanical QC at collection, one writer applying behind a snapshot, and a receipt at the end.
+
+![version](https://img.shields.io/github/v/tag/TheColliery/CoalFace?label=version&color=blue&include_prereleases)
+![license](https://img.shields.io/badge/license-MIT-blue)
+![status](https://img.shields.io/badge/status-beta-orange)
+
+[Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [Privacy](PRIVACY.md) · [Releases](https://github.com/TheColliery/CoalFace/releases)
+
+**Part of [TheColliery](https://github.com/TheColliery)** — siblings: **[CoalMine](https://github.com/HetCreep/CoalMine)** (quality canaries) · **[CoalTipple](https://github.com/TheColliery/CoalTipple)** (model/effort routing) · **[CoalBoard](https://github.com/TheColliery/CoalBoard)** (consensus board) · **[CoalHearth](https://github.com/TheColliery/CoalHearth)** (session warm-resume).
+
+</div>
+
+---
+
+## ⛏️ What it is
+
+Agents already fan work out to subagents — CoalFace does not invent that. It disciplines it. An ad-hoc fan-out makes the same three promises with **no guarantee**; CoalFace makes them **enforced by structure**:
+
+| Promise | Ad-hoc fan-out | CoalFace |
+|---|---|---|
+| **Tokens** | UNBOUNDED — uncontrolled spawn overhead, N workers re-reading the same files, retry storms, stray runaway workers | BOUNDED ≈ the solo estimate — wallet + shared-digest + min-unit floor + no self-retry |
+| **Speed** | UNDER-FANNED — a lazy orchestrator batches 100 spots into 5-8 bloated workers whose tail quality drops | Full width — worker count = spot count, floor/width-bounded waves |
+| **Quality** | Can dip BELOW solo — a deviant worker, real-tree writes, a half-applied death | Netted — mechanical QC at collection, single-writer apply behind a pre-swarm snapshot, a domain gate |
+
+Honest frame up front: CoalFace disciplines fan-outs that would happen anyway — it does **not** make models smarter and does **not** guarantee correctness (see the QC ceiling below). Zero-dependency, offline, no API keys.
+
+## 🏭 How it works
+
+The flow is fixed — a swarm never skips a step:
+
+| # | Step | What happens |
+|---|---|---|
+| 1 | **Scout** (mandatory) | Survey the worksite before sizing anything: the spot list, the dependency graph, the invariants to lock (your standing rules, glossary, API/style), the end-of-run domain gate, the swarm mode, and the **shared-digest** — the common context paid for once and shipped to every worker (never N workers re-reading the same files). |
+| 2 | **Partition** (deterministic) | An interval-intersection check merges overlapping spots and chains dependent ones — a rule table, not model judgment. A unit smaller than spawn overhead merges with a neighbor (the min-unit floor). |
+| 3 | **Heads-up** (conditional) | If the job dwarfs the prompt, one NON-blocking line ("found N spots, ~est X — starting; Esc to stop") — never a question-box. |
+| 4 | **Waves** | Effective width = floor(platform width × `bandwidth`%). AIMD backoff: a 429 shrinks the next wave, clear stretches re-grow — a `bandwidth` set above your account's real capacity simply settles AT the real capacity, nothing breaks. |
+| 5 | **Orders as text** | Workers return **anchor-edits** (`old-text → new-text`, exact-match, position-independent — that is why 100 spots in ONE file works) or the completed unit as text. Propose-not-execute: workers never touch the tree. |
+| 6 | **QC at collection** | Mechanical, before any apply: SCOPE (every anchor inside the assigned range, no foreign files) + SPEC (locked invariants grep-verifiable). Reject → quarantine + ONE bounded rework; a 2nd fail goes to you via the receipt. |
+| 7 | **Apply** (single writer) | Behind a pre-swarm snapshot (git stash / HEAD-record, or plain file copies — git is never assumed), sequentially in topological order, then the domain gate (build+test / corpus rules / lint+links / schema-validate). Gate red = full rollback. |
+| 8 | **Receipt** (always) | Spots · workers · waves · effective width · tokens vs the solo estimate · quarantined items · test-uncovered flags — in your language, plain wording first. |
+
+**Activation.** `coalfaceMode: auto` (the default) lets the agent judge — any fan-out of ≥ `autoFanoutFloor` units (default 4) rides the contract; 1-2-sub ad-hoc spawns keep zero ceremony. `on` scouts every prompt; `off` removes CoalFace entirely. Manual **`/coalface`** convenes it in any mode except `off`. There is no pre-pay gate: your command IS the consent — a solo run would burn the same budget silently, and the wallet caps the swarm at that budget — so transparency arrives as the receipt.
+
+**The wallet.** The whole swarm — scout + workers + apply — fits inside the estimated solo cost: split the solo budget across the ants, never a new budget on top. It holds because workers carry no accumulated context (a solo run's late units drag the whole history; swarm units don't) and, on Claude Code, cheap worker tiers cost less per token — guarded by the shared-digest, the min-unit floor, and a no-self-retry rule (a per-worker-return journal + at most one re-spawn on the remainder).
+
+**No worksite "breaks."** The scout classifies the shape and routes it to a safe mode:
+
+| Worksite shape | Mode |
+|---|---|
+| Disjoint spots (flat) | Full parallel waves — worker count = spot count (floor/width-bounded) |
+| Dependency chain | Topologically-ordered waves; a full chain = pipeline degrade (discipline kept; honesty: no speedup) |
+| Global invariant (glossary/style/totals) | Lock first → ship in the shared-digest → consistency sweep at the end |
+| Holistic quality (voice/architecture) | Analyze-swarm only — ONE voice writes |
+| Side-effects | Closed by propose-not-execute — side-effects fire only at the consented apply |
+| Non-decomposable | Honest refusal: "not swarmable — solo" |
+
+**The QC ceiling (honesty).** QC is mechanical. An in-scope, on-spec, semantically-WRONG return with no covering test can pass — the receipt flags those test-uncovered spots, and the escalation for that class is [CoalBoard](https://github.com/TheColliery/CoalBoard) (the error-not-allowed lane), never another swarm. On error-not-allowed work CoalBoard wins outright: critical work goes to consensus, not throughput.
+
+## 🖥️ Compatibility
+
+| Platform | Support | What you get |
+|---|---|---|
+| **Claude Code** | ✅ Full | One-command plugin install; the SessionStart conductor injects the standing discipline; [CoalTipple](https://github.com/TheColliery/CoalTipple) (if installed) adds delegate-down worker tiering — a cost bonus, never a gate, and its sensitive-unit rule (crypto/auth/payment/migration stays main-tier) is inherited even when it's absent. |
+| **Other concurrent-subagent platforms** (Antigravity, Cursor, Codex, Copilot, Amp, Goose, …) | Design-supported, **unverified** | The skill file is the whole contract — workers spawn via the platform's native subagent tool, no API. Hooks and plugin commands are Claude-Code-only, so there is no standing `auto` directive: install the skill (or point your agent at it) and convene it on bulk work. On a platform we have not run a swarm on, the contract itself says to treat width/nesting conservatively. |
+| **No concurrent fan-out** | Sequential degrade | The same contract runs as a pipeline (scout → units in order → QC → apply) — no speedup, discipline kept, never broken. |
+
+Workers default to a main-equivalent model on every platform — capability never depends on Claude Code; only the cheap-worker cost option does.
+
+## 🚀 Install
+
+**Claude Code** — one command (also wires the SessionStart conductor + `/coalface:update`):
+
+```bash
+claude plugin marketplace add TheColliery/CoalFace
+claude plugin install coalface@coalface
+```
+
+**Other agents** (design-supported, unverified) — the skill is a folder copy; e.g. Antigravity auto-discovers skills copied into a customizations root:
+
+```powershell
+git clone https://github.com/TheColliery/CoalFace.git --depth 1
+# global (all workspaces):
+Copy-Item -Recurse CoalFace/skills/coalface "$env:USERPROFILE\.gemini\config\skills\coalface"
+# — or per-project: copy into <your-repo>\.agents\skills\coalface instead
+Remove-Item -Recurse -Force CoalFace   # optional cleanup
+```
+
+On any other platform, point the agent at [`skills/coalface/SKILL.md`](skills/coalface/SKILL.md) — the contract is self-contained (spawning rides your platform's native subagent tool). The conductor hook and the `/coalface:update` command stay Claude-Code-only.
+
+## ⚙️ Configure
+
+Everything is tunable in `.coalface.json` — global `~/.claude/.coalface.json` overlaid per key by the nearest project `.coalface.json` (project wins; the lookup walks up from the cwd and stops at your home dir). A fully-commented factory template ships at [`platform-configs/.coalface.json`](platform-configs/.coalface.json); the single source of truth for the keys is [`scripts/lib/config-schema.mjs`](scripts/lib/config-schema.mjs). Every key is optional; an out-of-range value clamps to its default on read.
+
+| Key | Type | Default | What it does |
+|---|---|---|---|
+| `coalfaceMode` | `auto` · `on` · `off` | `auto` | The discipline mode. `auto` — the agent judges; any fan-out of ≥ `autoFanoutFloor` units rides the contract. `on` — scout every prompt, fan out everything decomposable. `off` — CoalFace fully out; your platform's native fan-out untouched. |
+| `bandwidth` | int `1-100` | `25` | Percent of the platform's available subagent width a wave may use (effective width = floor(platform width × bandwidth%)). `100` = saturate — fastest AND starves every sibling session on the box; never the default. Orthogonal to the wallet: how FAST the same budget burns, never how much. |
+| `autoFanoutFloor` | int `1-50` | `4` | Fan-out size (units) at/above which an `auto`-mode fan-out must ride the contract; below it, 1-2-sub ad-hoc spawns keep zero ceremony. |
+| `updateMode` | `ask` · `auto` · `remind` · `off` | `ask` | Self-update handling. The hook never networks — it only schedules; the agent verifies and offers, consent-gated. Its own off-switch, orthogonal to `coalfaceMode`. |
+| `updateCheckDays` | int `1-365` | `14` | Days between self-update checks. |
+
+Check for updates any time with **`/coalface:update`** — the agent compares the latest tag to the installed version and offers `claude plugin update coalface@coalface`.
+
+## 📊 Benchmark
+
+**Not yet benchmarked.** CoalFace is a fresh beta; no figure is quoted because none has been measured (a benchmark here must name its tested version + date, sourced from the series records — never an invented number). When measured, results will live in [`TheColliery/.github/benchmarks`](https://github.com/TheColliery/.github/tree/main/benchmarks), like its siblings'.
+
+Until then, set expectations from the structure, not a multiplier:
+
+- **Wall-clock saturates at wave width.** Wall ≈ ceil(N / width) × unit-time — a 100-spot job at width 4 runs ~25 waves, not 100× faster; slicing finer than ~2-4× the width buys nothing, and a full dependency chain degrades to a pipeline with **no speedup at all**.
+- **The wallet is a bound, not free.** Spawn overhead is real; the invariant is that the whole swarm fits **inside the estimated solo cost** — "about solo cost, much faster, with QC", never "zero extra tokens".
+
+## 🧭 Part of TheColliery
+
+CoalFace is the **fan-out discipline** of the mining series, alongside [CoalMine](https://github.com/HetCreep/CoalMine) (quality canaries), [CoalTipple](https://github.com/TheColliery/CoalTipple) (model/effort routing), [CoalBoard](https://github.com/TheColliery/CoalBoard) (consensus & debate), and [CoalHearth](https://github.com/TheColliery/CoalHearth) (session warm-resume). Install one and it stands alone; install all and they compose without conflict — CoalBoard wins on error-not-allowed work (consensus, not throughput; CoalFace may serve as its apply-hand after), CoalTipple tiering is an optional worker-cost bonus. Shared doctrine: Phoenix-13 hooks (zero-dependency, no network, fail-silent, no child processes, deterministic), single-source-of-truth config schemas, and a strict no-overkill discipline. Series doctrine: [`TheColliery/.github`](https://github.com/TheColliery/.github).
+
+Zero-dependency, offline, no API keys.
+
+---
+
+## 📄 License
+
+MIT License. See [LICENSE](LICENSE).
