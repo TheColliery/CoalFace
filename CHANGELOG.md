@@ -4,6 +4,12 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.1.0-beta.2] - 2026-07-02
+
+### Fixed
+
+- Conductor config walk stop-at-home is now symlink-correct: both the walked cwd and the home dir are resolved to their physical paths (`fs.realpathSync` with a lexical fallback) before comparison. On macOS `process.cwd()` returns the physical `/private/var/...` path while `os.homedir()` returns the raw `/var/...` symlink, so the lexical `dir === home` never matched, the walk escaped above home, and a `.coalface.json` above home could be read as project config (caught by CI on macOS, both Node lanes). Same realpath-both-sides class as CoalHearth beta.3.
+
 ## [0.1.0-beta.1] - 2026-07-02
 
 Initial public beta.
