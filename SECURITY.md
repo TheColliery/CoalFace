@@ -29,10 +29,12 @@ The clean `plugin/` distribution is generated from source by `node scripts/build
 
 ---
 
-<!-- version-transition: SkillSpector scan — record the first scan here (scanner version, score, date, scanned commit, per-finding FP reasons) when it runs; re-scan is event-driven (a new SkillSpector version or a genuinely new attack surface), NOT per release. -->
+<!-- version-transition: SkillSpector scan — re-scan is event-driven (a new SkillSpector version or a genuinely new attack surface, maintainer-commanded), NOT per release; bump the version/score/date/commit below only after a real re-scan. -->
 ## 🔬 Independent Scanning — NVIDIA SkillSpector
 
-As a brand-new plugin (v0.1.0-beta.1) CoalFace has **not yet** been through an external security scan (e.g. [NVIDIA SkillSpector](https://github.com/NVIDIA/skillspector)); that provenance — scanner version, score, date, and a per-finding false-positive review, the same record its siblings carry — will be recorded here when it is.
+First scan: CoalFace **v0.1.0-beta.1** dist (`plugin/`, commit `39478ad`), on **2026-07-02**, with [NVIDIA SkillSpector](https://github.com/NVIDIA/skillspector) **v2.3.9** (self-reported — the tool ships no tagged releases; the version is the `uvx`-from-git HEAD, `326a2b4`), static stage (`--no-llm`, the documented FP-prone baseline). Re-scan is event-driven (a new SkillSpector version or a genuinely new attack surface), not per release — this pins the last version actually verified.
+
+**Score 37/100 · 8 findings · all false positive** — every finding is `HIGH · RA1 Self-Modification` matching the string "self-update" across the conductor's comments and directive text, the `/coalface:update` command, and the SKILL.md "Config + self-update" section (two of the eight are case-variant matches on adjacent SKILL.md lines): the family's consent-gated **Self-Updating** static false positive. The hook only SCHEDULES a throttled check (a timestamp stamp at `~/.claude/.coalface-update-check` — no network ever); the `/coalface:update` agent procedure verifies the tag online and **offers** `claude plugin update` — it never auto-applies, and the skill never rewrites its own files. This matches the family baseline — **all-false-positive across the family**; each sibling's SECURITY.md pins its own last-scan score. The report JSON is not shipped.
 
 ---
 
