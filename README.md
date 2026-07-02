@@ -109,9 +109,9 @@ Full key reference: every key + default lives in [`scripts/lib/config-schema.mjs
 
 ## 📊 Benchmark
 
-**Not yet benchmarked.** CoalFace is a fresh beta; no figure is quoted because none has been measured (a benchmark here must name its tested version + date, sourced from the series records — never an invented number). When measured, results will live in [`TheColliery/.github/benchmarks`](https://github.com/TheColliery/.github/tree/main/benchmarks), like its siblings'.
+**Fan-out cost, measured (2026-07-03, beta.2).** On a 6-spot shared-context job (add a JSDoc header to 6 functions from one shared spec): fanning out costs **more raw tokens** than solo — the per-sub baseline × N (ad-hoc 4.2×, CF 5.3×) — but cheap-tier workers make it **−15% in dollars** vs a solo Opus main. CF's wallet is a **$-via-cheap-tier** bound, not a token saving; the scout+digest amortizes only above a shared-context size threshold (below it, CF's min-unit floor correctly says don't fan out). Full table + caveats: [`TheColliery/.github/benchmarks/CoalFace`](https://github.com/TheColliery/.github/tree/main/benchmarks/CoalFace). Benchmark ≠ graduation — CF stays beta.
 
-Until then, set expectations from the structure, not a multiplier:
+The structure sets the shape:
 
 - **Wall-clock saturates at wave width.** Wall ≈ ceil(N / width) × unit-time — a 100-spot job at width 4 runs ~25 waves, not 100× faster; slicing finer than ~2-4× the width buys nothing, and a full dependency chain degrades to a pipeline with **no speedup at all**.
 - **The wallet is a bound, not free.** Spawn overhead is real; the invariant is that the whole swarm fits **inside the estimated solo cost** — "about solo cost, much faster, with QC", never "zero extra tokens".
