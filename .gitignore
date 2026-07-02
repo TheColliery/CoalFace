@@ -1,9 +1,9 @@
 # Internal governance + design notes — machine-local, never shipped to the public repo
 CLAUDE.md
-MEMORY.md
+MEMORY*.md
 AGENTS.md
-.claude
-.agents
+.claude/
+.agents/
 COALFACE_DESIGN.md
 PLATFORM-LIMITS.md
 USAGE-DATA.md
@@ -15,10 +15,11 @@ node_modules/
 # Runtime journal + snapshot (created inside a target project at run-time, never committed)
 .coalface/
 
-# SkillSpector scan reports (provenance recorded in SECURITY.md; the raw JSON is not shipped)
+# Generated SkillSpector scan reports (provenance recorded in SECURITY.md; the raw report is not shipped)
 skillspector-*
 
 # OS / editor cruft
 .DS_Store
 Thumbs.db
 *.log
+*.swp
