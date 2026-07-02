@@ -140,19 +140,21 @@ test('case 6: proto-pollution project config must NOT silence the directive', ()
 });
 
 test('case 7: config walk STOPS at home — a .coalface.json above home is never read', () => {
-  const { home, cwd } = sandbox();
-  const marker = path.join(path.dirname(home), '.coalface.json'); // ABOVE the sandbox home
-  const hadMarker = fs.existsSync(marker); // never clobber a real file if one exists
+  // A RUN-UNIQUE parent (base) holds the above-home marker, so the test never
+  // touches the SHARED tmpdir root — the old check-then-write there was a TOCTOU
+  // race between parallel runs and a clobber hazard for any real file
+  // (CodeQL js/file-system-race; the CoalHearth stop-at-home test's shape).
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-above-'));
+  const home = path.join(base, 'h');
+  const cwd = path.join(home, 'proj');
+  fs.mkdirSync(cwd, { recursive: true });
   try {
     muteUpdate(home);
-    if (!hadMarker) fs.writeFileSync(marker, '{"coalfaceMode":"off"}', 'utf8');
+    fs.writeFileSync(path.join(base, '.coalface.json'), '{"coalfaceMode":"off"}', 'utf8'); // ABOVE home, inside the unique base
     const r = run(cwd, home); // cwd is nested under home; an unstopped walk would find the marker
     assertGraceful(r);
     assert.match(r.stdout, /\[CoalFace\] Fan-out discipline \(auto\)/, 'above-home config ignored -> directive prints');
-  } finally {
-    if (!hadMarker) fs.rmSync(marker, { force: true });
-    clean(home, cwd);
-  }
+  } finally { clean(base); }
 });
 
 // ---------------------------------------------------------------------------
