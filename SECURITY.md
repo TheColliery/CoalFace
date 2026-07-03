@@ -12,13 +12,11 @@ Open an issue at `github.com/TheColliery/CoalFace`, or request a private channel
 
 ## 🔑 Commit & Tag Signatures
 
-All commits and release tags are SSH-signed (`gpg.format=ssh`); GitHub renders the Verified badge.
-
-Verify locally:
+Every **release tag** and **maintainer commit** is SSH-signed (`gpg.format=ssh`); GitHub shows the Verified badge on them. Automated **Dependabot / CI** commits are unsigned by design (they carry no maintainer key), so verify a signed **release tag** — the artifact a release consumer trusts:
 ```bash
 echo "* ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEtqTWGKhX1Dk9nZP8ns13Wl5zsO1Cz3VlTS6m1p2fP9" > coalface_signers
 git config gpg.ssh.allowedSignersFile ./coalface_signers
-git verify-commit HEAD && git tag -v "$(git describe --tags --abbrev=0)"
+git tag -v "$(git describe --tags --abbrev=0)"
 ```
 
 ---
