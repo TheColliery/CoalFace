@@ -109,7 +109,7 @@ Full key reference: every key + default lives in [`scripts/lib/config-schema.mjs
 
 ## 📊 Benchmark
 
-**Fan-out cost, measured (2026-07-03, beta.2).** On a 6-spot shared-context job (add a JSDoc header to 6 functions from one shared spec): fanning out costs **more raw tokens** than solo — the per-sub baseline × N (ad-hoc 4.2×, CF 5.3×) — but cheap-tier workers make it **−15% in dollars** vs a solo Opus main. CF's wallet is a **$-via-cheap-tier** bound, not a token saving; the scout+digest amortizes only above a shared-context size threshold (below it, CF's min-unit floor correctly says don't fan out). Full table + caveats: [`TheColliery/.github/benchmarks/CoalFace`](https://github.com/TheColliery/.github/tree/main/benchmarks/CoalFace). Benchmark ≠ graduation — CF stays beta.
+**Fan-out cost, measured (2026-07-03, beta.2).** On a 6-spot shared-context job: fanning out costs **more raw tokens** than solo — the per-sub baseline × N (ad-hoc 4.2×, CF-with-scout 5.3×). In **dollars**, cheap-tier fan-out lands **−15% vs a solo Opus main** (Haiku workers are ~5× cheaper/token) — but CF's scout is overhead that only pays back above a shared-context threshold, so on THIS small job CF itself costs a little MORE than plain ad-hoc. CF's real lever is **coarse packing** (fewest cheap workers): 2×3 workers = **−67% tokens vs naive ad-hoc**, the cheapest arm overall. The wallet is a **$-via-cheap-tier + right-sizing** bound, not a token saving vs solo. Full table + caveats: [`TheColliery/.github/benchmarks/CoalFace`](https://github.com/TheColliery/.github/tree/main/benchmarks/CoalFace). Benchmark ≠ graduation — CF stays beta.
 
 The structure sets the shape:
 
