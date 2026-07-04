@@ -5,6 +5,6 @@
   "author": { "name": "HetCreep" },
   "homepage": "https://github.com/TheColliery/CoalFace",
   "repository": "https://github.com/TheColliery/CoalFace",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "keywords": ["fan-out", "swarm", "orchestration", "subagents", "parallel", "token-budget", "qc", "skills", "hooks"]
 }
