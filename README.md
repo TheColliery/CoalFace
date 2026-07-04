@@ -7,7 +7,7 @@
 **A fan-out discipline for swarm work.** When a task decomposes into many units — a bulk refactor, a repo-wide sweep, a 100-spot edit, a corpus batch — CoalFace runs the fan-out as a disciplined factory instead of an ad-hoc swarm: a mandatory scout, a deterministic partition, workers returning anchor-edit orders as text, mechanical QC at collection, one writer applying behind a snapshot, and a receipt at the end.
 
 ![version](https://img.shields.io/github/v/tag/TheColliery/CoalFace?label=version&color=blue&include_prereleases)
-![license](https://img.shields.io/badge/license-MIT-blue)
+![license](https://img.shields.io/badge/license-Apache_2.0-blue)
 ![status](https://img.shields.io/badge/status-beta-orange)
 
 [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [Privacy](PRIVACY.md) · [Releases](https://github.com/TheColliery/CoalFace/releases)
@@ -126,4 +126,4 @@ Zero-dependency, offline, no API keys.
 
 ## 📄 License
 
-MIT License. See [LICENSE](LICENSE).
+Apache License 2.0. See [LICENSE](LICENSE).
