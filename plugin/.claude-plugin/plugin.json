@@ -1,6 +1,6 @@
 {
   "name": "coalface",
-  "version": "0.2.0-beta.2",
+  "version": "0.2.0-beta.3",
   "description": "CoalFace — fan-out discipline for swarm work. When a task decomposes into many units, it runs the fan-out as a disciplined factory instead of an ad-hoc swarm: a mandatory scout survey, deterministic partition, workers returning anchor-edit orders as text (propose-not-execute), mechanical QC at collection, single-writer sequential apply behind a pre-swarm snapshot with a domain gate, and a post-run receipt. Wallet invariant: the whole swarm fits inside the estimated solo cost. Honest frame: it disciplines fan-outs that would happen anyway — it does not make models smarter or guarantee correctness. Cross-agent (any concurrent-subagent platform), zero-dependency, offline, no API keys.",
   "author": { "name": "HetCreep" },
   "homepage": "https://github.com/TheColliery/CoalFace",

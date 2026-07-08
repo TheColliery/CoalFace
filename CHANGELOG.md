@@ -4,6 +4,14 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.2.0-beta.3] - 2026-07-09
+
+Part of the flock doc-conform sweep — CoalFace's own contract orchestrated it (the first real full-pipeline `/coalface` run: scout → partition → 4 workers returning anchor-edit orders → QC → single-writer apply → receipt).
+
+### Changed
+- SKILL.md Engine line: "native Agent-tool waves" → "native **subagent** waves" — `Agent` is a Claude-Code tool NAME; cross-agent text names the capability, never a CC tool (tool-name ≠ capability).
+- README Configure intro gains the per-project off-switch clause (`coalfaceMode: off`) per the two-level config user-benefit frame.
+
 ## [0.2.0-beta.2] - 2026-07-09
 
 Field-driven: a 52-agent `Workflow` run lost 8 workers (2 transient + 6 on a session limit) with no automated recovery layer — the Workflow engine is a separate system from Agent-tool spawning (its own journal, its own resume, no auto-retry).
