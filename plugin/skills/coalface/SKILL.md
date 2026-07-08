@@ -2,20 +2,17 @@
 name: coalface
 description: >-
   Fan-out discipline for swarm work. When a task decomposes into many units (a bulk refactor,
-  a repo-wide sweep, a 100-spot edit, a corpus/document batch), CoalFace runs the fan-out as a
-  disciplined factory instead of an ad-hoc swarm: a mandatory SCOUT surveys the worksite (spot
-  list, dependencies, invariants), a deterministic PARTITION merges overlapping/tiny spots,
-  workers return anchor-edit orders as TEXT (propose-not-execute), QC checks scope+spec at
-  collection, main is the SINGLE WRITER applying sequentially behind a pre-swarm snapshot with
-  a domain gate at the end, and a post-run RECEIPT shows spots/workers/waves/tokens-vs-solo.
-  The wallet invariant caps the whole swarm at about the estimated solo cost (shared-digest,
-  min-unit floor, no self-retry). Modes: coalfaceMode auto (default — ride the contract
-  whenever a fan-out reaches autoFanoutFloor units) | on (scout every prompt) | off. Manual
-  "/coalface" convenes it in any mode except off. Triggers: "/coalface", "swarm this", a
-  decomposable bulk task at or above the floor. Cross-agent (any platform with concurrent
-  subagents — spawn via the platform's native tool; a no-fan-out platform degrades to a
-  sequential pipeline). It disciplines fan-outs that would happen anyway — it does not make
-  models smarter or guarantee correctness. Zero-dependency, offline, no API keys.
+  a repo-wide sweep, a corpus batch), CoalFace runs the fan-out as a disciplined factory: a
+  mandatory SCOUT surveys the worksite, a deterministic PARTITION merges overlapping/tiny
+  spots, workers return anchor-edit orders as TEXT (propose-not-execute), QC checks scope+spec
+  at collection, main = the SINGLE WRITER (pre-swarm snapshot + domain gate), and a RECEIPT
+  shows tokens-vs-solo. The wallet caps the whole swarm at ~the estimated solo cost
+  (shared-digest, min-unit floor, no self-retry). Modes: coalfaceMode auto (default —
+  ride the contract at/above autoFanoutFloor units) | on (scout every prompt) | off. Manual
+  "/coalface" or "swarm this" convenes it in any mode except off. Cross-agent (spawn via the
+  platform's native subagent tool; no fan-out → sequential-pipeline degrade). Disciplines
+  fan-outs that would happen anyway — does not make models smarter or guarantee correctness.
+  Zero-dependency, offline, no API keys.
 ---
 
 # CoalFace — the fan-out discipline

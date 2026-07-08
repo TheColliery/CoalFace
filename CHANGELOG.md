@@ -4,6 +4,13 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.2.1] - 2026-07-09
+
+### Changed
+- SKILL.md frontmatter description trimmed 1338 -> under 1024 chars (the cross-platform-safe cap; the description is always-loaded every session, so shorter = a per-session token saving). No behavior change.
+- `references/contract-template.md`: the journal-line and rejection-line code spans no longer wrap across lines (a wrapped span read as an unclosed XML tag to external linters; renders identically).
+- README: siblings line + doctrine paragraph now name CoalWash and CoalLedger; Compatibility gains the claude.ai row (sequential-degrade, link to the packaging guide).
+
 ## [0.2.0] - 2026-07-09
 
 **STABLE — graduated from beta on the first real full-pipeline run** (the honest hold since 0.1.0-beta.1: "graduates only when a REAL `/coalface` swarm runs on a REAL flat worksite").

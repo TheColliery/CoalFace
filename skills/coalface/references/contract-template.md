@@ -26,8 +26,9 @@ context a worker gets beyond the platform's own loading: scope + digest + rules,
    never a loop.
 6. **BUDGET:** no self-retry loops, no wandering, no speculative extras. Blocked or unsure →
    RETURN with the reason and the remainder; the conductor re-routes.
-7. **JOURNAL LINE:** end your return with `done: <units/spots completed> | remaining:
-   <what is not>` — a re-spawn resumes the REMAINDER, never restarts.
+7. **JOURNAL LINE:** end your return with
+   `done: <units/spots completed> | remaining: <what is not>`
+   — a re-spawn resumes the REMAINDER, never restarts.
 8. **FRICTION LINE:** end with one line on this contract itself — what was unclear, missing,
    awkward, or over-specified. Nothing → `friction: none`. (Feeds the receipt's contract-
    quality signal; the conductor tightens the next wave's contracts from it.)
@@ -45,5 +46,5 @@ context a worker gets beyond the platform's own loading: scope + digest + rules,
 - **Sensitive units:** a unit touching crypto/auth/payment/migration keeps a main-tier
   worker (the CoalTipple sensitive gate, inherited even when CT is absent) — note it in the
   contract so the worker knows extra care is on-spec.
-- **Rejection re-spawn:** the ONE rework contract = this same template + a `REJECTED:
-  <reason>` line at the top + the worker's own prior return embedded verbatim.
+- **Rejection re-spawn:** the ONE rework contract = this same template + a
+  `REJECTED: <reason>` line at the top + the worker's own prior return embedded verbatim.

@@ -12,7 +12,7 @@
 
 [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [Privacy](PRIVACY.md) · [Releases](https://github.com/TheColliery/CoalFace/releases)
 
-**Part of [TheColliery](https://github.com/TheColliery)** — siblings: **[CoalMine](https://github.com/HetCreep/CoalMine)** (quality canaries) · **[CoalTipple](https://github.com/TheColliery/CoalTipple)** (model/effort routing) · **[CoalBoard](https://github.com/TheColliery/CoalBoard)** (consensus board) · **[CoalHearth](https://github.com/TheColliery/CoalHearth)** (session warm-resume).
+**Part of [TheColliery](https://github.com/TheColliery)** — siblings: **[CoalMine](https://github.com/HetCreep/CoalMine)** (quality canaries) · **[CoalTipple](https://github.com/TheColliery/CoalTipple)** (model/effort routing) · **[CoalBoard](https://github.com/TheColliery/CoalBoard)** (consensus board) · **[CoalHearth](https://github.com/TheColliery/CoalHearth)** (session warm-resume) · **[CoalWash](https://github.com/TheColliery/CoalWash)** (memory defrag) · **[CoalLedger](https://github.com/TheColliery/CoalLedger)** (docs health).
 
 </div>
 
@@ -68,6 +68,7 @@ The flow is fixed — a swarm never skips a step:
 |---|---|---|
 | **Claude Code** | ✅ Full | One-command plugin install; the SessionStart conductor injects the standing discipline; [CoalTipple](https://github.com/TheColliery/CoalTipple) (if installed) adds delegate-down worker tiering — a cost bonus, never a gate, and its sensitive-unit rule (crypto/auth/payment/migration stays main-tier) is inherited even when it's absent. |
 | **Other concurrent-subagent platforms** (Antigravity, Cursor, Codex, Copilot, Amp, Goose, …) | Design-supported, **unverified** | The skill file is the whole contract — workers spawn via the platform's native subagent tool, no API. Hooks and plugin commands are Claude-Code-only, so there is no standing `auto` directive: install the skill (or point your agent at it) and convene it on bulk work. On a platform we have not run a swarm on, the contract itself says to treat width/nesting conservatively. |
+| **claude.ai** (web / desktop app) | ⚠️ Sequential degrade | No subagents there — the contract's built-in degrade path runs instead (scout → units in order → QC → apply): the discipline without the parallel speed. Zip `skills/coalface` and upload as a custom skill — steps: [CLAUDE-AI-INSTALL](https://github.com/TheColliery/.github/blob/main/CLAUDE-AI-INSTALL.md). |
 | **No concurrent fan-out** | Sequential degrade | The same contract runs as a pipeline (scout → units in order → QC → apply) — no speedup, discipline kept, never broken. |
 
 Workers default to a main-equivalent model on every platform — capability never depends on Claude Code; only the cheap-worker cost option does.
@@ -118,7 +119,7 @@ The structure sets the shape:
 
 ## 🧭 Part of TheColliery
 
-CoalFace is the **fan-out discipline** of the mining series, alongside [CoalMine](https://github.com/HetCreep/CoalMine) (quality canaries), [CoalTipple](https://github.com/TheColliery/CoalTipple) (model/effort routing), [CoalBoard](https://github.com/TheColliery/CoalBoard) (consensus & debate), and [CoalHearth](https://github.com/TheColliery/CoalHearth) (session warm-resume). Install one and it stands alone; install all and they compose without conflict — CoalBoard wins on error-not-allowed work (consensus, not throughput; CoalFace may serve as its apply-hand after), CoalTipple tiering is an optional worker-cost bonus. Shared doctrine: Phoenix-13 hooks (zero-dependency, no network, fail-silent, no child processes, deterministic), single-source-of-truth config schemas, and a strict no-overkill discipline. Series doctrine: [`TheColliery/.github`](https://github.com/TheColliery/.github).
+CoalFace is the **fan-out discipline** of the mining series, alongside [CoalMine](https://github.com/HetCreep/CoalMine) (quality canaries), [CoalTipple](https://github.com/TheColliery/CoalTipple) (model/effort routing), [CoalBoard](https://github.com/TheColliery/CoalBoard) (consensus & debate), [CoalHearth](https://github.com/TheColliery/CoalHearth) (session warm-resume), [CoalWash](https://github.com/TheColliery/CoalWash) (memory defrag), and [CoalLedger](https://github.com/TheColliery/CoalLedger) (docs health). Install one and it stands alone; install all and they compose without conflict — CoalBoard wins on error-not-allowed work (consensus, not throughput; CoalFace may serve as its apply-hand after), CoalTipple tiering is an optional worker-cost bonus. Shared doctrine: Phoenix-13 hooks (zero-dependency, no network, fail-silent, no child processes, deterministic), single-source-of-truth config schemas, and a strict no-overkill discipline. Series doctrine: [`TheColliery/.github`](https://github.com/TheColliery/.github).
 
 Zero-dependency, offline, no API keys.
 
