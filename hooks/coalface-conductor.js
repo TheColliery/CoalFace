@@ -117,7 +117,7 @@ function main() {
   // mode 'off' -> no directive; self-update is ORTHOGONAL (its own off-switch is
   // updateMode), so it still fires when the discipline is off — the keys are independent.
   if (updateDue(cfg)) {
-    msg += (msg ? ' ' : '[CoalFace] ') + '[self-update due] Offer the /coalface:update check (compare the latest git tag to the installed version, then offer `claude plugin update coalface@coalface`). Consent-gated; the hook only scheduled it.';
+    msg += (msg ? ' ' : '[CoalFace] ') + '[self-update due] Offer the /coalface:update check: web-check the latest CoalFace tag vs the installed plugin.json version; if newer, OFFER `claude plugin update coalface@coalface`; if current, say "up to date"; if git/network is unavailable, say so and suggest updating manually later (never assume). Consent-gated; the hook only scheduled it.';
   }
   if (msg) process.stdout.write(msg); // sanctioned SessionStart context-injection channel
 }
