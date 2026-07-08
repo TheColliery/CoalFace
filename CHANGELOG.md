@@ -4,6 +4,13 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.2.0-beta.2] - 2026-07-09
+
+Field-driven: a 52-agent `Workflow` run lost 8 workers (2 transient + 6 on a session limit) with no automated recovery layer — the Workflow engine is a separate system from Agent-tool spawning (its own journal, its own resume, no auto-retry).
+
+### Added
+- **`references/workflow-engine.md`** — the CF discipline expressed as Workflow-script structure: waves not `parallel(all-N)`; the two null-classes split in-script (scattered nulls = one transient retry pass · a run of ≥3 consecutive = quota death, STOP + return `{done, failedItems}` — never re-ram); always return a continuation-ready receipt; continuation = a fresh small run with `args = failedItems`, NOT `resumeFromRunId` (docs suggest a dead call's `null` is journaled as its result, so a resume likely REPLAYS the failure — verify the run's `journal.jsonl` before trusting it); the CoalHearth outer-seam note. SKILL.md Engine line now points at it.
+
 ## [0.2.0-beta.1] - 2026-07-08
 
 **MINOR (beta line)** — the measurement standard-system lands.

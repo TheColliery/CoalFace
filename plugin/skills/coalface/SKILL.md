@@ -68,7 +68,7 @@ Journal each worker's assigned scope at spawn and its returned order on landing 
 - **CoalTipple** (if installed): per-worker delegate-down tiering = an optional enhancement; its SENSITIVE gate is inherited — a sensitive unit's worker stays main-tier.
 - **subagent-safety inherited wholesale:** bounded fan-out · no zombies · budget-gate · a failed worker RETURNS and you re-route · leaves get no spawn tool.
 - **User/project standing rules** (e.g. translation rules) = invariants: the scout reads them into the shared-digest; workers never choose what the spec already chose.
-- **Engine:** a platform Workflow/orchestration engine present → ride it; else native Agent-tool waves.
+- **Engine:** a platform Workflow/orchestration engine present → ride it; else native Agent-tool waves. Riding Claude Code's `Workflow` tool → **read `references/workflow-engine.md` first** (waves not `parallel(all-N)` · scattered nulls = one retry pass, a run of ≥3 = quota death → STOP + return the remainder · continuation-run over `resumeFromRunId`, which likely replays a dead call's null).
 
 ## Nested conductor (depth note)
 A depth-1 sub may itself conduct (scout → contract → QC → apply for its scope), spawning its workers at depth-2. NEVER deeper: beyond depth-2 a spawn FLATTENS into an independent, unreapable top-level session. Workers are structural leaves — nothing at depth-2 has a reason to spawn. The wallet slices DOWN the chain (you allocate the sub a slice; it splits that across its workers); receipts flow UP.
