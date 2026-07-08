@@ -6,9 +6,9 @@
 
 **A fan-out discipline for swarm work.** When a task decomposes into many units — a bulk refactor, a repo-wide sweep, a 100-spot edit, a corpus batch — CoalFace runs the fan-out as a disciplined factory instead of an ad-hoc swarm: a mandatory scout, a deterministic partition, workers returning anchor-edit orders as text, mechanical QC at collection, one writer applying behind a snapshot, and a receipt at the end.
 
-![version](https://img.shields.io/github/v/tag/TheColliery/CoalFace?label=version&color=blue&include_prereleases)
+![version](https://img.shields.io/github/v/tag/TheColliery/CoalFace?sort=semver&label=version&color=blue)
 ![license](https://img.shields.io/badge/license-Apache_2.0-blue)
-![status](https://img.shields.io/badge/status-beta-orange)
+![status](https://img.shields.io/badge/status-stable-brightgreen)
 
 [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [Privacy](PRIVACY.md) · [Releases](https://github.com/TheColliery/CoalFace/releases)
 
@@ -109,7 +109,7 @@ Full key reference: every key + default lives in [`scripts/lib/config-schema.mjs
 
 ## 📊 Benchmark
 
-**Fan-out cost, measured (2026-07-03, beta.2).** On a 6-spot shared-context job: fanning out costs **more raw tokens** than solo — the per-sub baseline × N (ad-hoc 4.2×, CF-with-scout 5.3×). In **dollars**, cheap-tier fan-out lands **−15% vs a solo Opus main** (Haiku workers are ~5× cheaper/token) — but CF's scout is overhead that only pays back above a shared-context threshold, so on THIS small job CF itself costs a little MORE than plain ad-hoc. CF's real lever is **coarse packing** (fewest cheap workers): 2×3 workers = **−67% tokens vs naive ad-hoc**, the cheapest arm overall. The wallet is a **$-via-cheap-tier + right-sizing** bound, not a token saving vs solo. Full table + caveats: [`TheColliery/.github/benchmarks/CoalFace`](https://github.com/TheColliery/.github/tree/main/benchmarks/CoalFace). Benchmark ≠ graduation — CF stays beta.
+**Fan-out cost, measured (2026-07-03, beta.2).** On a 6-spot shared-context job: fanning out costs **more raw tokens** than solo — the per-sub baseline × N (ad-hoc 4.2×, CF-with-scout 5.3×). In **dollars**, cheap-tier fan-out lands **−15% vs a solo Opus main** (Haiku workers are ~5× cheaper/token) — but CF's scout is overhead that only pays back above a shared-context threshold, so on THIS small job CF itself costs a little MORE than plain ad-hoc. CF's real lever is **coarse packing** (fewest cheap workers): 2×3 workers = **−67% tokens vs naive ad-hoc**, the cheapest arm overall. The wallet is a **$-via-cheap-tier + right-sizing** bound, not a token saving vs solo. Full table + caveats: [`TheColliery/.github/benchmarks/CoalFace`](https://github.com/TheColliery/.github/tree/main/benchmarks/CoalFace). (Measured at beta.2; CoalFace graduated to stable on its first real full-pipeline run — a 15-spot, 5-repo doc-conform sweep, 2026-07-09 — whose receipt matched this benchmark's honest frame: discipline and QC are the value, not a token saving.)
 
 The structure sets the shape:
 

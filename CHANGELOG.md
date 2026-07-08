@@ -4,6 +4,17 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.2.0] - 2026-07-09
+
+**STABLE — graduated from beta on the first real full-pipeline run** (the honest hold since 0.1.0-beta.1: "graduates only when a REAL `/coalface` swarm runs on a REAL flat worksite").
+
+The run: the flock doc-conform sweep — 15 disjoint spots across 5 sibling repos. Full contract exercised end-to-end: scout (spot list + shared-digest + invariants) → deterministic partition (min-unit floor merged one repo's spots into main) → 1 wave, width 4 (slow-start) → 4 workers returning anchor-edit orders as text → QC at collection (caught 4 real issues: a scout anchor drift, 2 template path errors, a MEMORY-vs-code contradiction) → single-writer sequential apply → domain gates green (75/75 + 19/19 + verify PASS) → receipt.
+
+Honest wallet note, from the receipt: on this job the swarm did **not** beat the solo estimate (workers ≈220k tokens vs the scout's ~150-250k solo estimate) — consistent with the shipped benchmark ("the wallet is a $-via-cheap-tier + right-sizing bound, not a token saving"). The graduation evidence is the **discipline working** — QC catches before apply, no real-tree writes by workers, gates green — not a token win.
+
+### Changed
+- Version only — the code is identical to 0.2.0-beta.3. README status badge beta → stable.
+
 ## [0.2.0-beta.3] - 2026-07-09
 
 Part of the flock doc-conform sweep — CoalFace's own contract orchestrated it (the first real full-pipeline `/coalface` run: scout → partition → 4 workers returning anchor-edit orders → QC → single-writer apply → receipt).
