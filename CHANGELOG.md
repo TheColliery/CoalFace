@@ -4,6 +4,12 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.2.3] - 2026-07-09
+
+### Fixed
+- **SKILL.md frontmatter description was 1049 chars, over the 1024 cross-platform-safe cap** (some platforms truncate; the description is always-loaded every session, so over-cap is also a per-session token tax) — trimmed to 985, matching the same-day one-flock conform (CoalBoard v1.7.1 · CoalWash both cut under 1024). Cut redundancy only ("the fan-out as" → "it as", dropped filler articles/repeated "the"); every auto-trigger word survives verbatim (fan-out, swarm, bulk refactor, repo-wide sweep, scout, partition, anchor-edit, QC, single-writer, receipt, `/coalface`) and both honesty clauses are untouched ("does not make models smarter", the wallet's dollar-not-token frame). No behavior change. (Credit: agnix.)
+- **README "Part of TheColliery" doctrine link pointed at the org root** (`github.com/TheColliery`) instead of the `.github` repo where the doctrine docs (DESIGN-PRINCIPLES.md et al.) actually live — now `github.com/TheColliery/.github`, matching the already-correct "Series doctrine" link further down the same file. (Credit: the user's CoalBoard nasa-full-mirror audit, 2026-07-09, LOW/INFO.)
+
 ## [0.2.2] - 2026-07-09
 
 ### Fixed

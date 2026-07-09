@@ -1,18 +1,17 @@
 ---
 name: coalface
 description: >-
-  Fan-out discipline for swarm work. When a task decomposes into many units (a bulk refactor,
-  a repo-wide sweep, a corpus batch), CoalFace runs the fan-out as a disciplined factory: a
-  mandatory SCOUT surveys the worksite, a deterministic PARTITION merges overlapping/tiny
-  spots, workers return anchor-edit orders as TEXT (propose-not-execute), QC checks scope+spec
-  at collection, main = the SINGLE WRITER (pre-swarm snapshot + domain gate), and a RECEIPT
-  shows tokens-vs-solo. The wallet caps the swarm's DOLLAR cost at ~solo via cheap
-  tiers (raw tokens run HIGHER — fan-out ×N the per-sub baseline), not raw tokens.
-  Modes: coalfaceMode auto (default —
-  ride the contract at/above autoFanoutFloor units) | on (scout every prompt) | off. Manual
-  "/coalface" or "swarm this" convenes it in any mode except off. Cross-agent (spawn via the
-  platform's native subagent tool; no fan-out → sequential-pipeline degrade). Disciplines
-  fan-outs that would happen anyway — does not make models smarter or guarantee correctness.
+  Fan-out discipline for swarm work. When a task decomposes into many units (a bulk
+  refactor, a repo-wide sweep, a corpus batch), CoalFace runs it as a disciplined factory:
+  mandatory SCOUT surveys the worksite, deterministic PARTITION merges overlapping/tiny
+  spots, workers return anchor-edit orders as TEXT (propose-not-execute), QC checks
+  scope+spec at collection, main = SINGLE WRITER (pre-swarm snapshot + domain gate), RECEIPT
+  shows tokens-vs-solo. Wallet caps DOLLAR cost at ~solo via cheap tiers (raw tokens run
+  HIGHER — fan-out ×N the per-sub baseline), not raw tokens. Modes: coalfaceMode auto
+  (default, rides the contract at/above autoFanoutFloor units) | on (scout every prompt) |
+  off. Manual "/coalface" or "swarm this" convenes it in any mode except off. Cross-agent
+  (native subagent tool; no fan-out → sequential-pipeline degrade). Disciplines fan-outs
+  that would happen anyway — does not make models smarter or guarantee correctness.
   Zero-dependency, offline, no API keys.
 ---
 
