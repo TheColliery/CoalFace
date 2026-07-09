@@ -6,7 +6,7 @@
     {
       "name": "coalface",
       "source": "./plugin",
-      "description": "Runs a decomposable task's fan-out as a disciplined factory: mandatory scout, deterministic partition, anchor-edit orders as text, QC at collection, single-writer apply behind a snapshot, post-run receipt. Wallet invariant: the whole swarm fits inside the estimated solo cost. Honest frame: it disciplines fan-outs that would happen anyway — it does not make models smarter or guarantee correctness. Cross-agent, zero-dependency, offline, no API keys."
+      "description": "Runs a decomposable task's fan-out as a disciplined factory: mandatory scout, deterministic partition, anchor-edit orders as text, QC at collection, single-writer apply behind a snapshot, post-run receipt. Wallet invariant: the swarm's DOLLAR cost stays ~solo via cheap worker tiers (raw tokens run HIGHER — fan-out ×N the per-sub baseline; ~5.3× on a small benchmark), never fewer tokens. Honest frame: it disciplines fan-outs that would happen anyway — it does not make models smarter or guarantee correctness. Cross-agent, zero-dependency, offline, no API keys."
     }
   ]
 }

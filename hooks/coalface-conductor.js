@@ -110,9 +110,9 @@ function main() {
   const mode = modeOf(cfg);
   let msg = '';
   if (mode === 'auto') {
-    msg = `[CoalFace] Fan-out discipline (auto). Any fan-out of >= ${floorOf(cfg)} units rides the /coalface contract instead of ad-hoc spawning: scout the worksite -> deterministic partition -> workers return anchor-edit orders as text -> QC scope+spec at collection -> single-writer sequential apply behind a pre-swarm snapshot + domain gate -> receipt. Wallet: the whole swarm fits inside the estimated solo cost. 1-2-sub ad-hoc spawns stay zero-ceremony; manual /coalface convenes it any time.`;
+    msg = `[CoalFace] Fan-out discipline (auto). Any fan-out of >= ${floorOf(cfg)} units rides the /coalface contract instead of ad-hoc spawning: scout the worksite -> deterministic partition -> workers return anchor-edit orders as text -> QC scope+spec at collection -> single-writer sequential apply behind a pre-swarm snapshot + domain gate -> receipt. Wallet: DOLLAR cost stays ~solo via cheap tiers (raw tokens run HIGHER — fan-out xN the per-sub baseline), not tokens. 1-2-sub ad-hoc spawns stay zero-ceremony; manual /coalface convenes it any time.`;
   } else if (mode === 'on') {
-    msg = '[CoalFace] Fan-out discipline FORCED (on). Scout EVERY prompt for decomposable work and fan it out via the /coalface contract (scout -> partition -> anchor-edit orders -> QC -> single-writer apply behind a snapshot -> receipt); only non-decomposable work runs solo. Wallet: the whole swarm fits inside the estimated solo cost.';
+    msg = '[CoalFace] Fan-out discipline FORCED (on). Scout EVERY prompt for decomposable work and fan it out via the /coalface contract (scout -> partition -> anchor-edit orders -> QC -> single-writer apply behind a snapshot -> receipt); only non-decomposable work runs solo. Wallet: DOLLAR cost stays ~solo via cheap tiers (raw tokens run HIGHER — fan-out xN the per-sub baseline), not tokens.';
   }
   // mode 'off' -> no directive; self-update is ORTHOGONAL (its own off-switch is
   // updateMode), so it still fires when the discipline is off — the keys are independent.

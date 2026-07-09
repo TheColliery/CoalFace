@@ -4,6 +4,11 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.2.2] - 2026-07-09
+
+### Fixed
+- **Honesty: the "wallet ≈ solo cost" claim was FALSE in raw tokens on the always-loaded / front-door surfaces** — the SKILL description + body, README table + prose, the conductor hook messages, and the marketplace/plugin descriptions all asserted "tokens BOUNDED ≈ solo", which the shipped benchmark ([`benchmarks/CoalFace/RESULTS.md`](https://github.com/TheColliery/.github/blob/main/benchmarks/CoalFace/RESULTS.md)) directly refutes: fan-out multiplies the fixed ~per-sub baseline by N, so raw tokens run **higher** than solo (~5.3× on a small 6-spot job). The wallet is a **dollar** bound (cheap worker tiers, −15% vs solo-on-an-expensive-main) + a **wall-time** bound, never a token bound. All surfaces reworded to say so; the `token-budget` keyword → `cost-budget`. The CHANGELOG [0.2.0] note + the benchmark already told the truth — this conforms the lagging headline surfaces to them. (Board-2 dogfood finding; the "false claim worse than none" class.)
+
 ## [0.2.1] - 2026-07-09
 
 ### Changed

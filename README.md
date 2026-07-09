@@ -24,7 +24,7 @@ Agents already fan work out to subagents — CoalFace does not invent that. It d
 
 | Promise | Ad-hoc fan-out | CoalFace |
 |---|---|---|
-| **Tokens** | UNBOUNDED — uncontrolled spawn overhead, N workers re-reading the same files, retry storms, stray runaway workers | BOUNDED ≈ the solo estimate — wallet + shared-digest + min-unit floor + no self-retry |
+| **Cost** | UNBOUNDED — uncontrolled spawn overhead, N workers re-reading the same files, retry storms, stray runaway workers | Overhead BOUNDED (shared-digest + min-unit floor + no self-retry) and **cheaper in $** via cheap worker tiers. NOTE: raw **tokens run HIGHER than solo** — fan-out multiplies the ~per-sub baseline by N (the benchmark measured ~5.3× on a small job); the wallet bounds **dollars + wall-time**, never raw tokens |
 | **Speed** | UNDER-FANNED — a lazy orchestrator batches 100 spots into 5-8 bloated workers whose tail quality drops | Full width — worker count = spot count, floor/width-bounded waves |
 | **Quality** | Can dip BELOW solo — a deviant worker, real-tree writes, a half-applied death | Netted — mechanical QC at collection, single-writer apply behind a pre-swarm snapshot, a domain gate |
 
@@ -45,9 +45,9 @@ The flow is fixed — a swarm never skips a step:
 | 7 | **Apply** (single writer) | Behind a pre-swarm snapshot (git stash / HEAD-record, or plain file copies — git is never assumed), sequentially in topological order, then the domain gate (build+test / corpus rules / lint+links / schema-validate). Gate red = full rollback. |
 | 8 | **Receipt** (always) | Spots · workers · waves · effective width · tokens vs the solo estimate · quarantined items · test-uncovered flags — in your language, plain wording first. |
 
-**Activation.** `coalfaceMode: auto` (the default) lets the agent judge — any fan-out of ≥ `autoFanoutFloor` units (default 4) rides the contract; 1-2-sub ad-hoc spawns keep zero ceremony. `on` scouts every prompt; `off` removes CoalFace entirely. Manual **`/coalface`** convenes it in any mode except `off`. There is no pre-pay gate: your command IS the consent — a solo run would burn the same budget silently, and the wallet caps the swarm at that budget — so transparency arrives as the receipt.
+**Activation.** `coalfaceMode: auto` (the default) lets the agent judge — any fan-out of ≥ `autoFanoutFloor` units (default 4) rides the contract; 1-2-sub ad-hoc spawns keep zero ceremony. `on` scouts every prompt; `off` removes CoalFace entirely. Manual **`/coalface`** convenes it in any mode except `off`. There is no pre-pay gate: your command IS the consent — a solo run would burn a comparable **dollar** budget silently, and the wallet caps the swarm's dollar cost at ~that — so transparency arrives as the receipt.
 
-**The wallet.** The whole swarm — scout + workers + apply — fits inside the estimated solo cost: split the solo budget across the ants, never a new budget on top. It holds because workers carry no accumulated context (a solo run's late units drag the whole history; swarm units don't) and, on Claude Code, cheap worker tiers cost less per token — guarded by the shared-digest, the min-unit floor, and a no-self-retry rule (a per-worker-return journal + at most one re-spawn on the remainder).
+**The wallet — a DOLLAR bound, not a token one.** The whole swarm — scout + workers + apply — fits inside the estimated solo **dollar** cost, NOT its token count. Raw tokens run *higher* than solo: fan-out multiplies the fixed ~per-sub baseline by N (the [benchmark](https://github.com/TheColliery/.github/blob/main/benchmarks/CoalFace/RESULTS.md) measured ~5.3× solo tokens on a small 6-spot job). What holds the *dollar* line is that Claude Code's cheap worker tiers cost ~5× less per token — so N cheap workers can undercut one expensive solo main (the benchmark: −15% in $). The shared-digest, min-unit floor, and no-self-retry rule (a per-worker-return journal + at most one re-spawn on the remainder) keep that overhead *bounded* — the guarantee is "≤ solo **in dollars**, much faster, QC'd", never "fewer tokens".
 
 **No worksite "breaks."** The scout classifies the shape and routes it to a safe mode:
 
@@ -115,7 +115,7 @@ Full key reference: every key + default lives in [`scripts/lib/config-schema.mjs
 The structure sets the shape:
 
 - **Wall-clock saturates at wave width.** Wall ≈ ceil(N / width) × unit-time — a 100-spot job at width 4 runs ~25 waves, not 100× faster; slicing finer than ~2-4× the width buys nothing, and a full dependency chain degrades to a pipeline with **no speedup at all**.
-- **The wallet is a bound, not free.** Spawn overhead is real; the invariant is that the whole swarm fits **inside the estimated solo cost** — "about solo cost, much faster, with QC", never "zero extra tokens".
+- **The wallet is a DOLLAR bound, not free.** Spawn overhead is real and raw tokens run *higher* than solo; the invariant is that the swarm's **dollar** cost fits inside the estimated solo dollar cost — "about solo cost in $, much faster, with QC", never "fewer tokens".
 
 ## 🧭 Part of TheColliery
 

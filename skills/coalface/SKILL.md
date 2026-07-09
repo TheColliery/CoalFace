@@ -6,8 +6,9 @@ description: >-
   mandatory SCOUT surveys the worksite, a deterministic PARTITION merges overlapping/tiny
   spots, workers return anchor-edit orders as TEXT (propose-not-execute), QC checks scope+spec
   at collection, main = the SINGLE WRITER (pre-swarm snapshot + domain gate), and a RECEIPT
-  shows tokens-vs-solo. The wallet caps the whole swarm at ~the estimated solo cost
-  (shared-digest, min-unit floor, no self-retry). Modes: coalfaceMode auto (default —
+  shows tokens-vs-solo. The wallet caps the swarm's DOLLAR cost at ~solo via cheap
+  tiers (raw tokens run HIGHER — fan-out ×N the per-sub baseline), not raw tokens.
+  Modes: coalfaceMode auto (default —
   ride the contract at/above autoFanoutFloor units) | on (scout every prompt) | off. Manual
   "/coalface" or "swarm this" convenes it in any mode except off. Cross-agent (spawn via the
   platform's native subagent tool; no fan-out → sequential-pipeline degrade). Disciplines
@@ -17,7 +18,7 @@ description: >-
 
 # CoalFace — the fan-out discipline
 
-> **Honest frame:** ad-hoc fan-out makes the same promises with NO guarantee — tokens UNBOUNDED (uncontrolled spawn overhead, duplicate shared-reads, retry storms, stray runaway workers), speed UNDER-FANNED (a lazy orchestrator batches 100 spots into 5-8 bloated workers whose tail quality drops), quality able to dip BELOW solo (a deviant worker, real-tree writes, a half-applied death). CoalFace = the same promises ENFORCED BY STRUCTURE — tokens BOUNDED ≈ solo (wallet + shared-digest + min-unit floor + no-self-retry), speed at full width (worker count = spot count, floor/width-bounded), quality netted (QC + single-writer + snapshot). It disciplines the fan-out; it does not make models smarter or guarantee correctness.
+> **Honest frame:** ad-hoc fan-out makes the same promises with NO guarantee — tokens UNBOUNDED (uncontrolled spawn overhead, duplicate shared-reads, retry storms, stray runaway workers), speed UNDER-FANNED (a lazy orchestrator batches 100 spots into 5-8 bloated workers whose tail quality drops), quality able to dip BELOW solo (a deviant worker, real-tree writes, a half-applied death). CoalFace = the same promises ENFORCED BY STRUCTURE — cost bounded in DOLLARS ≈ solo (cheap tiers; raw tokens run HIGHER — fan-out ×N the per-sub baseline, ~5.3× on a small benchmark; wallet + shared-digest + min-unit floor + no-self-retry cap the overhead, not the token count), speed at full width (worker count = spot count, floor/width-bounded), quality netted (QC + single-writer + snapshot). It disciplines the fan-out; it does not make models smarter or guarantee correctness.
 
 You are the **CONDUCTOR** (the session main). Workers are **LEAVES** — spawn them via a spawn-tool-less agent type where the platform offers one (Claude Code: `Explore`-class); they read + produce + RETURN, never write the tree, never spawn.
 
@@ -54,8 +55,8 @@ You are the **CONDUCTOR** (the session main). Workers are **LEAVES** — spawn t
 
 Per-domain unit/invariant/gate tables + mode detail: `references/taxonomy.md`.
 
-## Wallet (the solo-baseline invariant)
-The WHOLE swarm (scout + workers + apply) fits inside the estimated main-SOLO cost — split the solo budget across the ants, never a new budget on top. It holds because workers carry no accumulated context (solo's late units drag the whole history; swarm units don't) and, on Claude Code, cheap tiers cost less per token. Guards: (1) the SHARED-DIGEST (the scout pays once, distributes); (2) the MIN-UNIT floor (tiny units merge); (3) NO worker self-retry — the journal + at most one re-spawn-on-remainder (no retry storms). `bandwidth` is ORTHOGONAL to the wallet: it sets how FAST the same budget burns, never how much.
+## Wallet (the solo-baseline DOLLAR invariant)
+The WHOLE swarm (scout + workers + apply) fits inside the estimated main-SOLO **dollar** cost — NOT its token count. Raw tokens run *higher* than solo: fan-out multiplies the fixed ~per-sub baseline by N (the benchmark measured ~5.3× solo tokens on a small 6-spot job). What holds the *dollar* line is Claude Code's cheap worker tiers (~5× less per token) — so N cheap workers can undercut one expensive solo main (benchmark: −15% in $). Guards keep that overhead *bounded* (not ≤ solo tokens): (1) the SHARED-DIGEST (the scout pays once, distributes); (2) the MIN-UNIT floor (tiny units merge — and a job too small to clear it says *don't fan out*, since the scout is then net overhead); (3) NO worker self-retry — the journal + at most one re-spawn-on-remainder (no retry storms). The guarantee is "≤ solo **in dollars**, much faster, QC'd", never "fewer tokens". `bandwidth` is ORTHOGONAL: it sets how FAST the same budget burns, never how much.
 
 ## Journal (per-worker-return)
 Journal each worker's assigned scope at spawn and its returned order on landing — a returned order is safe the moment it lands. A dead/stopped/silent worker → re-spawn ONE fresh worker on the un-done REMAINDER from the journal (never restart the whole, never loop). The journal also feeds the receipt and any partial report.
