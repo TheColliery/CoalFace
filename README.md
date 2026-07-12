@@ -10,6 +10,16 @@
 ![license](https://img.shields.io/badge/license-Apache_2.0-blue)
 ![status](https://img.shields.io/badge/status-stable-brightgreen)
 
+*Compatibility: validated on Claude Code · works-with any concurrent-subagent platform via file-copy (swarm unverified there) — see the Compatibility table below.*
+
+![Claude Code](https://img.shields.io/badge/Claude_Code-validated-brightgreen)
+![Antigravity](https://img.shields.io/badge/Antigravity-works_with-blue)
+![Cursor](https://img.shields.io/badge/Cursor-works_with-blue)
+![Codex](https://img.shields.io/badge/Codex-works_with-blue)
+![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-works_with-blue)
+![Cline](https://img.shields.io/badge/Cline-works_with-blue)
+![Copilot](https://img.shields.io/badge/Copilot-works_with-blue)
+
 [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [Privacy](PRIVACY.md) · [Releases](https://github.com/TheColliery/CoalFace/releases)
 
 **Part of [TheColliery](https://github.com/TheColliery/.github)** — siblings: **[CoalMine](https://github.com/HetCreep/CoalMine)** (quality canaries) · **[CoalTipple](https://github.com/TheColliery/CoalTipple)** (model/effort routing) · **[CoalBoard](https://github.com/TheColliery/CoalBoard)** (consensus board) · **[CoalHearth](https://github.com/TheColliery/CoalHearth)** (session warm-resume) · **[CoalWash](https://github.com/TheColliery/CoalWash)** (memory defrag) · **[CoalLedger](https://github.com/TheColliery/CoalLedger)** (docs health).
@@ -66,8 +76,8 @@ The flow is fixed — a swarm never skips a step:
 
 | Platform | Support | What you get |
 |---|---|---|
-| **Claude Code** | ✅ Full | One-command plugin install; the SessionStart conductor injects the standing discipline; [CoalTipple](https://github.com/TheColliery/CoalTipple) (if installed) adds delegate-down worker tiering — a cost bonus, never a gate, and its sensitive-unit rule (crypto/auth/payment/migration stays main-tier) is inherited even when it's absent. |
-| **Other concurrent-subagent platforms** (Antigravity, Cursor, Codex, Copilot, Amp, Goose, …) | Design-supported, **unverified** | The skill file is the whole contract — workers spawn via the platform's native subagent tool, no API. Hooks and plugin commands are Claude-Code-only, so there is no standing `auto` directive: install the skill (or point your agent at it) and convene it on bulk work. On a platform we have not run a swarm on, the contract itself says to treat width/nesting conservatively. |
+| **Claude Code** | ✅ **validated** | One-command plugin install; the SessionStart conductor injects the standing discipline; [CoalTipple](https://github.com/TheColliery/CoalTipple) (if installed) adds delegate-down worker tiering — a cost bonus, never a gate, and its sensitive-unit rule (crypto/auth/payment/migration stays main-tier) is inherited even when it's absent. |
+| **Other concurrent-subagent platforms** (Antigravity, Cursor, Codex, Copilot, Amp, Goose, …) | **works-with** (swarm unverified) | The skill file is the whole contract — workers spawn via the platform's native subagent tool, no API. Hooks and plugin commands are Claude-Code-only, so there is no standing `auto` directive: install the skill (or point your agent at it) and convene it on bulk work. On a platform we have not run a swarm on, the contract itself says to treat width/nesting conservatively. |
 | **claude.ai** (web / desktop app) | ⚠️ Sequential degrade | No subagents there — the contract's built-in degrade path runs instead (scout → units in order → QC → apply): the discipline without the parallel speed. Zip `skills/coalface` and upload as a custom skill — steps: [CLAUDE-AI-INSTALL](https://github.com/TheColliery/.github/blob/main/CLAUDE-AI-INSTALL.md). |
 | **No concurrent fan-out** | Sequential degrade | The same contract runs as a pipeline (scout → units in order → QC → apply) — no speedup, discipline kept, never broken. |
 
@@ -82,7 +92,7 @@ claude plugin marketplace add TheColliery/CoalFace
 claude plugin install coalface@coalface
 ```
 
-**Antigravity** — *design-supported, unverified.* Antigravity has no plugin manager: a skill is installed by copying its folder into a customizations root, which Antigravity auto-discovers at session start (no install command, no manifest):
+**Antigravity** — *works-with; the swarm is e2e-proven only on Claude Code — re-verify on yours.* Antigravity has no plugin manager: a skill is installed by copying its folder into a customizations root, which Antigravity auto-discovers at session start (no install command, no manifest):
 
 ```powershell
 git clone https://github.com/TheColliery/CoalFace.git --depth 1
@@ -94,7 +104,7 @@ Remove-Item -Recurse -Force CoalFace   # optional cleanup
 
 Start a new Antigravity session; `coalface` appears in the skills list. The conductor hook + `/coalface:update` stay Claude-Code-only (Antigravity has no hooks), so there is no standing `auto` directive — convene it with `/coalface` or by pointing the agent at the skill.
 
-**Other concurrent-subagent platforms** (Cursor, Codex, Copilot, Amp, Goose, … — *design-supported, unverified*) — the skill file is the whole contract: point your agent at [`skills/coalface/SKILL.md`](skills/coalface/SKILL.md) (it convenes via your platform's native subagent tool, no API; no one-command installer, and the conductor hook + `/coalface:update` are Claude-Code-only). **The fan-out discipline is cross-agent by design but proven only on Claude Code — re-verify concurrent-subagent support on yours.** A platform with no concurrent fan-out runs the same contract as a sequential pipeline (no speedup, discipline kept).
+**Other concurrent-subagent platforms** (Cursor, Codex, Copilot, Gemini CLI, Cline, Amp, Goose, … — *works-with; swarm e2e-proven only on Claude Code*) — the skill file is the whole contract: point your agent at [`skills/coalface/SKILL.md`](skills/coalface/SKILL.md) (it convenes via your platform's native subagent tool, no API; no one-command installer, and the conductor hook + `/coalface:update` are Claude-Code-only). **The fan-out discipline is cross-agent by design but proven only on Claude Code — re-verify concurrent-subagent support on yours.** A platform with no concurrent fan-out runs the same contract as a sequential pipeline (no speedup, discipline kept).
 
 ## ⚙️ Configure
 
