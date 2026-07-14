@@ -1,0 +1,27 @@
+// CoalFace — Antigravity (AG 2.0) hooks template.
+//
+// AG shipped a real IDE hook engine (hooks.json, confirmed 2026-07-12). This wires
+// CoalFace's conductor onto AG's events. Copy this file to ONE of:
+//   - project:  <workspace>/.agents/hooks.json
+//   - global:   ~/.gemini/config/hooks.json      (canonical; NOT the older
+//                                                  ~/.gemini/antigravity-cli/ path)
+// then replace __COALFACE_DIR__ with the directory holding CoalFace's hooks/
+// (a global file-copy install puts them at ~/.gemini/config/skills/coalface).
+//
+// If AG's parser rejects // comments, strip these comment lines — the object below is
+// otherwise strict JSON. (This template mirrors the repo's platform-configs/ idiom.)
+//
+// Event mapping (AG has NO one-shot SessionStart — it never fires in the AG CLI/IDE;
+// PreInvocation fires per MODEL CALL, not per user prompt):
+//   PreInvocation -> ag-conductor.js : the standing fan-out-discipline directive,
+//                    injected at most ONCE per session (a per-session tmp marker
+//                    guards against re-injecting on every model call).
+// Fail-silent, zero-dep, no network, no child process; the only output is the
+// sanctioned additionalContext JSON.
+{
+  "coalface": {
+    "PreInvocation": [
+      { "type": "command", "command": "node \"__COALFACE_DIR__/hooks/ag-conductor.js\" PreInvocation", "timeout": 30 }
+    ]
+  }
+}

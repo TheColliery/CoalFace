@@ -22,11 +22,13 @@ for (const [label, p] of [
   ['skills/coalface/references/taxonomy.md', path.join(repo, 'skills', 'coalface', 'references', 'taxonomy.md')],
   ['skills/coalface/references/receipt.md', path.join(repo, 'skills', 'coalface', 'references', 'receipt.md')],
   ['hooks/coalface-conductor.js', path.join(repo, 'hooks', 'coalface-conductor.js')],
+  ['hooks/ag-conductor.js', path.join(repo, 'hooks', 'ag-conductor.js')],
   ['hooks/hooks.json', path.join(repo, 'hooks', 'hooks.json')],
   ['commands/update.md', path.join(repo, 'commands', 'update.md')],
   ['.claude-plugin/plugin.json', path.join(repo, '.claude-plugin', 'plugin.json')],
   ['.claude-plugin/marketplace.json', path.join(repo, '.claude-plugin', 'marketplace.json')],
   ['platform-configs/.coalface.json', path.join(repo, 'platform-configs', '.coalface.json')],
+  ['platform-configs/hooks.json', path.join(repo, 'platform-configs', 'hooks.json')],
 ]) { try { fs.existsSync(p) ? ok(label) : fail(`${label} missing`); } catch (e) { fail(`${label}: ${e.message}`); } }
 
 console.log('plugin manifest:');

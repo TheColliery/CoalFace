@@ -99,6 +99,21 @@ function updateDue(cfg) {
   } catch { return false; }
 }
 
+// The standing fan-out-discipline directive for a merged config — '' when the
+// discipline is off. THE one copy of the text: the CC SessionStart path (main below)
+// and the Antigravity adapter (hooks/ag-conductor.js) both emit exactly this string
+// (the CoalHearth journal-step one-flock pattern: shared core, thin platform adapters).
+function directiveFor(cfg) {
+  const mode = modeOf(cfg);
+  if (mode === 'auto') {
+    return `[CoalFace] Fan-out discipline (auto). Any fan-out of >= ${floorOf(cfg)} units rides the /coalface contract instead of ad-hoc spawning: scout the worksite -> deterministic partition -> workers return anchor-edit orders as text -> QC scope+spec at collection -> single-writer sequential apply behind a pre-swarm snapshot + domain gate -> receipt. Wallet: DOLLAR cost stays ~solo via cheap tiers (raw tokens run HIGHER — fan-out xN the per-sub baseline), not tokens. 1-2-sub ad-hoc spawns stay zero-ceremony; manual /coalface convenes it any time.`;
+  }
+  if (mode === 'on') {
+    return '[CoalFace] Fan-out discipline FORCED (on). Scout EVERY prompt for decomposable work and fan it out via the /coalface contract (scout -> partition -> anchor-edit orders -> QC -> single-writer apply behind a snapshot -> receipt); only non-decomposable work runs solo. Wallet: DOLLAR cost stays ~solo via cheap tiers (raw tokens run HIGHER — fan-out xN the per-sub baseline), not tokens.';
+  }
+  return '';
+}
+
 function main() {
   let input = {};
   try { const p = JSON.parse(readStdin() || '{}'); if (p && typeof p === 'object' && !Array.isArray(p)) input = p; } catch {}
@@ -107,13 +122,7 @@ function main() {
   if (event !== 'SessionStart') return;
 
   const cfg = readCfg();
-  const mode = modeOf(cfg);
-  let msg = '';
-  if (mode === 'auto') {
-    msg = `[CoalFace] Fan-out discipline (auto). Any fan-out of >= ${floorOf(cfg)} units rides the /coalface contract instead of ad-hoc spawning: scout the worksite -> deterministic partition -> workers return anchor-edit orders as text -> QC scope+spec at collection -> single-writer sequential apply behind a pre-swarm snapshot + domain gate -> receipt. Wallet: DOLLAR cost stays ~solo via cheap tiers (raw tokens run HIGHER — fan-out xN the per-sub baseline), not tokens. 1-2-sub ad-hoc spawns stay zero-ceremony; manual /coalface convenes it any time.`;
-  } else if (mode === 'on') {
-    msg = '[CoalFace] Fan-out discipline FORCED (on). Scout EVERY prompt for decomposable work and fan it out via the /coalface contract (scout -> partition -> anchor-edit orders -> QC -> single-writer apply behind a snapshot -> receipt); only non-decomposable work runs solo. Wallet: DOLLAR cost stays ~solo via cheap tiers (raw tokens run HIGHER — fan-out xN the per-sub baseline), not tokens.';
-  }
+  let msg = directiveFor(cfg);
   // mode 'off' -> no directive; self-update is ORTHOGONAL (its own off-switch is
   // updateMode), so it still fires when the discipline is off — the keys are independent.
   if (updateDue(cfg)) {
@@ -122,5 +131,13 @@ function main() {
   if (msg) process.stdout.write(msg); // sanctioned SessionStart context-injection channel
 }
 
-try { main(); } catch { /* Phoenix #4: fail-silent, never crash the host */ }
+// Shared core for the Antigravity adapter (hooks/ag-conductor.js): the config read +
+// the directive text stay ONE implementation, never forked per platform. Exporting
+// does NOT change the spawned-hook behavior (main still runs when this file is the
+// entrypoint, below) — the hermetic tests keep spawning the real file (hooks-safety §7).
+module.exports = { readCfg, directiveFor };
+
+if (require.main === module) {
+  try { main(); } catch { /* Phoenix #4: fail-silent, never crash the host */ }
+}
 // No process.exit() — Phoenix #4 (it would truncate the sanctioned stdout write above).

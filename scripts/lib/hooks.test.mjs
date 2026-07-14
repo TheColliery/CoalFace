@@ -200,3 +200,154 @@ test('case 10: updateCheckDays:0 is CLAMPED -> 2nd boot throttled, not re-nagged
     assert.strictEqual(r2.stdout, '', 'run #2 must be throttled: updateCheckDays:0 clamps to 14, the window holds');
   } finally { clean(home, cwd); }
 });
+
+// ---------------------------------------------------------------------------
+// Antigravity adapter (hooks/ag-conductor.js) — once-per-session PreInvocation
+// ---------------------------------------------------------------------------
+// Same hermetic discipline: spawn the REAL adapter with AG-shaped fixture stdin.
+// AG's PreInvocation fires per MODEL CALL, so the load-bearing behavior is the
+// once-per-session tmp-marker throttle; the sandbox therefore pins TMPDIR too
+// (os.tmpdir() reads TEMP/TMP on Windows but TMPDIR on POSIX — the marker must
+// land in the sandbox on every CI runner).
+
+const AG_HOOK = path.join(REPO, 'hooks', 'ag-conductor.js');
+const agEvent = (extra = {}) => JSON.stringify({ hook_event_name: 'PreInvocation', ...extra });
+
+function agSandbox() {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-ag-home-'));
+  const cwd = fs.mkdtempSync(path.join(home, 'cf-cwd-')); // UNDER home: the config walk is contained
+  const tmp = fs.mkdtempSync(path.join(home, 'cf-tmp-')); // dedicated marker dir: count asserts are exact
+  return { home, cwd, tmp };
+}
+function agRun(s, stdin, tmpOverride) {
+  const tmp = tmpOverride || s.tmp;
+  return spawnSync(process.execPath, [AG_HOOK], {
+    cwd: s.cwd,
+    env: { ...process.env, HOME: s.home, USERPROFILE: s.home, TEMP: tmp, TMP: tmp, TMPDIR: tmp, CLAUDE_CONFIG_DIR: '' },
+    input: stdin,
+    encoding: 'utf8',
+    timeout: 20000,
+  });
+}
+function markersIn(tmp) {
+  try { return fs.readdirSync(tmp).filter((f) => f.startsWith('coalface-ag-conductor-') && f.endsWith('.marker')); }
+  catch { return []; }
+}
+
+test('case 11: AG first PreInvocation -> ONE additionalContext JSON line (auto directive) + marker', () => {
+  const s = agSandbox();
+  try {
+    const r = agRun(s, agEvent({ session_id: 'sess-11' }));
+    assertGraceful(r);
+    const line = r.stdout.trim();
+    assert.ok(line && !line.includes('\n'), 'exactly one stdout line (the sanctioned AG channel)');
+    const obj = JSON.parse(line);
+    assert.deepStrictEqual(Object.keys(obj), ['additionalContext'], 'additionalContext (camelCase) is the ONLY key');
+    assert.match(obj.additionalContext, /^\[CoalFace\] Fan-out discipline \(auto\)/, 'same directive text as the CC path (one impl)');
+    assert.match(obj.additionalContext, />= 4 units/, 'default floor rides through');
+    assert.strictEqual(markersIn(s.tmp).length, 1, 'per-session marker written');
+  } finally { clean(s.home); }
+});
+
+test('case 12: AG throttle -> 2nd PreInvocation of the SAME session is silent', () => {
+  const s = agSandbox();
+  try {
+    const r1 = agRun(s, agEvent({ session_id: 'sess-12' }));
+    const r2 = agRun(s, agEvent({ session_id: 'sess-12' }));
+    assertGraceful(r1);
+    assertGraceful(r2);
+    assert.match(r1.stdout, /Fan-out discipline/, 'first model call injects');
+    assert.strictEqual(r2.stdout, '', 'every later model call of the session is silent (no per-call spam)');
+    assert.strictEqual(markersIn(s.tmp).length, 1, 'still one marker (same session)');
+  } finally { clean(s.home); }
+});
+
+test('case 13: AG throttle is PER-SESSION -> a new session_id injects again', () => {
+  const s = agSandbox();
+  try {
+    const r1 = agRun(s, agEvent({ session_id: 'sess-13a' }));
+    const r2 = agRun(s, agEvent({ session_id: 'sess-13b' }));
+    assertGraceful(r1);
+    assertGraceful(r2);
+    assert.match(r1.stdout, /Fan-out discipline/);
+    assert.match(r2.stdout, /Fan-out discipline/, 'a different session gets its own one injection');
+    assert.strictEqual(markersIn(s.tmp).length, 2, 'one marker per session');
+  } finally { clean(s.home); }
+});
+
+test('case 14: AG no session key / garbage stdin -> silent skip, NO marker (fail-closed)', () => {
+  const s = agSandbox();
+  try {
+    for (const stdin of ['', 'not json {{{', '[1,2,3]', agEvent() /* PreInvocation but keyless */]) {
+      const r = agRun(s, stdin);
+      assertGraceful(r);
+      assert.strictEqual(r.stdout, '', `silent on ${JSON.stringify(stdin.slice(0, 20))} (cannot dedupe -> never risk per-call spam)`);
+    }
+    assert.strictEqual(markersIn(s.tmp).length, 0, 'keyless runs write nothing');
+  } finally { clean(s.home); }
+});
+
+test('case 15: AG camelCase sessionId accepted (defensive both-casings reader)', () => {
+  const s = agSandbox();
+  try {
+    const r1 = agRun(s, agEvent({ sessionId: 'sess-15' }));
+    const r2 = agRun(s, agEvent({ sessionId: 'sess-15' }));
+    assertGraceful(r1);
+    assertGraceful(r2);
+    assert.match(r1.stdout, /Fan-out discipline/, 'camelCase key still injects');
+    assert.strictEqual(r2.stdout, '', 'and still throttles');
+  } finally { clean(s.home); }
+});
+
+test('case 16: AG coalfaceMode:off -> silent, but the marker still throttles the config re-read', () => {
+  const s = agSandbox();
+  try {
+    writeGlobalCfg(s.home, { coalfaceMode: 'off' });
+    const r = agRun(s, agEvent({ session_id: 'sess-16' }));
+    assertGraceful(r);
+    assert.strictEqual(r.stdout, '', 'off = no directive on AG either');
+    assert.strictEqual(markersIn(s.tmp).length, 1, 'marker written anyway: later calls skip before reading config');
+  } finally { clean(s.home); }
+});
+
+test('case 17: AG NEVER carries the self-update nudge and never stamps (not ported — CC-plugin-specific payload)', () => {
+  const s = agSandbox();
+  try {
+    writeGlobalCfg(s.home, { updateMode: 'auto' }); // fresh home: the CC path WOULD nudge here (case 8)
+    const r = agRun(s, agEvent({ session_id: 'sess-17' }));
+    assertGraceful(r);
+    assert.match(r.stdout, /Fan-out discipline \(auto\)/, 'directive still injects');
+    assert.doesNotMatch(r.stdout, /self-update due/, 'no CC-plugin update instruction on AG');
+    assert.strictEqual(fs.existsSync(stampPath(s.home)), false, 'no update stamp written on the AG path');
+  } finally { clean(s.home); }
+});
+
+test('case 18: AG unwritable tmp (marker cannot persist) -> fails CLOSED: silent, exit 0', () => {
+  const s = agSandbox();
+  try {
+    const notADir = path.join(s.home, 'not-a-dir');
+    fs.writeFileSync(notADir, 'x', 'utf8'); // os.tmpdir() resolves to a FILE -> marker write throws
+    const r = agRun(s, agEvent({ session_id: 'sess-18' }), notADir);
+    assertGraceful(r);
+    assert.strictEqual(r.stdout, '', 'unpersistable guard -> skip the emit (never per-call spam)');
+  } finally { clean(s.home); }
+});
+
+test('case 19: AG honors payload cwd for the project config (hook cwd != workspace on AG)', () => {
+  const s = agSandbox();
+  try {
+    // Project dir with a config, NOT the spawn cwd (both under home: walk contained).
+    const proj = fs.mkdtempSync(path.join(s.home, 'cf-proj-'));
+    fs.writeFileSync(path.join(proj, '.coalface.json'), '{"autoFanoutFloor": 9}', 'utf8');
+    const r1 = agRun(s, agEvent({ session_id: 'sess-19a', cwd: proj }));
+    assertGraceful(r1);
+    assert.match(r1.stdout, />= 9 units/, 'project config at payload.cwd is read (the spawn cwd has none)');
+    // Unresolvable / non-string cwd -> spawn-cwd fallback, never a crash.
+    const r2 = agRun(s, agEvent({ session_id: 'sess-19b', cwd: path.join(s.home, 'no-such-dir') }));
+    const r3 = agRun(s, agEvent({ session_id: 'sess-19c', cwd: 12345 }));
+    assertGraceful(r2);
+    assertGraceful(r3);
+    assert.match(r2.stdout, />= 4 units/, 'nonexistent payload cwd -> spawn-cwd fallback (default floor)');
+    assert.match(r3.stdout, />= 4 units/, 'non-string payload cwd -> spawn-cwd fallback');
+  } finally { clean(s.home); }
+});

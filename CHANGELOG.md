@@ -4,6 +4,17 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.3.0] - 2026-07-14
+
+**MINOR** — the AUTO conductor reaches Antigravity. The manual `/coalface` SKILL contract was already cross-agent; what is new is only the standing `auto` directive riding AG 2.0's real hook engine (`hooks.json`; empirical pilot 2026-07-12, corroborated against the official docs 2026-07-13). Honest tier: **wired** — built + hermetically tested against that verified spec; whether AG delivers the injected directive into the agent is not yet live-validated, so no "validated on Antigravity" claim.
+
+### Added
+- **`hooks/ag-conductor.js`** — the conductor directive rides the FIRST `PreInvocation` of a session (AG never fires `SessionStart`; PreInvocation fires per MODEL call, so a per-session tmp marker guards the injection to once per session). Named divergence from CoalHearth's AG shim: a failed marker write here fails **CLOSED** (skip the emit entirely) — CoalHearth's payload is a recovery block, where repeating beats losing it; CoalFace's is an advisory directive, where repeating on every model call IS the harm the guard exists to prevent.
+- **`platform-configs/hooks.json`** — the AG wiring template (copy to `<workspace>/.agents/hooks.json` or `~/.gemini/config/hooks.json`, replace `__COALFACE_DIR__`).
+- `hooks/coalface-conductor.js` now exports `{readCfg, directiveFor}` — one copy of the config read + directive text for both platforms, behind a `require.main` gate (the Claude Code hook's behavior is unchanged).
+- +8 hermetic tests → 27; `verify.mjs` gains the 2 new file rows.
+- Deliberately NOT ported: the self-update nudge — its payload (`claude plugin update coalface@coalface`) is Claude-Code-plugin-specific; AG installs by file-copy (the same named decision as CoalHearth's AG shim).
+
 ## [0.2.3] - 2026-07-09
 
 ### Fixed
