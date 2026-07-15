@@ -79,6 +79,11 @@ function main() {
   // is created with the `wx` flag (O_CREAT|O_EXCL): the write atomically FAILS if the path
   // already exists in ANY form (a prior turn's marker, or a planted file/symlink) — killing
   // the old check-then-write TOCTOU race AND refusing a symlink target in one syscall.
+  // The wx flag guards the marker FILE; the subdir needs its own guard: mkdirSync(recursive)
+  // SILENTLY succeeds on a PRE-PLANTED symlink at markerDir (following it, the 0o700 mode NOT
+  // applied), so the wx marker would then write THROUGH it into an attacker's dir. lstatSync
+  // (does NOT follow the link) rejects a symlink subdir before the write — routed to the SAME
+  // per-repo branch as a marker-write failure (CF/CM fail-closed skip; CH emits with the note).
   // ponytail: session-scoped, OS-tmp-cleaner reaped. AG's Stop fires per RESPONSE (many/
   // session) -> no safe "session over" hook to delete it on; accumulation is bounded.
   //
@@ -92,6 +97,7 @@ function main() {
   const marker = path.join(markerDir, `ag-conductor-${hashKey(key)}.marker`);
   try {
     fs.mkdirSync(markerDir, { recursive: true, mode: 0o700 });
+    if (fs.lstatSync(markerDir).isSymbolicLink()) return; // dir-symlink residual -> fail-closed (see above)
     fs.writeFileSync(marker, '', { flag: 'wx' });
   } catch { return; } // EEXIST (already ran) OR any write failure -> fail-closed, no emit
 

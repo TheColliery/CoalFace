@@ -375,3 +375,28 @@ test('case 20: AG a pre-existing marker path -> EEXIST fail-closed silent (plant
     assert.strictEqual(r.stdout, '', 'pre-existing marker -> EEXIST -> no emit');
   } finally { clean(s.home); }
 });
+
+// Security (dir-symlink residual): mkdirSync(recursive) FOLLOWS a pre-planted symlink at the
+// marker subdir (silently succeeding, 0o700 unapplied), so the wx marker would write THROUGH it.
+// CF's divergence (advisory payload): reject the symlink dir -> fail-closed (skip the emit); the
+// marker is NOT written into the attacker dir.
+test('case 21: AG a pre-planted SYMLINK at the marker subdir -> fail-closed silent, NO marker in the target (dir-symlink close)', (t) => {
+  const s = agSandbox();
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-symtarget-')); // attacker dir the symlink points at
+  try {
+    const markerDir = path.join(s.tmp, 'coalface'); // os.tmpdir()/coalface (TMPDIR -> s.tmp)
+    try {
+      fs.symlinkSync(target, markerDir, process.platform === 'win32' ? 'junction' : 'dir');
+    } catch {
+      t.skip('symlink/junction unavailable (needs privilege) — cannot exercise the dir-symlink guard');
+      return; // t.skip does not stop the body; return so the case is skipped, never a vacuous pass
+    }
+    const r = agRun(s, agEvent({ session_id: 'sess-21' }));
+    assertGraceful(r);
+    assert.strictEqual(r.stdout, '', 'a symlinked marker subdir -> fail-closed, no emit');
+    assert.strictEqual(fs.readdirSync(target).length, 0, 'no marker written THROUGH the symlink into the attacker dir');
+  } finally {
+    clean(s.home);
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});

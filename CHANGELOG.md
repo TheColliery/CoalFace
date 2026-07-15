@@ -4,6 +4,11 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.3.2] - 2026-07-15
+
+### Security
+- **Marker subdir hardened against a pre-planted symlink** (`hooks/ag-conductor.js`): an `lstatSync` no-follow check rejects a symlink at the marker subdir (which `mkdirSync(recursive)` would otherwise follow, bypassing `0o700`) and fail-closes — skips the emit. One-flock with CoalMine v3.11.1 / CoalHearth v1.3.2. Completes the CodeQL `js/insecure-temporary-file` mitigation. Tests 21/21.
+
 ## [0.3.1] - 2026-07-15
 
 ### Security
