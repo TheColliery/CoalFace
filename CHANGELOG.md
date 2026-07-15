@@ -4,6 +4,14 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.3.1] - 2026-07-15
+
+### Security
+- **AG once-per-session marker hardened against a TOCTOU race** (`hooks/ag-conductor.js`): the check-then-write guard is now an atomic create-exclusive latch — `fs.writeFileSync(marker, '', { flag: 'wx' })` inside a private `0o700` `os.tmpdir()/coalface/` subdir. The `wx` flag makes the create itself fail `EEXIST` if the marker path already exists in ANY form (a prior turn's marker, or a planted file/symlink), closing CodeQL `js/insecure-temporary-file` (HIGH) and refusing a symlink target in the same syscall. **Fail-closed**, unlike CoalHearth's same-day v1.3.1 fix: ANY create failure — `EEXIST` or otherwise — skips the emit entirely; CoalFace's payload is an advisory directive, and repeating it on every model call is the harm this guard exists to prevent.
+
+### Fixed
+- **Hermetic-test case ordering restored**: `scripts/lib/hooks.test.mjs` case 19 (AG payload-cwd honoring) now runs before case 20 (EEXIST fail-closed) again, matching their numbering (20/20).
+
 ## [0.3.0] - 2026-07-14
 
 **MINOR** — the AUTO conductor reaches Antigravity. The manual `/coalface` SKILL contract was already cross-agent; what is new is only the standing `auto` directive riding AG 2.0's real hook engine (`hooks.json`; empirical pilot 2026-07-12, corroborated against the official docs 2026-07-13). Honest tier: **wired** — built + hermetically tested against that verified spec; whether AG delivers the injected directive into the agent is not yet live-validated, so no "validated on Antigravity" claim.

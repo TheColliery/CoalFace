@@ -229,9 +229,17 @@ function agRun(s, stdin, tmpOverride) {
     timeout: 20000,
   });
 }
+// Markers now live in a private per-tool subdir os.tmpdir()/coalface (created 0o700),
+// each named ag-conductor-<hash>.marker (CodeQL js/insecure-temporary-file fix 2026-07-14).
 function markersIn(tmp) {
-  try { return fs.readdirSync(tmp).filter((f) => f.startsWith('coalface-ag-conductor-') && f.endsWith('.marker')); }
+  try { return fs.readdirSync(path.join(tmp, 'coalface')).filter((f) => f.startsWith('ag-conductor-') && f.endsWith('.marker')); }
   catch { return []; }
+}
+// Replicate the adapter's djb2 so a test can pre-plant the EXACT marker path (EEXIST case).
+function hashKey(s) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = (((h << 5) + h + s.charCodeAt(i)) >>> 0);
+  return h.toString(36);
 }
 
 test('case 11: AG first PreInvocation -> ONE additionalContext JSON line (auto directive) + marker', () => {
@@ -326,7 +334,7 @@ test('case 18: AG unwritable tmp (marker cannot persist) -> fails CLOSED: silent
   const s = agSandbox();
   try {
     const notADir = path.join(s.home, 'not-a-dir');
-    fs.writeFileSync(notADir, 'x', 'utf8'); // os.tmpdir() resolves to a FILE -> marker write throws
+    fs.writeFileSync(notADir, 'x', 'utf8'); // os.tmpdir() resolves to a FILE -> mkdir/marker write throws
     const r = agRun(s, agEvent({ session_id: 'sess-18' }), notADir);
     assertGraceful(r);
     assert.strictEqual(r.stdout, '', 'unpersistable guard -> skip the emit (never per-call spam)');
@@ -349,5 +357,21 @@ test('case 19: AG honors payload cwd for the project config (hook cwd != workspa
     assertGraceful(r3);
     assert.match(r2.stdout, />= 4 units/, 'nonexistent payload cwd -> spawn-cwd fallback (default floor)');
     assert.match(r3.stdout, />= 4 units/, 'non-string payload cwd -> spawn-cwd fallback');
+  } finally { clean(s.home); }
+});
+
+// Security (CodeQL js/insecure-temporary-file): the marker is created with the wx flag
+// (O_CREAT|O_EXCL), so a PRE-EXISTING marker path (a prior turn, or an attacker's planted
+// file/symlink) makes the create fail EEXIST -> CF fails CLOSED (silent), never writing
+// through / past it. Proves the atomic latch refuses an existing target.
+test('case 20: AG a pre-existing marker path -> EEXIST fail-closed silent (planted file/symlink refused)', () => {
+  const s = agSandbox();
+  try {
+    const markerDir = path.join(s.tmp, 'coalface');
+    fs.mkdirSync(markerDir, { recursive: true });
+    fs.writeFileSync(path.join(markerDir, `ag-conductor-${hashKey('sess-20')}.marker`), 'planted', 'utf8');
+    const r = agRun(s, agEvent({ session_id: 'sess-20' }));
+    assertGraceful(r);
+    assert.strictEqual(r.stdout, '', 'pre-existing marker -> EEXIST -> no emit');
   } finally { clean(s.home); }
 });

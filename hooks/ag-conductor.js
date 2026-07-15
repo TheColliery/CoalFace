@@ -73,21 +73,27 @@ function main() {
   const key = firstString(payload, ['session_id', 'sessionId', 'transcript_path', 'transcriptPath']);
   if (!key) return;
 
-  // ponytail: session-scoped tmp marker, OS-tmp-cleaner reaped. AG's Stop fires per
-  // RESPONSE (many/session), so there is no safe "session over" hook to delete it on;
-  // accumulation is bounded (~one tiny file per session).
-  const marker = path.join(os.tmpdir(), `coalface-ag-conductor-${hashKey(key)}.marker`);
-  let alreadyRan = false;
-  try { alreadyRan = fs.existsSync(marker); } catch { /* unreadable tmp -> treat as first run */ }
-  if (alreadyRan) return; // this session already got its one injection (or its one skip)
-
-  // Write the guard BEFORE emitting. NAMED divergence from CoalHearth's AG shim (which
-  // emits + a "may repeat" note when this write fails): CH's payload is a RECOVERY
-  // block — losing it risks losing work, so repeating is the lesser evil. CF's payload
-  // is an ADVISORY directive — repeating it on every model call IS the spam this guard
-  // exists to prevent — so a failed marker write fails CLOSED: skip the emit entirely
-  // (manual /coalface still works; the auto nudge is lost only on a broken tmp).
-  try { fs.writeFileSync(marker, String(Date.now()), 'utf8'); } catch { return; }
+  // The once-per-session guard is an ATOMIC create-exclusive latch (CodeQL js/insecure-
+  // temporary-file, one-flock fix 2026-07-14). The marker lives in a private per-tool
+  // subdir (mode 0o700 — closes the shared-/tmp exposure on Unix, a no-op on Windows), and
+  // is created with the `wx` flag (O_CREAT|O_EXCL): the write atomically FAILS if the path
+  // already exists in ANY form (a prior turn's marker, or a planted file/symlink) — killing
+  // the old check-then-write TOCTOU race AND refusing a symlink target in one syscall.
+  // ponytail: session-scoped, OS-tmp-cleaner reaped. AG's Stop fires per RESPONSE (many/
+  // session) -> no safe "session over" hook to delete it on; accumulation is bounded.
+  //
+  // NAMED divergence from CoalHearth's AG shim (which emits + a "may repeat" note when the
+  // marker cannot persist): CH's payload is a RECOVERY block — losing it risks losing work,
+  // so repeating is the lesser evil. CF's payload is an ADVISORY directive — repeating it on
+  // every model call IS the spam this guard exists to prevent — so ANY create failure
+  // (EEXIST = already ran this session, OR an unwritable tmp) fails CLOSED: skip the emit
+  // (manual /coalface still works; the auto nudge is lost only on a broken tmp or a repeat).
+  const markerDir = path.join(os.tmpdir(), 'coalface');
+  const marker = path.join(markerDir, `ag-conductor-${hashKey(key)}.marker`);
+  try {
+    fs.mkdirSync(markerDir, { recursive: true, mode: 0o700 });
+    fs.writeFileSync(marker, '', { flag: 'wx' });
+  } catch { return; } // EEXIST (already ran) OR any write failure -> fail-closed, no emit
 
   const msg = directiveFor(readCfg());
   if (!msg) return; // coalfaceMode off -> silent (the marker still spares per-call config reads)
