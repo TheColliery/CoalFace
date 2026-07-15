@@ -111,7 +111,7 @@ Start a new Antigravity session; `coalface` appears in the skills list, and `/co
 
 ## ⚙️ Configure
 
-Everything is tunable in `.coalface.json` — global `~/.claude/.coalface.json` overlaid per key by the nearest project `.coalface.json` (project wins; the lookup walks up from the cwd and stops at your home dir), so you can **tune or shut off a globally-installed skill per project** (off-switch: `coalfaceMode: off`). Every key is optional; an out-of-range value clamps to its default on read. The high-impact keys:
+Everything is tunable in `.coalface.json` — global `~/.claude/.coalface.json` overlaid per key by the nearest project `.coalface.json` (project wins; the lookup walks up from the cwd and stops at your home dir), so you can **tune or shut off a globally-installed skill per project** (off-switch: `coalfaceMode: off`) — a skill you don't need in a given project stops loading (and burning tokens) there. Every key is optional; an out-of-range value clamps to its default on read. The high-impact keys:
 
 | Key | Default | What it does |
 |---|---|---|
