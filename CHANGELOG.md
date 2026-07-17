@@ -4,6 +4,12 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.3.3] - 2026-07-17
+
+### Changed
+- **Wallet framing corrected in the last un-swept doc.** `references/receipt.md` still framed the wallet as a token bound (`wallet: Y <= X`, plus a plain example showing the swarm using fewer tokens than solo); reframed to the honest $-and-speed bound — the swarm runs MORE raw tokens by design (fan-out ×N); the win is dollars + wall-time on cheap worker tiers. Every CoalFace surface now matches.
+- **Benchmark ×2 extrapolation disclosed.** The 5.3× wallet headline extrapolated 3 measured workers ×2 to 6; the org benchmark record now discloses it (fully-measured arms named; the measured 3.2× floor holds without the extrapolation). Found by a nasa-L3 CoalBoard audit.
+
 ## [0.3.2] - 2026-07-15
 
 ### Security

@@ -22,11 +22,13 @@ maps to a wallet/QC/journal fact — no marketing.
 Plain-summary examples:
 
 - EN: `Done: 87 of 87 spots applied. Used 61 workers in 5 waves (width settled at 6/14 —
-  account tier). Whole swarm ~128k tokens vs ~150k solo estimate. 2 items quarantined
+  account tier). The swarm ran more total tokens than a solo pass would (each worker pays a
+  base cost), but on cheap worker tiers — so about a solo run's dollars, and far faster. 2 items quarantined
   (spec check failed twice) — listed below for your call. 3 spots have no covering test —
   worth a look.`
 - TH-style plain: `เสร็จแล้ว: ลง 87 จาก 87 จุด ใช้คนงาน 61 ตัวใน 5 รอบ (ความกว้างจริง 6/14 —
-  ระดับบัญชี) ทั้งฝูงใช้ ~128k tokens เทียบกับประมาณเดี่ยว ~150k มี 2 ชิ้นถูกกักไว้
+  ระดับบัญชี) ฝูงใช้ tokens รวมมากกว่าทำเดี่ยว (คนงานแต่ละตัวจ่ายค่าพื้นฐาน) แต่ใช้โมเดลคนงานราคาถูก
+  ค่าใช้จ่ายเป็นเงินจึงราว ๆ ทำเดี่ยว และเร็วกว่ามาก มี 2 ชิ้นถูกกักไว้
   (ตรวจสเปกไม่ผ่านสองครั้ง) — ลิสต์ไว้ให้ตัดสินใจ และมี 3 จุดที่ไม่มีเทสต์คุม — ควรดูเอง`
 
 Compact block (English keys, always the same shape):
@@ -37,7 +39,7 @@ Task        : <one line>
 Spots       : <found> found -> <units> units (merged <n> overlaps, <n> tiny)
 Workers     : <spawned> spawned · <ok> ok · <reworked> reworked once · <quarantined> quarantined
 Waves       : <n>   Effective width: <settled>/<platform cap> (<why, e.g. "account tier" | "as configured">)
-Tokens      : swarm ~<Y> vs solo est ~<X>  (wallet: Y <= X)
+Tokens      : swarm ~<Y> vs solo est ~<X>  (swarm runs HIGHER — fan-out xN; wallet win is $ + wall-time)
 Applied     : <n> orders · <n> skip-and-flag (anchor miss) · gate: <PASS | RED -> rolled back>
 Quarantined : <unit>: <reason>  (one line each; empty -> "none")
 Uncovered   : <spots with no covering test; empty -> "none">
@@ -49,8 +51,10 @@ Field notes:
 - **Effective width** shows the AIMD-settled value, not the configured wish — `6/14 —
   account tier` tells the user their `bandwidth` % settled at real capacity (correct
   behavior, not an error).
-- **Tokens vs solo** is an ESTIMATE both sides (char-heuristic class) — honest wording:
-  "~" always, never a precise claim.
+- **Tokens vs solo** is an ESTIMATE both sides (char-heuristic class) — "~" always, never a
+  precise claim. The swarm side runs HIGHER than solo (fan-out multiplies the per-sub baseline
+  by N) — that is expected, not a regression; the wallet's win is in DOLLARS (cheap worker tiers)
+  and wall-time, never fewer tokens. Show the number as context, not a scoreboard.
 - **Quarantined** items are the human's queue: each carries the unit, the QC reason, and
   the worker's last return location (journal) so the human can finish or drop it.
 - **Uncovered** = the honest ceiling made visible: in-scope, on-spec, semantically-wrong
