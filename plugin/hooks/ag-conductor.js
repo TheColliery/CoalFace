@@ -21,10 +21,16 @@
 //     PROMPT (the directive is config-driven and static), so the AG PreInvocation
 //     payload's lack of a guaranteed prompt-text field costs nothing here.
 //
-// Emit = the one sanctioned AG channel: a single-line `additionalContext` JSON
-// (camelCase — pilot-confirmed; snake_case is wrong). NOT validated live on AG:
-// whether AG delivers PreInvocation additionalContext into the agent's context is
-// pilot-UNCONFIRMED — emitted per spec, claimed as nothing more.
+// Emit = the one sanctioned AG channel: a single-line PreInvocation output JSON,
+// {"injectSteps":[{"ephemeralMessage": <directive>}]} (camelCase protojson) — the
+// CURRENT engine's documented contract (builtin agy-customizations/docs/hooks.md +
+// language_server.exe strings, re-derived 2026-07-23). The 07-12 pilot's
+// `additionalContext` key is GONE from the engine (0 hits, any casing) — a dead
+// letter; do NOT dual-emit it (protojson may reject unknown fields, losing the
+// whole payload). ephemeralMessage = a transient system message — the right class
+// for an advisory directive (userMessage would fabricate a user turn). Delivery
+// into the agent context is still not live-validated — emitted per spec, claimed
+// as nothing more.
 //
 // Phoenix-13 throughout: fail-silent, exit 0 always, zero-dep (node builtins only),
 // no network, no child process, no process.exit(); the only write is the tmp marker.
@@ -34,8 +40,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { readCfg, directiveFor } = require('./coalface-conductor.js');
 
-// First non-empty string among keys (defensive: AG core fields are snake_case; accept
-// camelCase too — the pilot captured the payload shape only partially).
+// First non-empty string among keys (defensive: the current AG spec is camelCase
+// protojson; legacy snake_case — the pilot-era shape — stays accepted too).
 function firstString(obj, keys) {
   for (const k of keys) {
     const v = obj && obj[k];
@@ -59,18 +65,24 @@ function main() {
     if (p && typeof p === 'object' && !Array.isArray(p)) payload = p;
   } catch { /* absent/garbage stdin -> {} -> no session key -> skip below */ }
 
-  // AG does not guarantee the hook process's cwd is the workspace; the payload's `cwd`
-  // is authoritative — chdir ONCE at entry so readCfg's project-config walk starts at
-  // the real workspace (the CoalWash AG mechanism; one-flock, zero shared-core churn —
-  // nothing here is cwd-relative before this point: requires are module-path-resolved,
-  // the marker path is absolute-tmpdir). Missing/non-string/unresolvable cwd -> keep
-  // the spawn cwd (defensive fallback, never throws out).
-  const payloadCwd = firstString(payload, ['cwd']);
+  // AG does not guarantee the hook process's cwd is the workspace (documented: hook
+  // cwd = the DIRECTORY CONTAINING hooks.json); the payload's `workspacePaths[0]` —
+  // the current spec's common field — is authoritative, with `cwd` kept as a
+  // defensive legacy fallback. chdir ONCE at entry so readCfg's project-config walk
+  // starts at the real workspace (the CoalWash AG mechanism; one-flock, zero
+  // shared-core churn — nothing here is cwd-relative before this point: requires are
+  // module-path-resolved, the marker path is absolute-tmpdir). Missing/non-string/
+  // unresolvable -> keep the spawn cwd (never throws out).
+  const wsPaths = payload.workspacePaths;
+  const payloadCwd = (Array.isArray(wsPaths) && typeof wsPaths[0] === 'string' && wsPaths[0])
+    ? wsPaths[0] : firstString(payload, ['cwd']);
   if (payloadCwd) { try { process.chdir(payloadCwd); } catch { /* keep spawn cwd */ } }
 
-  // A per-session key is REQUIRED for the once-per-session guard. Absent -> skip
-  // silently (Phoenix #12) rather than risk re-injecting on every model call.
-  const key = firstString(payload, ['session_id', 'sessionId', 'transcript_path', 'transcriptPath']);
+  // A per-session key is REQUIRED for the once-per-session guard. `conversationId` =
+  // the documented common field (current spec); the rest stay defensive fallbacks
+  // (transcriptPath is also documented + per-conversation). Absent -> skip silently
+  // (Phoenix #12) rather than risk re-injecting on every model call.
+  const key = firstString(payload, ['conversationId', 'session_id', 'sessionId', 'transcript_path', 'transcriptPath']);
   if (!key) return;
 
   // The once-per-session guard is an ATOMIC create-exclusive latch (CodeQL js/insecure-
@@ -104,7 +116,7 @@ function main() {
   const msg = directiveFor(readCfg());
   if (!msg) return; // coalfaceMode off -> silent (the marker still spares per-call config reads)
 
-  console.log(JSON.stringify({ additionalContext: msg })); // the one sanctioned AG stdout
+  console.log(JSON.stringify({ injectSteps: [{ ephemeralMessage: msg }] })); // the one sanctioned AG stdout (current PreInvocation output contract)
 }
 
 try { main(); } catch { /* Phoenix #4: fail-silent, never crash the host */ }

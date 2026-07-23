@@ -10,7 +10,7 @@
 ![license](https://img.shields.io/badge/license-Apache_2.0-blue)
 ![status](https://img.shields.io/badge/status-stable-brightgreen)
 
-*Compatibility: **validated** on Claude Code · auto conductor **wired** on Antigravity (live validation pending) · **design-supported** (capability documented first-party, swarm unrun) on other concurrent-subagent platforms — see the Compatibility table below.*
+*Compatibility: **validated** on Claude Code · auto conductor **wired** on Antigravity (live validation pending) · **design-supported** (capability documented first-party, swarm unrun) on other concurrent-subagent platforms · **sequential degrade** on claude.ai (no subagents — the contract's built-in sequential path) — see the Compatibility table below.*
 
 ![Claude Code](https://img.shields.io/badge/Claude_Code-validated-brightgreen)
 ![Antigravity](https://img.shields.io/badge/Antigravity-wired-yellow)
@@ -19,6 +19,7 @@
 ![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-design--supported-blue)
 ![Cline](https://img.shields.io/badge/Cline-design--supported-blue)
 ![Copilot](https://img.shields.io/badge/Copilot-design--supported-blue)
+![claude.ai](https://img.shields.io/badge/claude.ai-sequential_degrade-blue)
 
 [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [Privacy](PRIVACY.md) · [Releases](https://github.com/TheColliery/CoalFace/releases)
 

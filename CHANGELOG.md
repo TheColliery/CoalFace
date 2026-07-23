@@ -4,6 +4,11 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.3.4] - 2026-07-23
+
+### Fixed
+- **The AG conductor emits the current Antigravity inject contract** (`hooks/ag-conductor.js`, re-derived 2026-07-23): the PreInvocation output is now `{"injectSteps":[{"ephemeralMessage":...}]}` — the pilot-era `{"additionalContext"}` key is gone from the current engine (0 hits, any casing), a dead letter that never delivered, so nothing depended on it. Payload reads follow the current spec's camelCase fields: session key `conversationId`-first (legacy `session_id`/`sessionId`/transcript-path fallbacks kept), and the config-walk chdir now takes `workspacePaths[0]` as authoritative (legacy `cwd` kept as a defensive fallback). Docs swept to match (SECURITY.md). Tier unchanged: **wired** — live AG delivery validation still pending.
+
 ## [0.3.3] - 2026-07-17
 
 ### Changed
