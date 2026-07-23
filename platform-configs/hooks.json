@@ -17,7 +17,8 @@
 //                    injected at most ONCE per session (a per-session tmp marker
 //                    guards against re-injecting on every model call).
 // Fail-silent, zero-dep, no network, no child process; the only output is the
-// sanctioned additionalContext JSON.
+// sanctioned {"injectSteps":[{"ephemeralMessage":...}]} JSON (the current AG contract;
+// input payload is camelCase protojson: conversationId, workspacePaths[], transcriptPath).
 {
   "coalface": {
     "PreInvocation": [

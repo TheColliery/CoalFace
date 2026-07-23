@@ -242,7 +242,7 @@ function hashKey(s) {
   return h.toString(36);
 }
 
-test('case 11: AG first PreInvocation -> ONE additionalContext JSON line (auto directive) + marker', () => {
+test('case 11: AG first PreInvocation -> ONE injectSteps/ephemeralMessage JSON line (auto directive) + marker', () => {
   const s = agSandbox();
   try {
     const r = agRun(s, agEvent({ session_id: 'sess-11' }));
@@ -250,9 +250,11 @@ test('case 11: AG first PreInvocation -> ONE additionalContext JSON line (auto d
     const line = r.stdout.trim();
     assert.ok(line && !line.includes('\n'), 'exactly one stdout line (the sanctioned AG channel)');
     const obj = JSON.parse(line);
-    assert.deepStrictEqual(Object.keys(obj), ['additionalContext'], 'additionalContext (camelCase) is the ONLY key');
-    assert.match(obj.additionalContext, /^\[CoalFace\] Fan-out discipline \(auto\)/, 'same directive text as the CC path (one impl)');
-    assert.match(obj.additionalContext, />= 4 units/, 'default floor rides through');
+    assert.deepStrictEqual(Object.keys(obj), ['injectSteps'], 'injectSteps is the ONLY key (current AG PreInvocation output contract; the pilot-era additionalContext is a dead letter)');
+    assert.strictEqual(obj.injectSteps.length, 1, 'exactly one injected step');
+    assert.deepStrictEqual(Object.keys(obj.injectSteps[0]), ['ephemeralMessage'], 'ephemeralMessage (transient system message) is the step type');
+    assert.match(obj.injectSteps[0].ephemeralMessage, /^\[CoalFace\] Fan-out discipline \(auto\)/, 'same directive text as the CC path (one impl)');
+    assert.match(obj.injectSteps[0].ephemeralMessage, />= 4 units/, 'default floor rides through');
     assert.strictEqual(markersIn(s.tmp).length, 1, 'per-session marker written');
   } finally { clean(s.home); }
 });
@@ -399,4 +401,24 @@ test('case 21: AG a pre-planted SYMLINK at the marker subdir -> fail-closed sile
     clean(s.home);
     fs.rmSync(target, { recursive: true, force: true });
   }
+});
+
+// The CURRENT documented AG payload shape (re-derived 2026-07-23): common fields are
+// camelCase protojson — conversationId + workspacePaths[] + transcriptPath. No `cwd`,
+// no `session_id` (those stay covered above as defensive legacy fallbacks).
+test('case 22: AG current-spec payload (conversationId + workspacePaths) -> injects once, project config honored', () => {
+  const s = agSandbox();
+  try {
+    const proj = fs.mkdtempSync(path.join(s.home, 'cf-proj-'));
+    fs.writeFileSync(path.join(proj, '.coalface.json'), '{"autoFanoutFloor": 7}', 'utf8');
+    const payload = { conversationId: 'conv-22', workspacePaths: [proj], transcriptPath: path.join(proj, 'transcript.jsonl') };
+    const r1 = agRun(s, agEvent(payload));
+    assertGraceful(r1);
+    const obj = JSON.parse(r1.stdout.trim());
+    assert.match(obj.injectSteps[0].ephemeralMessage, />= 7 units/, 'workspacePaths[0] drives the project-config walk (no cwd field in the current spec)');
+    const r2 = agRun(s, agEvent(payload));
+    assertGraceful(r2);
+    assert.strictEqual(r2.stdout, '', 'conversationId keys the once-per-session throttle');
+    assert.strictEqual(markersIn(s.tmp).length, 1, 'one marker for the conversation');
+  } finally { clean(s.home); }
 });
