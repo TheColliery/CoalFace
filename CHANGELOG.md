@@ -4,6 +4,11 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.3.5] - 2026-07-24
+
+### Fixed
+- **README's two Antigravity spots still told the pre-0.3.4 story.** The Compatibility table's `wired` cell and the Install section's "Auto conductor on AG" paragraph both still said an AG update between 2026-07-12 and 2026-07-16 had regressed the hook engine (wires inert, re-verify pending) — the [0.3.4] fix (`hooks/ag-conductor.js` re-derived to the current `injectSteps` contract, the pilot-era `additionalContext` key retired as a dead letter) had landed in code but not propagated to these two doc spots. Both now match: **wired** = tested against the current AG hook contract; live delivery on AG remains unvalidated, so manual `/coalface` is the reliable floor. No behavior change.
+
 ## [0.3.4] - 2026-07-23
 
 ### Fixed
