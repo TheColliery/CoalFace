@@ -63,7 +63,7 @@ Journal each worker's assigned scope at spawn and its returned order on landing 
 ## Composition (rules that bind first, bind here)
 - **CoalBoard WINS on error-not-allowed** (security/crypto, DB/financial migrations, high-precision): critical work goes to consensus, not throughput; CoalFace may serve as the board's apply-hand after.
 - **CoalTipple** (if installed): per-worker delegate-down tiering = an optional enhancement; its SENSITIVE gate is inherited — a sensitive unit's worker stays main-tier.
-- **subagent-safety inherited wholesale:** bounded fan-out · no zombies · budget-gate · a failed worker RETURNS and you re-route · leaves get no spawn tool.
+- **subagent-safety inherited wholesale** (bounded fan-out · no-zombies · leaves-no-spawn-tool — detailed in WAVES, step 4): budget-gate · a failed worker RETURNS and you re-route.
 - **User/project standing rules** (e.g. translation rules) = invariants: the scout reads them into the shared-digest; workers never choose what the spec already chose.
 - **Engine:** a platform Workflow/orchestration engine present → ride it; else native subagent waves. Riding Claude Code's `Workflow` tool → **read `references/workflow-engine.md` first** (waves not `parallel(all-N)` · scattered nulls = one retry pass, a run of ≥3 = quota death → STOP + return the remainder · continuation-run over `resumeFromRunId`, which likely replays a dead call's null).
 

@@ -4,6 +4,15 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.3.6] - 2026-07-25
+
+### Fixed
+- **SKILL.md's Composition section duplicated the WAVES step's subagent-safety detail almost verbatim** (the ~60-token say-once gap flagged at the beta.1 review, 2026-07-02, and tracked open since) — trimmed to a pointer ("detailed in WAVES, step 4"); the fuller rail (collect-then-release · reap a silent worker past timeout · a permission-wait is NOT silence) stays put at step 4, now the only copy. Dist rebuilt. (Closes one of the two beta.1 review LOWs — the depth-2 empirical re-verify LOW stays open.)
+- **README's benchmark link pointed at the raw folder tree** (`.github/tree/main/benchmarks/CoalFace`) instead of the dated digest a reader actually wants — retargeted to [`RESULTS.md`](https://github.com/TheColliery/.github/blob/main/benchmarks/CoalFace/RESULTS.md) directly.
+- **CONTRIBUTING.md's platform-support wording lagged the honest-tier vocabulary used everywhere else** — "the verified platform" → "the validated platform"; "design-supported, unverified" → "design-supported (swarm unrun there)".
+- **A NOTICE-only edit fired the full CI matrix + CodeQL + Scorecard for no reason.** `NOTICE` (added at the Apache-2.0 relicense) was never added alongside `LICENSE` in `ci.yml`/`codeql.yml`/`scorecard.yml`'s `paths-ignore` lists — now excluded in all three, matching `LICENSE`.
+- **`ci.yml`'s `actions/setup-node` pin comment said `# v6` next to a v7.0.0 SHA.** Dependabot's own bump commit confirms 6.4.0 → 7.0.0, but left the bare-major comment unchanged across the major-version jump — corrected to `# v7.0.0`. The SHA was already correct; comment-only, no behavior change.
+
 ## [0.3.5] - 2026-07-24
 
 ### Fixed

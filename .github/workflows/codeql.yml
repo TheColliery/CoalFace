@@ -7,12 +7,14 @@ on:
       # CodeQL analyzes js/ts only — NO markdown needs a security scan, so skip ALL docs (a doc-only commit doesn't run CodeQL). Shipped SKILL.md/commands consistency is ci.yml's job (verify dist-sync), not CodeQL's.
       - '**.md'
       - 'LICENSE'
+      - 'NOTICE'
   pull_request:
     branches: [main]
     paths-ignore:
       # CodeQL analyzes js/ts only — NO markdown needs a security scan, so skip ALL docs (a doc-only commit doesn't run CodeQL). Shipped SKILL.md/commands consistency is ci.yml's job (verify dist-sync), not CodeQL's.
       - '**.md'
       - 'LICENSE'
+      - 'NOTICE'
   schedule:
     - cron: '0 6 * * 1'
 

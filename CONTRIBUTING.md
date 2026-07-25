@@ -36,7 +36,7 @@ CI runs the same two gates (`verify` → `test`) on Linux/Windows/macOS — deli
 
 ## 🖥️ Supported Platforms
 
-CoalFace is **cross-agent** — the contract runs on any platform with concurrent subagents (workers spawn via the platform's NATIVE subagent tool; no API, no keys). **Claude Code** is the verified platform and adds the conductor hook (the standing `auto`-mode directive) plus optional [CoalTipple](https://github.com/TheColliery/CoalTipple) worker tiering — a cost bonus, never a gate. Every other concurrent-subagent platform is **design-supported, unverified**: the contract degrades conservatively (unknown width → the conservative default; no fan-out at all → a sequential pipeline under the same discipline — never broken). If you run a platform we haven't verified, open an issue — verification follows access.
+CoalFace is **cross-agent** — the contract runs on any platform with concurrent subagents (workers spawn via the platform's NATIVE subagent tool; no API, no keys). **Claude Code** is the validated platform and adds the conductor hook (the standing `auto`-mode directive) plus optional [CoalTipple](https://github.com/TheColliery/CoalTipple) worker tiering — a cost bonus, never a gate. Every other concurrent-subagent platform is **design-supported** (swarm unrun there): the contract degrades conservatively (unknown width → the conservative default; no fan-out at all → a sequential pipeline under the same discipline — never broken). If you run a platform we haven't verified, open an issue — verification follows access.
 
 ---
 
