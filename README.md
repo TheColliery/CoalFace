@@ -122,6 +122,12 @@ Everything is tunable in `.coalface.json` — global `~/.claude/.coalface.json` 
 
 Full key reference: every key + default lives in [`scripts/lib/config-schema.mjs`](scripts/lib/config-schema.mjs) and the commented template [`platform-configs/.coalface.json`](platform-configs/.coalface.json).
 
+## 🔐 Permissions
+
+Workers only **read and propose** — anchor-edit text, never touching the tree; the conductor (main) is the **sole writer**, applying behind a pre-swarm snapshot with full rollback on a failed gate. Neither role deletes files or reaches the network in the swarm itself (main's apply-time gate does run the repo's own local build/test/lint). Workers get strictly less than main: no spawning, no user-facing prompts, no writes of their own.
+
+Full series matrix + the must-fail set: [Permission Matrix](https://github.com/TheColliery/.github/blob/main/PERMISSION-MATRIX.md)
+
 ## 📊 Benchmark
 
 **Fan-out cost, measured (2026-07-03, beta.2).** On a 6-spot shared-context job: fanning out costs **more raw tokens** than solo — the per-sub baseline × N (ad-hoc 4.2×, fully measured; CF-with-scout 5.3× — the CF arm measured 3 workers, extrapolated ×2 to 6). In **dollars**, cheap-tier fan-out lands **−15% vs a solo Opus main** (Haiku workers are ~5× cheaper/token) — but CF's scout is overhead that only pays back above a shared-context threshold, so on THIS small job CF itself costs a little MORE than plain ad-hoc. CF's real lever is **coarse packing** (fewest cheap workers): 2×3 workers = **−67% tokens vs naive ad-hoc**, the cheapest arm overall. The wallet is a **$-via-cheap-tier + right-sizing** bound, not a token saving vs solo. Full table + caveats: [`TheColliery/.github/benchmarks/CoalFace`](https://github.com/TheColliery/.github/blob/main/benchmarks/CoalFace/RESULTS.md). (Measured at beta.2; CoalFace graduated to stable on its first real full-pipeline run — a 15-spot, 5-repo doc-conform sweep, 2026-07-09 — whose receipt matched this benchmark's honest frame: discipline and QC are the value, not a token saving.)
