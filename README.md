@@ -147,7 +147,18 @@ The structure sets the shape:
 
 ## 🧭 Part of TheColliery
 
-CoalFace is the **fan-out discipline** of the mining series, alongside [CoalMine](https://github.com/HetCreep/CoalMine) (quality canaries), [CoalTipple](https://github.com/TheColliery/CoalTipple) (model/effort routing), [CoalBoard](https://github.com/TheColliery/CoalBoard) (consensus & debate), [CoalHearth](https://github.com/TheColliery/CoalHearth) (session warm-resume), [CoalWash](https://github.com/TheColliery/CoalWash) (memory defrag), and [CoalLedger](https://github.com/TheColliery/CoalLedger) (docs health). Install one and it stands alone; install all and they compose without conflict — CoalBoard wins on error-not-allowed work (consensus, not throughput; CoalFace may serve as its apply-hand after), CoalTipple tiering is an optional worker-cost bonus. Shared doctrine: Phoenix-13 hooks (zero-dependency, no network, fail-silent, no child processes, deterministic), single-source-of-truth config schemas, and a strict no-overkill discipline. Series doctrine: [`TheColliery/.github`](https://github.com/TheColliery/.github).
+CoalFace is the **fan-out discipline** of the mining series, alongside its siblings:
+
+- [CoalMine](https://github.com/HetCreep/CoalMine) — quality canaries
+- [CoalTipple](https://github.com/TheColliery/CoalTipple) — model/effort routing
+- [CoalBoard](https://github.com/TheColliery/CoalBoard) — consensus & debate
+- [CoalHearth](https://github.com/TheColliery/CoalHearth) — session warm-resume
+- [CoalWash](https://github.com/TheColliery/CoalWash) — memory defrag
+- [CoalLedger](https://github.com/TheColliery/CoalLedger) — docs health
+
+Install one, it stands alone; install all, they compose without conflict — CoalBoard wins on error-not-allowed work (consensus, not throughput; CoalFace may serve as its apply-hand after), CoalTipple tiering is an optional worker-cost bonus.
+
+Shared doctrine: Phoenix-13 hooks (zero-dependency, no network, fail-silent, no child processes, deterministic), single-source-of-truth config schemas, and a strict no-overkill discipline. Series doctrine: [`TheColliery/.github`](https://github.com/TheColliery/.github).
 
 Zero-dependency, offline, no API keys.
 
