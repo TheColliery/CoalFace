@@ -110,6 +110,14 @@ Start a new Antigravity session; `coalface` appears in the skills list, and `/co
 
 **Other concurrent-subagent platforms** (Cursor, Codex, Copilot, Gemini CLI, Cline, Amp, Goose, … — *design-supported; swarm e2e-proven only on Claude Code*) — the skill file is the whole contract: point your agent at [`skills/coalface/SKILL.md`](skills/coalface/SKILL.md) (it convenes via your platform's native subagent tool, no API; no one-command installer, and hooks + `/coalface:update` are Claude-Code-only there). Gemini CLI's parallel subagents are now first-party official (`/agents`) — business Standard/Enterprise plans only (individual tiers lost access 2026-06-18). **The fan-out discipline is cross-agent by design but proven only on Claude Code — re-verify concurrent-subagent support on yours.** A platform with no concurrent fan-out runs the same contract as a sequential pipeline (no speedup, discipline kept).
 
+## Commands
+
+| Command | What it does |
+|---|---|
+| `/coalface` | Manually convene the fan-out discipline (scout → partition → waves → QC → single-writer apply → receipt) in any mode except `off`. |
+| `/coalface:stats` | CoalFace stats for this session — swarms run, receipts, wallet outcome vs the solo baseline. |
+| `/coalface:update` | Check for a newer CoalFace version and offer to apply it, or set how updates are handled. |
+
 ## ⚙️ Configure
 
 Everything is tunable in `.coalface.json` — global `~/.claude/.coalface.json` overlaid per key by the nearest project `.coalface.json` (project wins; the lookup walks up from the cwd and stops at your home dir), so you can **tune or shut off a globally-installed skill per project** (off-switch: `coalfaceMode: off`) — a skill you don't need in a given project stops loading (and burning tokens) there. Every key is optional; an out-of-range value clamps to its default on read. The high-impact keys:
@@ -122,7 +130,7 @@ Everything is tunable in `.coalface.json` — global `~/.claude/.coalface.json` 
 
 Full key reference: every key + default lives in [`scripts/lib/config-schema.mjs`](scripts/lib/config-schema.mjs) and the commented template [`platform-configs/.coalface.json`](platform-configs/.coalface.json).
 
-## 🔐 Permissions
+## Permissions
 
 Workers only **read and propose** — anchor-edit text, never touching the tree; the conductor (main) is the **sole writer**, applying behind a pre-swarm snapshot with full rollback on a failed gate. Neither role deletes files or reaches the network in the swarm itself (main's apply-time gate does run the repo's own local build/test/lint). Workers get strictly less than main: no spawning, no user-facing prompts, no writes of their own.
 
