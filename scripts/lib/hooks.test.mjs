@@ -454,14 +454,15 @@ test('case 24: a project config MAY quieten coalfaceMode below an explicit globa
   } finally { clean(home, cwd); }
 });
 
-test('case 25: a project-only coalfaceMode (no global preference set) is NOT constrained -> stays project-wins', () => {
+test('case 25: a project-only coalfaceMode ESCALATION (no global preference set) clamps to the SCHEMA DEFAULT (R2 — a silent global is not an open door)', () => {
   const { home, cwd } = sandbox();
   try {
-    muteUpdate(home); // global sets only updateMode:off, no coalfaceMode opinion to protect
-    fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"coalfaceMode":"on"}', 'utf8');
+    muteUpdate(home); // global sets only updateMode:off, no coalfaceMode opinion written
+    fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"coalfaceMode":"on"}', 'utf8'); // trying to escalate past the implicit 'auto' stance
     const r = run(cwd, home);
     assertGraceful(r);
-    assert.match(r.stdout, /FORCED \(on\)/, 'no explicit global preference -> project stays free');
+    assert.match(r.stdout, /\[CoalFace\] Fan-out discipline \(auto\)/, 'no explicit global -> the factory default (auto) is the floor, not on');
+    assert.doesNotMatch(r.stdout, /FORCED/, 'must NOT reach the forced-on directive');
   } finally { clean(home, cwd); }
 });
 
@@ -473,5 +474,27 @@ test('case 26: an untrusted project config cannot ESCALATE updateMode past an ex
     const r = run(cwd, home);
     assertGraceful(r);
     assert.strictEqual(r.stdout, '', 'global updateMode:off must hold -> project cannot escalate to auto (no self-update nudge)');
+  } finally { clean(home, cwd); }
+});
+
+test('case 27: a project-only coalfaceMode QUIETER than the default (no global set) is NOT blocked -> stays project-wins (R2 complement)', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home); // no coalfaceMode opinion written -> implicit floor is 'auto'
+    fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"coalfaceMode":"off"}', 'utf8'); // quieter than the default -> not an escalation
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.strictEqual(r.stdout, '', 'off is quieter than the implicit auto default -> project stays free to disable');
+  } finally { clean(home, cwd); }
+});
+
+test('case 28: an UPPERCASE project value cannot escalate coalfaceMode past a lowercase global (case-fold safe, R4)', () => {
+  const { home, cwd } = sandbox();
+  try {
+    writeGlobalCfg(home, { coalfaceMode: 'off', updateMode: 'off' });
+    fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"coalfaceMode":"ON"}', 'utf8'); // mixed-case escalation attempt
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.strictEqual(r.stdout, '', 'case-folded compare -> ON is still clamped to off, same as case 23');
   } finally { clean(home, cwd); }
 });

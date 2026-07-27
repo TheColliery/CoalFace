@@ -64,10 +64,21 @@ function findProjectCfg() {
 // an unsolicited networked update check). Index 0 = safest/quietest. Precedents,
 // same shape verbatim (one flock, one color): CoalMine `updateMode`
 // (hooks/_shared/node-config.js) · CoalWash `mergeSafety` (scripts/lib/config-load.mjs).
+//
+// The two orderings are DELIBERATELY DIFFERENT (station-3 verified 2026-07-27,
+// per-key -- do NOT "fix" them to match): for coalfaceMode, `on` forces
+// scouting EVERY prompt = max spend, so it is loudest and `auto` sits in the
+// MIDDLE; for updateMode, `auto` genuinely IS the loudest (standing consent to
+// check+offer unprompted), so it sits LAST. Derive loudest/quietest from what
+// the value actually causes for THIS key, never assume a shared shape.
 const SAFER_ENUM = {
   coalfaceMode: ['off', 'auto', 'on'],
   updateMode: ['off', 'remind', 'ask', 'auto'],
 };
+// A user who never wrote a global config is not thereby unprotected -- the
+// schema's factory default IS their implicit stance (R2). Must match modeOf()'s
+// and updateDue()'s own hardcoded fallbacks below.
+const SAFER_ENUM_DEFAULT = { coalfaceMode: 'auto', updateMode: 'ask' };
 
 function readCfg() {
   let globalCfg = {};
@@ -81,14 +92,15 @@ function readCfg() {
     if (f && fs.existsSync(f)) projectCfg = parseJsonc(fs.readFileSync(f, 'utf8'));
   } catch {}
   const out = { ...globalCfg, ...projectCfg }; // project overlays global per key
-  // Constrain ONLY when BOTH layers set the key explicitly (global absent = no
-  // explicit preference to protect, project stays free -- case 25's carve-out).
   for (const [key, order] of Object.entries(SAFER_ENUM)) {
-    if (globalCfg[key] === undefined || projectCfg[key] === undefined) continue;
-    const gi = order.indexOf(String(globalCfg[key]).toLowerCase());
+    if (projectCfg[key] === undefined) continue; // no project override attempted -> nothing to clamp
+    // Global's explicit choice is the floor; absent -> the factory default is
+    // the floor (R2) -- a silent global is not an open door (case 25/27).
+    const floor = globalCfg[key] !== undefined ? globalCfg[key] : SAFER_ENUM_DEFAULT[key];
+    const gi = order.indexOf(String(floor).toLowerCase());
     const pi = order.indexOf(String(projectCfg[key]).toLowerCase());
     if (gi === -1 || pi === -1) continue; // unknown value: leave the shallow-merge result
-    out[key] = pi <= gi ? projectCfg[key] : globalCfg[key]; // project may not be LOUDER than global
+    out[key] = pi <= gi ? projectCfg[key] : floor; // project may not be LOUDER than the floor
   }
   return out;
 }
