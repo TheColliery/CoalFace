@@ -4,6 +4,11 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- **`hooks/coalface-conductor.js`'s config cascade let an untrusted project `.coalface.json` (arriving with a cloned repo) ESCALATE `coalfaceMode`/`updateMode` past what the user's own global config explicitly chose** — a plain `Object.assign(global, project)` overlay took the project's value unconditionally, so a cloned repo's config could flip a global `off` up to `on`/`auto`, firing unsolicited fan-out spawning or a networked update check nobody consented to. Fixed with a safer-value-wins clamp on both consent-bearing enums: the project layer may QUIETEN (`on`→`auto`→`off`, `auto`→`ask`→`remind`→`off`) but never escalate past an EXPLICIT global choice; a key set on only one layer stays unconstrained (the common per-project on/off case is untouched). Same shape as CoalMine's `updateMode` guard and CoalWash's `mergeSafety` (hooks-safety.md §9, one flock one color). +4 hermetic tests (31→35).
+
 ## [0.3.6] - 2026-07-25
 
 ### Fixed

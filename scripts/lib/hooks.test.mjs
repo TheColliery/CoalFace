@@ -422,3 +422,56 @@ test('case 22: AG current-spec payload (conversationId + workspacePaths) -> inje
     assert.strictEqual(markersIn(s.tmp).length, 1, 'one marker for the conversation');
   } finally { clean(s.home); }
 });
+
+// ---------------------------------------------------------------------------
+// Config-cascade clamp — consent-bearing keys merge SAFER-VALUE-WINS
+// (hooks-safety.md §9: a project .coalface.json ARRIVES WITH A CLONED REPO,
+// untrusted; a plain overlay would let it ESCALATE coalfaceMode/updateMode past
+// what the user's own global config explicitly chose. One flock, one color —
+// CoalMine updateMode [hooks/_shared/node-config.js] + CoalWash mergeSafety
+// [scripts/lib/config-load.mjs] share this exact shape.)
+// ---------------------------------------------------------------------------
+
+test('case 23: an untrusted project config cannot ESCALATE coalfaceMode past an explicit global off', () => {
+  const { home, cwd } = sandbox();
+  try {
+    writeGlobalCfg(home, { coalfaceMode: 'off', updateMode: 'off' }); // explicit global opt-out
+    fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"coalfaceMode":"on"}', 'utf8'); // a cloned repo trying to force it back on
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.strictEqual(r.stdout, '', 'global off must hold -> project cannot escalate to on');
+  } finally { clean(home, cwd); }
+});
+
+test('case 24: a project config MAY quieten coalfaceMode below an explicit global on', () => {
+  const { home, cwd } = sandbox();
+  try {
+    writeGlobalCfg(home, { coalfaceMode: 'on', updateMode: 'off' });
+    fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"coalfaceMode":"off"}', 'utf8'); // legit per-project off-switch
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.strictEqual(r.stdout, '', 'project may quieten global on -> off, silent');
+  } finally { clean(home, cwd); }
+});
+
+test('case 25: a project-only coalfaceMode (no global preference set) is NOT constrained -> stays project-wins', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home); // global sets only updateMode:off, no coalfaceMode opinion to protect
+    fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"coalfaceMode":"on"}', 'utf8');
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.match(r.stdout, /FORCED \(on\)/, 'no explicit global preference -> project stays free');
+  } finally { clean(home, cwd); }
+});
+
+test('case 26: an untrusted project config cannot ESCALATE updateMode past an explicit global off', () => {
+  const { home, cwd } = sandbox();
+  try {
+    writeGlobalCfg(home, { coalfaceMode: 'off', updateMode: 'off' }); // both quiet -> stdout is purely the update channel
+    fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"updateMode":"auto"}', 'utf8');
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.strictEqual(r.stdout, '', 'global updateMode:off must hold -> project cannot escalate to auto (no self-update nudge)');
+  } finally { clean(home, cwd); }
+});

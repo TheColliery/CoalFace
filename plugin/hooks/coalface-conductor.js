@@ -57,14 +57,38 @@ function findProjectCfg() {
   return null;
 }
 
+// Config-cascade clamp (hooks-safety.md §9): the project .coalface.json ARRIVES
+// WITH A CLONED REPO -- untrusted. A plain project-wins overlay lets it ESCALATE
+// a consent-bearing enum past what the user's own global config explicitly
+// chose (off -> on = unsolicited fan-out spawning; off -> auto on updateMode =
+// an unsolicited networked update check). Index 0 = safest/quietest. Precedents,
+// same shape verbatim (one flock, one color): CoalMine `updateMode`
+// (hooks/_shared/node-config.js) · CoalWash `mergeSafety` (scripts/lib/config-load.mjs).
+const SAFER_ENUM = {
+  coalfaceMode: ['off', 'auto', 'on'],
+  updateMode: ['off', 'remind', 'ask', 'auto'],
+};
+
 function readCfg() {
-  const out = {};
-  const files = [];
-  try { files.push(path.join(os.homedir(), '.claude', '.coalface.json')); } catch {}
-  const proj = findProjectCfg();
-  if (proj) files.push(proj); // project read last -> overlays global per key
-  for (const f of files) {
-    try { if (fs.existsSync(f)) Object.assign(out, parseJsonc(fs.readFileSync(f, 'utf8'))); } catch {}
+  let globalCfg = {};
+  let projectCfg = {};
+  try {
+    const f = path.join(os.homedir(), '.claude', '.coalface.json');
+    if (fs.existsSync(f)) globalCfg = parseJsonc(fs.readFileSync(f, 'utf8'));
+  } catch {}
+  try {
+    const f = findProjectCfg();
+    if (f && fs.existsSync(f)) projectCfg = parseJsonc(fs.readFileSync(f, 'utf8'));
+  } catch {}
+  const out = { ...globalCfg, ...projectCfg }; // project overlays global per key
+  // Constrain ONLY when BOTH layers set the key explicitly (global absent = no
+  // explicit preference to protect, project stays free -- case 25's carve-out).
+  for (const [key, order] of Object.entries(SAFER_ENUM)) {
+    if (globalCfg[key] === undefined || projectCfg[key] === undefined) continue;
+    const gi = order.indexOf(String(globalCfg[key]).toLowerCase());
+    const pi = order.indexOf(String(projectCfg[key]).toLowerCase());
+    if (gi === -1 || pi === -1) continue; // unknown value: leave the shallow-merge result
+    out[key] = pi <= gi ? projectCfg[key] : globalCfg[key]; // project may not be LOUDER than global
   }
   return out;
 }
