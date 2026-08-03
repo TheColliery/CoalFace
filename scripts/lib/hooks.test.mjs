@@ -498,3 +498,73 @@ test('case 28: an UPPERCASE project value cannot escalate coalfaceMode past a lo
     assert.strictEqual(r.stdout, '', 'case-folded compare -> ON is still clamped to off, same as case 23');
   } finally { clean(home, cwd); }
 });
+
+// ---------------------------------------------------------------------------
+// Fail-OPEN close: an unrecognized value on EITHER side of the clamp must not
+// fall through to the raw shallow-merge result (hooks-safety.md §9 — the
+// clamp binds "recognized values", not "the values I bothered to validate").
+// Rows 1/2 of the room-reviewer's table already hold via cases 23/25; these
+// two cover the rows that were broken (`if (gi === -1 || pi === -1) continue`).
+// ---------------------------------------------------------------------------
+
+test('case 29: a MALFORMED global value is not an explicit choice -> floor falls to the schema default, same as an absent global (R2), never the raw project value', () => {
+  for (const badGlobal of ['Off ', 'disabled', 0]) {
+    const { home, cwd } = sandbox();
+    try {
+      writeGlobalCfg(home, { coalfaceMode: badGlobal, updateMode: 'off' });
+      fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"coalfaceMode":"on"}', 'utf8');
+      const r = run(cwd, home);
+      assertGraceful(r);
+      assert.match(r.stdout, /\[CoalFace\] Fan-out discipline \(auto\)/, `unparseable global ${JSON.stringify(badGlobal)} must floor to the schema default (auto), not pass 'on' through`);
+      assert.doesNotMatch(r.stdout, /FORCED/, `unparseable global ${JSON.stringify(badGlobal)} must never reach FORCED`);
+    } finally { clean(home, cwd); }
+  }
+});
+
+test('case 30: a MALFORMED project value cannot escalate past an explicit global off -> the unrecognized value is rejected, not passed through raw', () => {
+  const { home, cwd } = sandbox();
+  try {
+    writeGlobalCfg(home, { coalfaceMode: 'off', updateMode: 'off' });
+    fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"coalfaceMode":"on "}', 'utf8'); // trailing space: fails the exact SAFER_ENUM lookup
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.strictEqual(r.stdout, '', 'malformed project value rejected -> global off holds, silent (not passed through as a live coalfaceMode)');
+  } finally { clean(home, cwd); }
+});
+
+// The fail-open-close fix is key-generic (loops Object.entries(SAFER_ENUM)), so
+// updateMode inherits it -- this proves it, mirroring case 30's project-malformed
+// direction. The GLOBAL-malformed direction (case 29's shape) is deliberately NOT
+// mirrored here: updateDue() only branches on `=== 'off'` (R2's own NIL-BLAST
+// note above), so a clamped floor of 'ask' and an unclamped raw 'garbage' floor
+// are BOTH "not off" -- the nudge fires either way and the assertion could not
+// tell fixed from buggy. Writing that case would repeat the exact vacuous-oracle
+// trap flagged on case 29 (sharing modeOf's fallback); the project-malformed
+// direction below does not share an oracle with anything downstream, so it
+// actually discriminates.
+test('case 31: a MALFORMED project updateMode cannot escalate past an explicit global off (key-generic close, second SAFER_ENUM key)', () => {
+  const { home, cwd } = sandbox();
+  try {
+    writeGlobalCfg(home, { coalfaceMode: 'off', updateMode: 'off' });
+    fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"updateMode":"auto "}', 'utf8'); // trailing space: fails the exact SAFER_ENUM lookup
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.strictEqual(r.stdout, '', 'malformed project updateMode rejected -> global off floor holds -> no self-update nudge');
+  } finally { clean(home, cwd); }
+});
+
+// AG regression for the SAME fail-open close, not inferred from the shared
+// readCfg -- spawns the real ag-conductor.js so a future refactor that gives AG
+// its own config read (breaking the sharing this fix relies on) fails THIS test,
+// not just the CC-path ones above.
+test('case 32: AG inherits the fail-open close via the shared readCfg -> a malformed project value cannot escalate past an explicit global off', () => {
+  const s = agSandbox();
+  try {
+    writeGlobalCfg(s.home, { coalfaceMode: 'off' });
+    const proj = fs.mkdtempSync(path.join(s.home, 'cf-proj-'));
+    fs.writeFileSync(path.join(proj, '.coalface.json'), '{"coalfaceMode":"on "}', 'utf8'); // trailing space, mirrors case 30 on the AG path
+    const r = agRun(s, agEvent({ session_id: 'sess-32', cwd: proj }));
+    assertGraceful(r);
+    assert.strictEqual(r.stdout, '', 'clamp reached through readCfg on the AG adapter too -> global off holds, no injectSteps emitted');
+  } finally { clean(s.home); }
+});

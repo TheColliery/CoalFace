@@ -94,13 +94,18 @@ function readCfg() {
   const out = { ...globalCfg, ...projectCfg }; // project overlays global per key
   for (const [key, order] of Object.entries(SAFER_ENUM)) {
     if (projectCfg[key] === undefined) continue; // no project override attempted -> nothing to clamp
-    // Global's explicit choice is the floor; absent -> the factory default is
-    // the floor (R2) -- a silent global is not an open door (case 25/27).
-    const floor = globalCfg[key] !== undefined ? globalCfg[key] : SAFER_ENUM_DEFAULT[key];
-    const gi = order.indexOf(String(floor).toLowerCase());
+    // Global's explicit choice is the floor; absent OR UNRECOGNIZED (a malformed
+    // value is not an explicit choice either) -> the factory default is the floor
+    // (R2) -- a silent/garbled global is not an open door (case 25/27/29).
+    const globalSet = globalCfg[key] !== undefined && order.indexOf(String(globalCfg[key]).toLowerCase()) !== -1;
+    const floor = globalSet ? globalCfg[key] : SAFER_ENUM_DEFAULT[key];
+    const gi = order.indexOf(String(floor).toLowerCase()); // always valid: SAFER_ENUM_DEFAULT members are schema-valid
     const pi = order.indexOf(String(projectCfg[key]).toLowerCase());
-    if (gi === -1 || pi === -1) continue; // unknown value: leave the shallow-merge result
-    out[key] = pi <= gi ? projectCfg[key] : floor; // project may not be LOUDER than the floor
+    // pi === -1: the project value does not parse against the enum at all -- the
+    // untrusted side is REJECTED outright, never passed through as the raw
+    // shallow-merge value (that was the fail-open hole: a malformed project value
+    // used to fall through `out` untouched instead of being clamped, case 30).
+    out[key] = (pi !== -1 && pi <= gi) ? projectCfg[key] : floor; // project may not be LOUDER than the floor
   }
   return out;
 }
