@@ -23,7 +23,7 @@ git tag -v "$(git describe --tags --abbrev=0)"
 
 ## 📦 Dist Integrity
 
-The clean `plugin/` distribution is generated from source by `node scripts/build-plugin.mjs`; `node scripts/verify.mjs` checks the dist is in sync **both directions** (stale files AND dist-only orphans), the manifests are valid, the factory config matches the schema, and the issue-template version pins are current. `node scripts/test.mjs` runs the zero-dependency unit + hermetic-hook tests.
+The clean `plugin/` distribution is generated from source by `node scripts/build-plugin.mjs`; `node scripts/verify.mjs` checks the dist is in sync **both directions** (stale files AND dist-only orphans) — byte-exact, with a CRLF/LF-normalized fallback on text files only (so a checkout's line-ending doesn't false-flag byte-identical content) — the manifests are valid, the factory config matches the schema, and the issue-template version pins are current. `node scripts/test.mjs` runs the zero-dependency unit + hermetic-hook tests.
 
 ---
 
