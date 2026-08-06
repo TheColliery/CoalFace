@@ -13,6 +13,7 @@ const TESTS = [
   'scripts/lib/config-schema.test.mjs',
   'scripts/lib/jsonc.test.mjs',
   'scripts/lib/hooks.test.mjs',
+  'scripts/build-plugin.test.mjs',
 ];
 
 const missing = TESTS.filter((t) => !fs.existsSync(path.join(repo, t)));
