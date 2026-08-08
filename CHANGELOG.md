@@ -4,6 +4,11 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- **Board #83 (board #34's own follow-on): SKILL.md's Output-locations and Fail-paths axes carved into numbered ledgers** (`O1–O7`, `F1–F13`), the same remedy that took Prohibitions/Consent to zero variance in board #34's carve. Board #34's own §3b walk found these two axes wobbling (7/15/12 output-location counts, 13/14/15 fail-path counts across 3 cold reads) — a newly-measured, pre-existing property, not a regression. Ground truth for both axes was declared BEFORE any walker ran this time (board #34's walk derived it after, named as backwards). Also reworded the `## Config + self-update` lookup-order sentence — 3/3 cold readers of the pre-carve text independently stumbled on the same fork (is "your own agent's dir" a step before the fixed `.claude → .agents → .gemini` list, or a position within it?); reworded into one explicit numbered list with an explicit skip-the-already-checked clause. Re-walked (weak ×3, fresh wave): all four enumerable rails — 28 prohibitions, 2 consent gates, 7 output locations, 13 fail paths — landed at **zero variance**, exact membership match, exact ground-truth match; the reworded config paragraph resolved 3/3 unanimous correct on the exact ambiguity the prior walk found. No fix-and-walk loop needed past wave 1.
+
 ## [0.4.0] - 2026-08-09
 
 ### Added
