@@ -113,7 +113,7 @@ function main() {
     fs.writeFileSync(marker, '', { flag: 'wx' });
   } catch { return; } // EEXIST (already ran) OR any write failure -> fail-closed, no emit
 
-  const msg = directiveFor(readCfg());
+  const msg = directiveFor(readCfg('agents')); // this adapter only ever runs under Antigravity
   if (!msg) return; // coalfaceMode off -> silent (the marker still spares per-call config reads)
 
   console.log(JSON.stringify({ injectSteps: [{ ephemeralMessage: msg }] })); // the one sanctioned AG stdout (current PreInvocation output contract)

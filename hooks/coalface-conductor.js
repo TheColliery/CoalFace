@@ -36,19 +36,42 @@ function physical(p) {
   try { return fs.realpathSync(p); } catch { return path.resolve(p); }
 }
 
-// Find the nearest project .coalface.json by walking UP from cwd (a hook cwd may be a
-// SUBDIR, not the project root — Phoenix #10). STOP at the home dir: its config is the
-// GLOBAL (read separately from ~/.claude/), and nothing above home is "this project"
-// (also keeps a hermetic test sandboxed under the real home from leaking upward — the
-// CoalBoard v1.5.1 lesson).
-function findProjectCfg() {
+// Namespace campaign #69+#39 (owner-designated shape 2026-08-08): per-project config now
+// lives under an agent dir, never bare at the project root. Fixed fallback order (first
+// found wins) -- .gemini has no current consumer in this room, probed only for
+// flock-consistency (every room checks the same three, so a project's choice of agent dir
+// never depends on which room's config is being read).
+const AGENT_DIR_ORDER = ['claude', 'agents', 'gemini'];
+
+// Ordered per-level candidate list for one directory: the EXECUTING agent's own dir first
+// (own-dir may be absent from AGENT_DIR_ORDER's fixed positions -- e.g. a 4th agent this
+// room doesn't otherwise probe -- so it is prepended, not looked up in the fixed list),
+// then the fixed fallback order (own dir deduped out so it is never checked twice), then
+// the LEGACY root dotfile (the pre-2026-08-08 shape -- still read normally, no breakage).
+function candidatesFor(dir, ownAgentDir) {
+  const dirs = ownAgentDir ? [ownAgentDir, ...AGENT_DIR_ORDER.filter((d) => d !== ownAgentDir)] : AGENT_DIR_ORDER;
+  return [...dirs.map((d) => path.join(dir, `.${d}`, 'coal', 'coalface.json')), path.join(dir, '.coalface.json')];
+}
+
+// Find the nearest project config by walking UP from cwd (a hook cwd may be a SUBDIR, not
+// the project root — Phoenix #10), checking the full candidate list (own dir -> fixed
+// fallback order -> legacy) AT EACH LEVEL before moving to the parent — so a new-shape
+// config one level down always wins over a legacy config further up, matching the
+// pre-migration nearest-wins behavior. STOP at the home dir: its config is the GLOBAL
+// (read separately from ~/.claude/), and nothing above home is "this project" (also keeps
+// a hermetic test sandboxed under the real home from leaking upward — the CoalBoard
+// v1.5.1 lesson). ownAgentDir: the executing agent's own identity ('claude' for the CC
+// hook, 'agents' for the Antigravity adapter) — undefined falls back to the fixed order
+// alone (defensive; every real caller in this file passes one explicitly).
+function findProjectCfg(ownAgentDir) {
   try {
     const home = physical(os.homedir());
     let dir = physical(process.cwd());
     for (let i = 0; i < 40; i++) {
       if (dir === home) break;
-      const f = path.join(dir, '.coalface.json');
-      if (fs.existsSync(f)) return f;
+      for (const f of candidatesFor(dir, ownAgentDir)) {
+        if (fs.existsSync(f)) return f;
+      }
       const parent = path.dirname(dir);
       if (parent === dir) break;
       dir = parent;
@@ -80,7 +103,11 @@ const SAFER_ENUM = {
 // and updateDue()'s own hardcoded fallbacks below.
 const SAFER_ENUM_DEFAULT = { coalfaceMode: 'auto', updateMode: 'ask' };
 
-function readCfg() {
+// ownAgentDir: which agent is executing right now ('claude' from the CC hook's own main()
+// below, 'agents' from hooks/ag-conductor.js) -- see findProjectCfg. The GLOBAL config
+// home is untouched by the namespace campaign (out of this room's #69+#39 scope; only the
+// per-project address and the update-check stamp moved).
+function readCfg(ownAgentDir) {
   let globalCfg = {};
   let projectCfg = {};
   try {
@@ -88,7 +115,7 @@ function readCfg() {
     if (fs.existsSync(f)) globalCfg = parseJsonc(fs.readFileSync(f, 'utf8'));
   } catch {}
   try {
-    const f = findProjectCfg();
+    const f = findProjectCfg(ownAgentDir);
     if (f && fs.existsSync(f)) projectCfg = parseJsonc(fs.readFileSync(f, 'utf8'));
   } catch {}
   const out = { ...globalCfg, ...projectCfg }; // project overlays global per key
@@ -125,17 +152,30 @@ function floorOf(cfg) {
 // the HOOK only SCHEDULES (a throttled, crash-safe stamp — written BEFORE the directive
 // prints, so a crash never re-nags; no network ever, Phoenix #7); the AGENT verifies the
 // latest tag online (the /coalface:update procedure) and offers the update.
+// Namespace campaign #39 (machine-global half): the stamp's new home is
+// ~/.claude/coal/coalface/update-check. Read-new-fallback-old (a pre-migration stamp's
+// throttle window still holds -- no re-nag on the first post-migration run) /
+// write-new-drop-old (every write lands only at the new path; an old-shape file found on
+// a write is removed in the same operation -- no-old-version-leftover, never on a
+// read-only path per Phoenix #5).
+const OLD_STAMP = () => path.join(os.homedir(), '.claude', '.coalface-update-check');
+const NEW_STAMP = () => path.join(os.homedir(), '.claude', 'coal', 'coalface', 'update-check');
+
 function updateDue(cfg) {
   try {
     if (lc(cfg.updateMode || 'ask') === 'off') return false;
     // Clamp on read: updateCheckDays:0 must NOT mean "nag every session".
     const days = (Number.isInteger(cfg.updateCheckDays) && cfg.updateCheckDays >= 1 && cfg.updateCheckDays <= 365) ? cfg.updateCheckDays : 14;
-    const stamp = path.join(os.homedir(), '.claude', '.coalface-update-check');
     let last = 0;
-    try { last = Number(String(fs.readFileSync(stamp, 'utf8')).trim()) || 0; } catch {}
+    try { last = Number(String(fs.readFileSync(NEW_STAMP(), 'utf8')).trim()) || 0; } catch {}
+    if (!last) { try { last = Number(String(fs.readFileSync(OLD_STAMP(), 'utf8')).trim()) || 0; } catch {} } // read-new-fallback-old
     const now = Date.now();
     if (last && now - last < days * 86400000) return false; // inside the window: not due
-    try { fs.mkdirSync(path.dirname(stamp), { recursive: true }); fs.writeFileSync(stamp, String(now)); } catch {} // schedule: stamp the check now
+    try {
+      fs.mkdirSync(path.dirname(NEW_STAMP()), { recursive: true });
+      fs.writeFileSync(NEW_STAMP(), String(now)); // schedule: stamp the check now, new home only
+      fs.rmSync(OLD_STAMP(), { force: true }); // write-new-drop-old
+    } catch {}
     return true; // due — first run (last === 0) or the window has elapsed
   } catch { return false; }
 }
@@ -162,7 +202,7 @@ function main() {
   // SessionStart ONLY — any other/unknown event stays silent (Phoenix #13 zero-noise).
   if (event !== 'SessionStart') return;
 
-  const cfg = readCfg();
+  const cfg = readCfg('claude'); // this hook only ever runs under Claude Code
   let msg = directiveFor(cfg);
   // mode 'off' -> no directive; self-update is ORTHOGONAL (its own off-switch is
   // updateMode), so it still fires when the discipline is off — the keys are independent.

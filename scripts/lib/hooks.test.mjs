@@ -50,7 +50,12 @@ function writeGlobalCfg(home, cfg) {
 function muteUpdate(home, extra = {}) {
   writeGlobalCfg(home, { updateMode: 'off', ...extra });
 }
+// Namespace campaign #39: the stamp's new home. oldStampPath kept for the
+// read-fallback/write-drop migration cases below.
 function stampPath(home) {
+  return path.join(home, '.claude', 'coal', 'coalface', 'update-check');
+}
+function oldStampPath(home) {
   return path.join(home, '.claude', '.coalface-update-check');
 }
 function assertGraceful(r) {
@@ -567,4 +572,107 @@ test('case 32: AG inherits the fail-open close via the shared readCfg -> a malfo
     assertGraceful(r);
     assert.strictEqual(r.stdout, '', 'clamp reached through readCfg on the AG adapter too -> global off holds, no injectSteps emitted');
   } finally { clean(s.home); }
+});
+
+// ---------------------------------------------------------------------------
+// Namespace campaign #69+#39: per-project config address + update-check stamp
+// ---------------------------------------------------------------------------
+
+test('case 33: own agent dir wins over the fixed fallback order at the same level', () => {
+  const s = agSandbox();
+  try {
+    const proj = fs.mkdtempSync(path.join(s.home, 'cf-proj-'));
+    fs.mkdirSync(path.join(proj, '.claude', 'coal'), { recursive: true });
+    fs.writeFileSync(path.join(proj, '.claude', 'coal', 'coalface.json'), '{"autoFanoutFloor": 11}', 'utf8');
+    fs.mkdirSync(path.join(proj, '.agents', 'coal'), { recursive: true });
+    fs.writeFileSync(path.join(proj, '.agents', 'coal', 'coalface.json'), '{"autoFanoutFloor": 22}', 'utf8');
+    const r = agRun(s, agEvent({ session_id: 'sess-33', cwd: proj })); // AG's own dir = agents
+    assertGraceful(r);
+    assert.match(r.stdout, />= 22 units/, 'agents (own dir) wins over claude, though claude is first in the fixed fallback order');
+  } finally { clean(s.home); }
+});
+
+test('case 34: fixed fallback order is used when the own dir has no config', () => {
+  const s = agSandbox();
+  try {
+    const proj = fs.mkdtempSync(path.join(s.home, 'cf-proj-'));
+    fs.mkdirSync(path.join(proj, '.claude', 'coal'), { recursive: true });
+    fs.writeFileSync(path.join(proj, '.claude', 'coal', 'coalface.json'), '{"autoFanoutFloor": 33}', 'utf8'); // no .agents/coal/coalface.json
+    const r = agRun(s, agEvent({ session_id: 'sess-34', cwd: proj })); // AG's own dir = agents, absent
+    assertGraceful(r);
+    assert.match(r.stdout, />= 33 units/, 'own dir (agents) missing -> falls through the fixed order to .claude');
+  } finally { clean(s.home); }
+});
+
+test('case 35: the LEGACY root dotfile is read when no new-shape candidate exists anywhere', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home);
+    fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"autoFanoutFloor": 44}', 'utf8'); // pre-2026-08-08 shape, no .claude/.agents/.gemini dirs at all
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.match(r.stdout, />= 44 units/, 'legacy root dotfile still read normally -- no breakage for an existing config');
+  } finally { clean(home, cwd); }
+});
+
+test('case 36: update-check stamp read-new-fallback-old -- a pre-migration stamp still throttles', () => {
+  const { home, cwd } = sandbox();
+  try {
+    writeGlobalCfg(home, { coalfaceMode: 'off', updateMode: 'auto' });
+    fs.mkdirSync(path.join(home, '.claude'), { recursive: true });
+    fs.writeFileSync(oldStampPath(home), String(Date.now()), 'utf8'); // OLD path only, fresh (inside the 14-day window)
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.strictEqual(r.stdout, '', 'a fresh OLD-path stamp is read as the fallback and still throttles -> no re-nag on the first post-migration run');
+  } finally { clean(home, cwd); }
+});
+
+test('case 37: update-check stamp write-new-drop-old -- a due check writes only the new path and removes the old', () => {
+  const { home, cwd } = sandbox();
+  try {
+    writeGlobalCfg(home, { coalfaceMode: 'off', updateMode: 'auto' });
+    fs.mkdirSync(path.join(home, '.claude'), { recursive: true });
+    fs.writeFileSync(oldStampPath(home), String(Date.now() - 20 * 86400000), 'utf8'); // OLD path, stale (past the 14-day window) -> due
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.match(r.stdout, /self-update due/, 'a stale OLD-path stamp is still read as the fallback, correctly judged due');
+    assert.ok(fs.existsSync(stampPath(home)), 'the fresh stamp lands at the NEW path');
+    assert.strictEqual(fs.existsSync(oldStampPath(home)), false, 'the OLD path is dropped in the same operation (no-old-version-leftover)');
+  } finally { clean(home, cwd); }
+});
+
+// Clamp-unchanged: the SAFER_ENUM clamp (hooks-safety.md §9) reads projectCfg from
+// WHATEVER candidate findProjectCfg() resolved to -- prove it still holds when that
+// candidate is a NEW-shape own-dir path, not just the legacy path cases 23-32 use.
+test('case 38: the config-cascade clamp is unaffected by which candidate supplied the project override', () => {
+  const s = agSandbox();
+  try {
+    writeGlobalCfg(s.home, { coalfaceMode: 'off' }); // explicit global floor
+    const proj = fs.mkdtempSync(path.join(s.home, 'cf-proj-'));
+    fs.mkdirSync(path.join(proj, '.agents', 'coal'), { recursive: true });
+    fs.writeFileSync(path.join(proj, '.agents', 'coal', 'coalface.json'), '{"coalfaceMode":"on"}', 'utf8'); // escalation attempt, NEW own-dir shape
+    const r = agRun(s, agEvent({ session_id: 'sess-38', cwd: proj }));
+    assertGraceful(r);
+    assert.strictEqual(r.stdout, '', 'clamp still holds the explicit global off floor -- read-order migration changed the ADDRESS only, never the clamp semantics');
+  } finally { clean(s.home); }
+});
+
+// Write side (namespace campaign checklist item 2): CoalFace has no project-config
+// writer anywhere in this codebase (no configure.mjs, no consent-persistence code --
+// unlike CoalTipple/CoalWash) -- grep-proof, not merely asserted, so a future writer
+// added without updating this test fails loud instead of silently violating
+// write-new-drop-old.
+test('write side: no project-config writer exists in this room (grep-proof N/A)', () => {
+  assert.strictEqual(fs.existsSync(path.join(REPO, 'scripts', 'configure.mjs')), false, 'no configure.mjs in this room');
+  const sourceDirs = ['hooks', 'scripts', path.join('scripts', 'lib')];
+  const writerHit = /writeFileSync\s*\([^)]*coalface\.json/;
+  for (const dir of sourceDirs) {
+    for (const f of fs.readdirSync(path.join(REPO, dir))) {
+      if (f.endsWith('.test.mjs') || f.endsWith('.test.js')) continue; // this file's own fixtures are not the product
+      const abs = path.join(REPO, dir, f);
+      if (fs.statSync(abs).isDirectory()) continue;
+      const text = fs.readFileSync(abs, 'utf8');
+      assert.ok(!writerHit.test(text), `${dir}/${f} writes a *.coalface.json -- update this test if a real writer was added (write-new-drop-old must then apply)`);
+    }
+  }
 });
