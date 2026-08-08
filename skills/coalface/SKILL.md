@@ -30,7 +30,7 @@ You are the **CONDUCTOR** (the session main). Workers are **LEAVES** (P1) — sp
 | G1 | Filing a self error-report at an issue tracker (see Self error-report) — offered, never automatic |
 | G2 | Applying a self-update via `/coalface:update` — checked + offered before it's applied |
 
-Standing consent: the user's original command IS the consent to run the swarm — a solo main would burn the same budget silently, and the wallet caps the swarm at that budget, so there is no NEW spend to ask about. ONE valve: when the scout finds a job MUCH bigger than the prompt implies, emit a one-line NON-BLOCKING heads-up ("found N spots, ~est X — starting; Esc to stop") — never a question-box, never a third gate. Post-run transparency = the RECEIPT.
+Standing consent (P8): the user's original command IS the consent to run the swarm — a solo main would burn the same budget silently, and the wallet caps the swarm at that budget, so there is no NEW spend to ask about. ONE valve: when the scout finds a job MUCH bigger than the prompt implies, emit a one-line NON-BLOCKING heads-up ("found N spots, ~est X — starting; Esc to stop") — never a question-box, never a third gate. Post-run transparency = the RECEIPT.
 
 ## Prohibitions — 28, numbered P1–P28
 | # | Never | # | Never |
@@ -61,7 +61,7 @@ Standing consent: the user's original command IS the consent to run the swarm �
 | O6 | The JOURNAL (per-worker scope + returned order) |
 | O7 | QUARANTINE (a QC-rejected return, pending its one re-spawn) |
 
-## Fail paths — 13, numbered F1–F13
+## Fail paths — 15, numbered F1–F15
 | # | If | Then |
 |---|---|---|
 | F1 | QC reject (scope/spec) | Quarantine + one re-spawn (P12); 2nd fail → the receipt |
@@ -77,6 +77,8 @@ Standing consent: the user's original command IS the consent to run the swarm �
 | F11 | In-scope/on-spec/semantically-wrong return, no covering test | Reaches the user; the receipt flags test-uncovered; escalation is CoalBoard (P22) |
 | F12 | Riding the `Workflow` tool, ≥3 scattered nulls | STOP; a continuation-run, never `resumeFromRunId` (P28) |
 | F13 | Worksite is non-decomposable | Honest refusal: "not swarmable — solo/3-sub" |
+| F14 | Job is under the min-unit floor | Merge with a neighbor, or refuse to fan out — don't spawn (P5) |
+| F15 | `coalfaceMode: off` | Refuse to convene, even via a manual `/coalface` (P26) |
 
 ## The flow (fixed order)
 
