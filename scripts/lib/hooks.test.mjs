@@ -657,6 +657,48 @@ test('case 38: the config-cascade clamp is unaffected by which candidate supplie
   } finally { clean(s.home); }
 });
 
+// INSPECT finding 1 (MEDIUM): cases 33-35 each place exactly one config at exactly
+// one directory level, so none of them pins the LEVEL-vs-CANDIDATE interaction the
+// migration introduces -- a level-outer/candidate-inner walk (correct: check the
+// full candidate list at THIS level before moving to the parent) is not the only
+// implementation that could pass 33-35; a candidate-outer/level-inner walk (checking
+// candidate 1 at every level up to home before trying candidate 2) also passes them
+// and is WRONG -- it would let a HIGHER-PRIORITY candidate two levels up beat a
+// LOWER-PRIORITY candidate one level down, inverting nearest-wins. This fixture
+// separates the two: a config CLOSER to cwd, at a LOWER-priority candidate position
+// (legacy), must still beat a config FURTHER away at a HIGHER-priority position
+// (own-dir).
+test('case 39: nearest-wins holds ACROSS priority -- a closer legacy config beats a farther own-dir config', () => {
+  const { home, cwd: mid } = sandbox(); // mid is directly under home
+  const child = fs.mkdtempSync(path.join(mid, 'cf-child-')); // one level nearer to cwd than mid
+  try {
+    muteUpdate(home);
+    fs.mkdirSync(path.join(mid, '.claude', 'coal'), { recursive: true });
+    fs.writeFileSync(path.join(mid, '.claude', 'coal', 'coalface.json'), '{"coalfaceMode":"on"}', 'utf8'); // FARTHER, higher-priority (own-dir) candidate
+    fs.writeFileSync(path.join(child, '.coalface.json'), '{"coalfaceMode":"off"}', 'utf8'); // CLOSER, lower-priority (legacy) candidate
+    const r = run(child, home); // cwd = child; own dir = claude (CC hook)
+    assertGraceful(r);
+    assert.strictEqual(r.stdout, '', 'the closer legacy config (off) wins -- the farther own-dir config (on) at "mid" is never reached');
+  } finally { clean(home, mid); }
+});
+
+// INSPECT finding 6 (LOW): a corrupt NEW-path stamp must fall back to the OLD path
+// exactly like an ABSENT new stamp does (Number(...)||0 sends both to 0) -- sane by
+// construction, previously unpinned by any test.
+test('case 40: a corrupt NEW-path stamp falls back to the OLD path, same as an absent one', () => {
+  const { home, cwd } = sandbox();
+  try {
+    writeGlobalCfg(home, { coalfaceMode: 'off', updateMode: 'auto' });
+    fs.mkdirSync(path.dirname(stampPath(home)), { recursive: true });
+    fs.writeFileSync(stampPath(home), 'not-a-number', 'utf8'); // corrupt NEW stamp
+    fs.mkdirSync(path.join(home, '.claude'), { recursive: true });
+    fs.writeFileSync(oldStampPath(home), String(Date.now()), 'utf8'); // fresh OLD stamp
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.strictEqual(r.stdout, '', 'a corrupt new stamp parses to 0 and falls back to the fresh OLD stamp, which still throttles');
+  } finally { clean(home, cwd); }
+});
+
 // Write side (namespace campaign checklist item 2): CoalFace has no project-config
 // writer anywhere in this codebase (no configure.mjs, no consent-persistence code --
 // unlike CoalTipple/CoalWash) -- grep-proof, not merely asserted, so a future writer

@@ -48,6 +48,9 @@ const AGENT_DIR_ORDER = ['claude', 'agents', 'gemini'];
 // room doesn't otherwise probe -- so it is prepended, not looked up in the fixed list),
 // then the fixed fallback order (own dir deduped out so it is never checked twice), then
 // the LEGACY root dotfile (the pre-2026-08-08 shape -- still read normally, no breakage).
+// The dedup has no OBSERVABLE behavior (checking one path twice changes nothing) -- it
+// is correct by TRACE, not by test; no case in hooks.test.mjs proves it, none can
+// (INSPECT, namespace campaign #69+#39).
 function candidatesFor(dir, ownAgentDir) {
   const dirs = ownAgentDir ? [ownAgentDir, ...AGENT_DIR_ORDER.filter((d) => d !== ownAgentDir)] : AGENT_DIR_ORDER;
   return [...dirs.map((d) => path.join(dir, `.${d}`, 'coal', 'coalface.json')), path.join(dir, '.coalface.json')];
@@ -105,8 +108,12 @@ const SAFER_ENUM_DEFAULT = { coalfaceMode: 'auto', updateMode: 'ask' };
 
 // ownAgentDir: which agent is executing right now ('claude' from the CC hook's own main()
 // below, 'agents' from hooks/ag-conductor.js) -- see findProjectCfg. The GLOBAL config
-// home is untouched by the namespace campaign (out of this room's #69+#39 scope; only the
-// per-project address and the update-check stamp moved).
+// home (~/.claude/.coalface.json) is UNCHANGED by this pass -- a scoping decision, not a
+// settled fact: the design doc's opening paragraph implies every skill's global home moves
+// to ~/.claude/coal/<skill>/, but this room's own checklist item 3 names only the
+// update-check stamp, and CoalBoard's shipped precedent in the same campaign made the
+// identical narrower call. The doc itself is inconsistent here (INSPECT, namespace
+// campaign #69+#39) -- reported to main, not resolved unilaterally in this room.
 function readCfg(ownAgentDir) {
   let globalCfg = {};
   let projectCfg = {};
