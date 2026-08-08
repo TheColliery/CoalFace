@@ -50,6 +50,34 @@ Standing consent: the user's original command IS the consent to run the swarm �
 | P13 | Let a worker self-retry — journal + at most one re-spawn, ever | P27 | Auto-submit a self error-report, or include unapproved code/paths in one |
 | P14 | Restart a whole unit on worker death — remainder only, never loop | P28 | Ride the `Workflow` tool with `parallel(all-N)`, past ≥3 nulls, or via `resumeFromRunId` (waves; STOP; a continuation-run instead) |
 
+## Output locations — 7, numbered O1–O7
+| # | Where |
+|---|---|
+| O1 | The RECEIPT (step 8, always) |
+| O2 | The HEADS-UP one-liner (step 3, conditional) |
+| O3 | GitHub issue tracker — self error-report (G1) |
+| O4 | The real tree — step 7's single-writer apply target |
+| O5 | The pre-swarm SNAPSHOT (git stash/HEAD-record, or file copies) |
+| O6 | The JOURNAL (per-worker scope + returned order) |
+| O7 | QUARANTINE (a QC-rejected return, pending its one re-spawn) |
+
+## Fail paths — 13, numbered F1–F13
+| # | If | Then |
+|---|---|---|
+| F1 | QC reject (scope/spec) | Quarantine + one re-spawn (P12); 2nd fail → the receipt |
+| F2 | Anchor-miss (real collision) at apply | Skip-and-flag, continue — except F3 |
+| F3 | ALL-OR-NOTHING unit fails | Full rollback (P17) |
+| F4 | Domain gate red | Full rollback to the snapshot (P18) |
+| F5 | Worker dies/stops/silent past timeout | Re-spawn ONE on the remainder, never restart the whole unit (P14/P15) |
+| F6 | 429 mid-wave | Next wave shrinks; the SAME order retries from the journal, never surfaced as a failure (P19) |
+| F7 | Near a session/quota limit | Collapse to fewer workers or inline-self |
+| F8 | Worker dies on the session/quota limit | Returns nothing |
+| F9 | Platform has no fan-out at all | Degrade to a sequential pipeline (P24) |
+| F10 | Platform/version never actually run | Treat as UNVERIFIED, degrade conservatively, say so |
+| F11 | In-scope/on-spec/semantically-wrong return, no covering test | Reaches the user; the receipt flags test-uncovered; escalation is CoalBoard (P22) |
+| F12 | Riding the `Workflow` tool, ≥3 scattered nulls | STOP; a continuation-run, never `resumeFromRunId` (P28) |
+| F13 | Worksite is non-decomposable | Honest refusal: "not swarmable — solo/3-sub" |
+
 ## The flow (fixed order)
 
 **1 · SCOUT (mandatory, P3).** Real prompts are vague ("clean up this repo") — survey the worksite FIRST. Scout sub(s) return: the SPOT LIST (each with its file/range or unit id) · the DEPENDENCY GRAPH between spots · the INVARIANTS to lock (project/user standing rules, glossary/API/style — read them as invariants) · the DOMAIN GATE to run at the end · the recommended SWARM-MODE (taxonomy below) · the SHARED-DIGEST (the config/context every worker needs — paid once by the scout, shipped in every contract, P4).
@@ -100,7 +128,7 @@ A depth-1 sub may itself conduct (scout → contract → QC → apply for its sc
 Spawn via the platform's NATIVE subagent tool (Claude Code `Agent`/`Task` · each platform its own). Any platform with concurrent subagents runs the full contract; width sizes to the local cap via `bandwidth`; an unknown platform gets the conservative default. NO fan-out at all → degrade to a sequential pipeline under the same contract (scout → units in order → QC → apply). On a platform/version you have not actually run a swarm on, treat width/nesting behavior as UNVERIFIED — degrade conservatively and say so.
 
 ## Config + self-update (P25/P26)
-Merged config: global `~/.claude/.coalface.json` overlaid by the nearest project config (project wins per key — except `coalfaceMode`: if you ever derive it yourself from these files instead of trusting a hook directive, the project may only QUIETEN it, never escalate past global's explicit value or the `auto` default if global is silent). Project config lives under an agent dir — check **your own agent's dir first** (`.claude/coal/coalface.json` if you're Claude Code, `.agents/coal/coalface.json` if you're Antigravity — not the CC default if you're on a different platform), then `.claude` → `.agents` → `.gemini` in that order, then the legacy root `.coalface.json` — first found wins, the rest are not consulted; the lookup walk stops at the home dir. Keys: `coalfaceMode` · `bandwidth` · `autoFanoutFloor` · `updateMode` (`off`/`remind`/`ask`/`auto`, def `ask`) · `updateCheckDays` (def `14`) — every numeric clamped on read. Self-update is kind-1: the hook only schedules a throttled check; `/coalface:update` verifies online + offers the update (G2) — `updateMode` never gates the command itself.
+Merged config: global `~/.claude/.coalface.json` overlaid by the nearest project config (project wins per key — except `coalfaceMode`: if you ever derive it yourself from these files instead of trusting a hook directive, the project may only QUIETEN it, never escalate past global's explicit value or the `auto` default if global is silent). Project config lives under an agent dir, checked as ONE ordered list — first found wins, the rest are not consulted, the lookup walk stops at the home dir: **(1)** your own agent's dir (`.claude/coal/coalface.json` on Claude Code, `.agents/coal/coalface.json` on Antigravity); **(2)** the other known dirs in fixed order `.claude` → `.agents` → `.gemini`, skipping whichever one step 1 already checked; **(3)** the legacy root `.coalface.json`. Keys: `coalfaceMode` · `bandwidth` · `autoFanoutFloor` · `updateMode` (`off`/`remind`/`ask`/`auto`, def `ask`) · `updateCheckDays` (def `14`) — every numeric clamped on read. Self-update is kind-1: the hook only schedules a throttled check; `/coalface:update` verifies online + offers the update (G2) — `updateMode` never gates the command itself.
 
 ## Self error-report (G1/P27)
 If CoalFace misbehaves - a contradictory instruction, a swarm that loops, a worker that breaks the contract - STOP, summarize it, and OFFER to file it at `github.com/TheColliery/CoalFace/issues`. This fires only for what the model NOTICES - a clean run means "nothing noticed", not "nothing wrong".
