@@ -96,6 +96,19 @@ for (const [label, p, isSkill] of descTargets) {
     else ok(`${label}: ${len} chars (cap ${DESC_CAP})`);
   } catch (e) { fail(`${label} description check: ${e.message}`); }
 }
+// board #64: this gate covered skill/command FRONTMATTER only, so .claude-plugin/plugin.json's
+// OWN description (the string a marketplace listing renders) could silently exceed the cap —
+// CoalLedger shipped one at 1067 before a human eye caught it. plugin.json is plain JSON, not
+// frontmatter, so read the field directly; same DESC_CAP constant, never redefined.
+try {
+  let pjRaw = fs.readFileSync(path.join(repo, '.claude-plugin', 'plugin.json'), 'utf8');
+  if (pjRaw.charCodeAt(0) === 0xFEFF) pjRaw = pjRaw.slice(1);
+  const pj = JSON.parse(pjRaw);
+  const len = typeof pj.description === 'string' ? pj.description.length : 0;
+  if (!pj.description) fail('.claude-plugin/plugin.json: description missing');
+  else if (len > DESC_CAP) fail(`.claude-plugin/plugin.json: description ${len} chars exceeds the ${DESC_CAP}-char cap`);
+  else ok(`.claude-plugin/plugin.json: ${len} chars (cap ${DESC_CAP})`);
+} catch (e) { fail(`.claude-plugin/plugin.json description check: ${e.message}`); }
 
 console.log('config (factory vs schema):');
 try {
