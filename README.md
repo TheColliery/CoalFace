@@ -39,7 +39,7 @@ Agents already fan work out to subagents — CoalFace does not invent that. It d
 | **Speed** | UNDER-FANNED — a lazy orchestrator batches 100 spots into 5-8 bloated workers whose tail quality drops | Full width — worker count = spot count, floor/width-bounded waves |
 | **Quality** | Can dip BELOW solo — a deviant worker, real-tree writes, a half-applied death | Netted — mechanical QC at collection, single-writer apply behind a pre-swarm snapshot, a domain gate |
 
-Honest frame up front: CoalFace disciplines fan-outs that would happen anyway — it does **not** make models smarter and does **not** guarantee correctness (see the QC ceiling below). Zero-dependency, offline, no API keys.
+Honest frame up front: CoalFace disciplines fan-outs that would happen anyway — it does **not** make models smarter and does **not** guarantee correctness (see the QC ceiling below). Zero-dependency, offline by default, no API keys — "by default" because the consent-gated self-update check (`/coalface:update`) goes online; the hooks never do.
 
 ## 🏭 How it works
 
@@ -160,7 +160,7 @@ Install one, it stands alone; install all, they compose without conflict — Coa
 
 Shared doctrine: Phoenix-13 hooks (zero-dependency, no network, fail-silent, no child processes, deterministic), single-source-of-truth config schemas, and a strict no-overkill discipline. Series doctrine: [`TheColliery/.github`](https://github.com/TheColliery/.github).
 
-Zero-dependency, offline, no API keys.
+Zero-dependency, offline by default, no API keys — "by default" because the consent-gated self-update check (`/coalface:update`) goes online; the hooks never do.
 
 ---
 
