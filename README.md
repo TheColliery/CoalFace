@@ -10,15 +10,15 @@
 ![license](https://img.shields.io/badge/license-Apache_2.0-blue)
 ![status](https://img.shields.io/badge/status-stable-brightgreen)
 
-*Compatibility: **validated** on Claude Code · auto conductor **wired** on Antigravity (live validation pending) · **design-supported** (capability documented first-party, swarm unrun) on other concurrent-subagent platforms · **sequential degrade** on claude.ai (no subagents — the contract's built-in sequential path) — see the Compatibility table below.*
+*Compatibility: **validated** on Claude Code · **works with** every other concurrent-subagent platform (Antigravity, Cursor, Codex, Gemini CLI, Cline, Copilot — installs and runs, not yet run by us; see the table for Antigravity's wired-but-unvalidated auto-conductor detail) · claude.ai has no subagents at all, so it runs the contract's built-in sequential-pipeline degrade instead — see the Compatibility table below.*
 
 ![Claude Code](https://img.shields.io/badge/Claude_Code-validated-brightgreen)
-![Antigravity](https://img.shields.io/badge/Antigravity-wired-yellow)
-![Cursor](https://img.shields.io/badge/Cursor-design--supported-blue)
-![Codex](https://img.shields.io/badge/Codex-design--supported-blue)
-![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-design--supported-blue)
-![Cline](https://img.shields.io/badge/Cline-design--supported-blue)
-![Copilot](https://img.shields.io/badge/Copilot-design--supported-blue)
+![Antigravity](https://img.shields.io/badge/Antigravity-works--with-blue)
+![Cursor](https://img.shields.io/badge/Cursor-works--with-blue)
+![Codex](https://img.shields.io/badge/Codex-works--with-blue)
+![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-works--with-blue)
+![Cline](https://img.shields.io/badge/Cline-works--with-blue)
+![Copilot](https://img.shields.io/badge/Copilot-works--with-blue)
 ![claude.ai](https://img.shields.io/badge/claude.ai-sequential_degrade-blue)
 
 [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [Privacy](PRIVACY.md) · [Releases](https://github.com/TheColliery/CoalFace/releases)
@@ -78,8 +78,8 @@ The flow is fixed — a swarm never skips a step:
 | Platform | Support | What you get |
 |---|---|---|
 | **Claude Code** | ✅ **validated** | One-command plugin install; the SessionStart conductor injects the standing discipline; [CoalTipple](https://github.com/TheColliery/CoalTipple) (if installed) adds delegate-down worker tiering — a cost bonus, never a gate, and its sensitive-unit rule (crypto/auth/payment/migration stays main-tier) is inherited even when it's absent. |
-| **Antigravity** | **design-supported** (swarm unrun there) · auto conductor **wired** | The same skill-file contract as the row below — manual `/coalface` is the entry there. AG 2.0 shipped a real hook engine, so the standing `auto` conductor is wired for it — a one-time copy of [`platform-configs/hooks.json`](platform-configs/hooks.json) (see Install). **wired** = built + hermetically tested against the current AG hook contract (the `injectSteps` emit, re-derived 2026-07-23 — the pilot-era `additionalContext` key was a dead letter); live delivery on AG is not yet validated, so manual `/coalface` is the reliable floor. |
-| **Other concurrent-subagent platforms** (Cursor, Codex, Copilot, Amp, Goose, …) | **design-supported** (swarm unrun there) | The skill file is the whole contract — workers spawn via the platform's native subagent tool, no API. Hooks and plugin commands are Claude-Code-only there, so there is no standing `auto` directive: install the skill (or point your agent at it) and convene it on bulk work. On a platform we have not run a swarm on, the contract itself says to treat width/nesting conservatively. |
+| **Antigravity** | **works with** | The skill-file contract — manual `/coalface` spawns real workers there (native subagent tool), same as any other row below. AG 2.0 also shipped a real hook engine, so the standing `auto` conductor is *wired* for it (built + hermetically tested against the current AG hook contract — the `injectSteps` emit, re-derived 2026-07-23) via a one-time copy of [`platform-configs/hooks.json`](platform-configs/hooks.json) (see Install); whether that directive actually lands in the agent's context on live AG is **not yet validated**, so manual `/coalface` stays the reliable floor. Doesn't work as documented? [File an issue](https://github.com/TheColliery/CoalFace/issues). |
+| **Other concurrent-subagent platforms** (Cursor, Codex, Gemini CLI, Cline, Copilot, Amp, Goose, …) | **works with** | The skill file is the whole contract — workers spawn via the platform's native subagent tool, no API; we have not run a swarm there ourselves, so the contract itself says to treat width/nesting conservatively. Hooks and plugin commands are Claude-Code-only, so there is no standing `auto` directive: install the skill (or point your agent at it) and convene it on bulk work. Doesn't work as documented? [File an issue](https://github.com/TheColliery/CoalFace/issues). |
 | **claude.ai** (web / desktop app) | ⚠️ Sequential degrade | No subagents there — the contract's built-in degrade path runs instead (scout → units in order → QC → apply): the discipline without the parallel speed. Zip `skills/coalface` and upload as a custom skill — steps: [CLAUDE-AI-INSTALL](https://github.com/TheColliery/.github/blob/main/CLAUDE-AI-INSTALL.md). |
 | **No concurrent fan-out** | Sequential degrade | The same contract runs as a pipeline (scout → units in order → QC → apply) — no speedup, discipline kept, never broken. |
 
@@ -94,7 +94,7 @@ claude plugin marketplace add TheColliery/CoalFace
 claude plugin install coalface@coalface
 ```
 
-**Antigravity** — *design-supported; the swarm is e2e-proven only on Claude Code — re-verify on yours.* Antigravity has no plugin manager: a skill is installed by copying its folder into a customizations root, which Antigravity auto-discovers at session start (no install command, no manifest):
+**Antigravity** — *works with; the swarm is e2e-proven only on Claude Code — re-verify on yours.* Antigravity has no plugin manager: a skill is installed by copying its folder into a customizations root, which Antigravity auto-discovers at session start (no install command, no manifest):
 
 ```powershell
 git clone https://github.com/TheColliery/CoalFace.git --depth 1
@@ -108,7 +108,7 @@ Start a new Antigravity session; `coalface` appears in the skills list, and `/co
 
 **Auto conductor on AG (wired — live AG validation pending):** AG 2.0 shipped a real hook engine, so the standing `auto` directive can now ride Antigravity too. Keep the clone (the adapter is [`hooks/ag-conductor.js`](hooks/ag-conductor.js), which requires its sibling [`hooks/coalface-conductor.js`](hooks/coalface-conductor.js)) — or copy the `hooks/` folder wherever you keep the skill — then copy [`platform-configs/hooks.json`](platform-configs/hooks.json) to `<workspace>/.agents/hooks.json` (per project) or `~/.gemini/config/hooks.json` (global) and replace `__COALFACE_DIR__` with the directory holding `hooks/`. The directive rides the first `PreInvocation` of a session (AG never fires `SessionStart`), at most once per session; delivery into the agent is not yet live-validated (the **wired** tier — defined in the Compatibility table; the adapter emits the current `injectSteps` contract, re-derived 2026-07-23 — the pilot-era `additionalContext` key was a dead letter) — so manual `/coalface` remains the reliable floor. `/coalface:update` stays Claude-Code-only (the self-update nudge is deliberately not ported — its payload is a CC plugin command; on AG, update by re-copying).
 
-**Other concurrent-subagent platforms** (Cursor, Codex, Copilot, Gemini CLI, Cline, Amp, Goose, … — *design-supported; swarm e2e-proven only on Claude Code*) — the skill file is the whole contract: point your agent at [`skills/coalface/SKILL.md`](skills/coalface/SKILL.md) (it convenes via your platform's native subagent tool, no API; no one-command installer, and hooks + `/coalface:update` are Claude-Code-only there). Gemini CLI's parallel subagents are now first-party official (`/agents`) — business Standard/Enterprise plans only (individual tiers lost access 2026-06-18). **The fan-out discipline is cross-agent by design but proven only on Claude Code — re-verify concurrent-subagent support on yours.** A platform with no concurrent fan-out runs the same contract as a sequential pipeline (no speedup, discipline kept).
+**Other concurrent-subagent platforms** (Cursor, Codex, Copilot, Gemini CLI, Cline, Amp, Goose, … — *works with; swarm e2e-proven only on Claude Code*) — the skill file is the whole contract: point your agent at [`skills/coalface/SKILL.md`](skills/coalface/SKILL.md) (it convenes via your platform's native subagent tool, no API; no one-command installer, and hooks + `/coalface:update` are Claude-Code-only there). Gemini CLI's parallel subagents are now first-party official (`/agents`) — business Standard/Enterprise plans only (individual tiers lost access 2026-06-18). **The fan-out discipline is cross-agent by design but proven only on Claude Code — re-verify concurrent-subagent support on yours.** A platform with no concurrent fan-out runs the same contract as a sequential pipeline (no speedup, discipline kept).
 
 ## Commands
 
