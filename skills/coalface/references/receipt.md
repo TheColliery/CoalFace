@@ -50,7 +50,9 @@ Field notes:
 
 - **Effective width** shows the AIMD-settled value, not the configured wish — `6/14 —
   account tier` tells the user their `bandwidth` % settled at real capacity (correct
-  behavior, not an error).
+  behavior, not an error). `4/6 — machine cap` means the `maxLocalWorkers` admission
+  bound floored it instead (`references/admission-control.md`) — also correct, never
+  an error: the excess queued, none denied.
 - **Tokens vs solo** is an ESTIMATE both sides (char-heuristic class) — "~" always, never a
   precise claim. The swarm side runs HIGHER than solo (fan-out multiplies the per-sub baseline
   by N) — that is expected, not a regression; the wallet's win is in DOLLARS (cheap worker tiers)

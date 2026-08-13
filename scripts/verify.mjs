@@ -21,6 +21,7 @@ for (const [label, p] of [
   ['skills/coalface/references/contract-template.md', path.join(repo, 'skills', 'coalface', 'references', 'contract-template.md')],
   ['skills/coalface/references/taxonomy.md', path.join(repo, 'skills', 'coalface', 'references', 'taxonomy.md')],
   ['skills/coalface/references/receipt.md', path.join(repo, 'skills', 'coalface', 'references', 'receipt.md')],
+  ['skills/coalface/references/admission-control.md', path.join(repo, 'skills', 'coalface', 'references', 'admission-control.md')],
   ['hooks/coalface-conductor.js', path.join(repo, 'hooks', 'coalface-conductor.js')],
   ['hooks/ag-conductor.js', path.join(repo, 'hooks', 'ag-conductor.js')],
   ['hooks/hooks.json', path.join(repo, 'hooks', 'hooks.json')],
@@ -121,7 +122,7 @@ try {
 } catch (e) { fail(`factory config: ${e.message}`); }
 
 console.log('libs (import check):');
-for (const lib of ['config-schema.mjs', 'jsonc.mjs']) {
+for (const lib of ['config-schema.mjs', 'jsonc.mjs', 'admission-control.mjs']) {
   try { await import(pathToFileURL(path.join(repo, 'scripts', 'lib', lib)).href); ok(`${lib} imports`); }
   catch (e) { fail(`${lib}: ${e.message}`); }
 }

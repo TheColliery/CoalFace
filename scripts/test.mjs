@@ -11,6 +11,7 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const TESTS = [
   'scripts/lib/config-schema.test.mjs',
+  'scripts/lib/admission-control.test.mjs',
   'scripts/lib/jsonc.test.mjs',
   'scripts/lib/hooks.test.mjs',
   'scripts/build-plugin.test.mjs',

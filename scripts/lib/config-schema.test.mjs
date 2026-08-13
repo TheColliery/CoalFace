@@ -3,9 +3,9 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import { CONFIG_SCHEMA, validateValue, validateConfig } from './config-schema.mjs';
 
-test('schema ships exactly the 5 shipped keys, each with one-line help', () => {
+test('schema ships exactly the 6 shipped keys, each with one-line help', () => {
   const keys = CONFIG_SCHEMA.map((s) => s.key).sort();
-  assert.deepStrictEqual(keys, ['autoFanoutFloor', 'bandwidth', 'coalfaceMode', 'updateCheckDays', 'updateMode']);
+  assert.deepStrictEqual(keys, ['autoFanoutFloor', 'bandwidth', 'coalfaceMode', 'maxLocalWorkers', 'updateCheckDays', 'updateMode']);
   for (const s of CONFIG_SCHEMA) assert.ok(typeof s.help === 'string' && s.help.length > 0, `${s.key} has help`);
 });
 
@@ -30,7 +30,7 @@ test('validateValue: int enforces bounds + integer-ness', () => {
 });
 
 test('validateConfig: the factory shape passes clean', () => {
-  const errors = validateConfig({ coalfaceMode: 'auto', bandwidth: 25, autoFanoutFloor: 4, updateMode: 'ask', updateCheckDays: 14 });
+  const errors = validateConfig({ coalfaceMode: 'auto', bandwidth: 25, autoFanoutFloor: 4, updateMode: 'ask', updateCheckDays: 14, maxLocalWorkers: 0 });
   assert.deepStrictEqual(errors, []);
 });
 

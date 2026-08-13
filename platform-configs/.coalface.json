@@ -24,5 +24,12 @@
   // you run it; off = silent.
   "updateMode": "ask",
   // Days between self-update checks (1-365; out-of-range clamps to 14 on read).
-  "updateCheckDays": 14
+  "updateCheckDays": 14,
+  // Ceiling on concurrent workers holding a LOCAL CPU-bound gate slot (a build/test
+  // run during QC/apply) -- the MACHINE bound (board #90), distinct from bandwidth
+  // (agent-process width/speed) and the wallet (dollars). 0 = auto-derive from this
+  // machine's core count: max(1, min(16, floor((cores-2)/2))) -- see
+  // scripts/lib/admission-control.mjs and references/admission-control.md. A CAP,
+  // not a consent/spend key: plain project-wins, no safer-value-wins clamp needed.
+  "maxLocalWorkers": 0
 }

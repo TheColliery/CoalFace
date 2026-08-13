@@ -16,6 +16,7 @@ export const CONFIG_SCHEMA = [
   { key: 'autoFanoutFloor', type: 'int', min: 1, max: 50, help: 'Fan-out size (units) at/above which an auto-mode fan-out must ride the CoalFace contract; below it, 1-2-sub ad-hoc spawns keep zero ceremony. Range 1-50, default 4' },
   { key: 'updateMode', type: 'enum', values: ['ask', 'auto', 'remind', 'off'], help: 'Self-update behavior at session start (ask, auto, remind, off). The hook never networks — the agent verifies + offers, consent-gated. Orthogonal to coalfaceMode — its own off-switch. Default ask' },
   { key: 'updateCheckDays', type: 'int', min: 1, max: 365, help: 'Days between self-update checks/reminders (range 1-365; the hook CLAMPS an out-of-range value to the default on read). Default 14' },
+  { key: 'maxLocalWorkers', type: 'int', min: 0, max: 64, help: 'Ceiling on concurrent workers holding a LOCAL CPU-bound gate slot (a build/test run during QC/apply) -- the MACHINE bound, distinct from bandwidth (agent-process width/speed) and the wallet (dollars). 0 = auto-derive from this machine\'s core count (scripts/lib/admission-control.mjs: max(1, min(16, floor((cores-2)/2)))). A CAP, not a consent/spend key -- plain project-wins merge, no safer-value-wins clamp (hooks-safety.md §9\'s numeric-keys carve-out). Range 0-64, default 0 (auto)' },
 ];
 
 // Validate an already-parsed JSON value against a spec entry.

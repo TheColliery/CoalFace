@@ -4,7 +4,7 @@
 
 ## Script rules (the CF contract expressed as script structure)
 
-1. **Never `parallel(all-N)` raw.** The engine caps concurrency (~16) but a session-limit death is not a 429 — the cap does not protect the wallet. Structure large runs as WAVES (slice the item list, `await` between slices) sized to `bandwidth` discipline; slow-start.
+1. **Never `parallel(all-N)` raw.** The engine caps concurrency (~16) but a session-limit death is not a 429 — the cap does not protect the wallet, and it doesn't protect the MACHINE either (board #90 — 13 live node runtimes at 82% CPU from 10 concurrent lanes). Structure large runs as WAVES (slice the item list, `await` between slices) sized to `bandwidth` discipline; slow-start. Admit each wave's local build/test step through `createAdmissionGate(resolveCap(maxLocalWorkers))` (`references/admission-control.md`) — a bound orthogonal to the engine's own process cap.
 2. **Split the two failure classes in-script** — `agent()` returns `null` for a dead worker either way; the SHAPE tells them apart:
    - **Scattered nulls** (1-2, isolated) = transient (server error / stalled stream) → ONE in-script retry pass over just the nulls: `const retry = items.filter((_, i) => !results[i])`.
    - **A null RUN (≥3 consecutive)** = quota/session-limit death → **STOP immediately**: `return { done, failedItems }`. Every further call dies until the limit resets — retrying re-burns input for nothing (the re-ram lesson).

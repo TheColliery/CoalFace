@@ -4,6 +4,11 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.5.0] - 2026-08-13
+
+### Added
+- **Board #90: a third bound on fan-out — the MACHINE.** The wallet bounds dollars and `bandwidth` bounds agent-process speed/width, but nothing bounded the host running the swarm: board #89's exhibit measured 10 concurrent lanes driving 13 live node runtimes to 82% CPU (each worker's own local build/test gate step is a real CPU-bound child process the wallet/bandwidth bounds never touch). New `maxLocalWorkers` config key (default `0` = auto-derive from `os.cpus().length`) floors WAVES's effective width a second time: `min(floor(platform width × bandwidth%), maxLocalWorkers)`. Derivation cites Claude Code's own admission control (`min(16, cores-2)`, excess queued never denied) as the senior for the SHAPE only — the NUMBER doesn't transfer, since CC's agents are mostly network-bound while a CoalFace worker's local gate step genuinely holds a core; `WORKER_CORE_WEIGHT = 2` is this room's own variable, sized conservatively off board #89's ~1.3-runtimes-per-lane exhibit rather than fit to its noise. New `scripts/lib/admission-control.mjs` (`deriveMachineCap`, `resolveCap`, `createAdmissionGate` — a zero-dep async FIFO semaphore) + `references/admission-control.md` (full derivation + queue mechanics). Classification: a CAP, not a consent-bearing spend key — plain project-wins merge, no safer-value-wins clamp (hooks-safety.md §9's numeric-keys carve-out, same class as `bandwidth`/`autoFanoutFloor`). SKILL.md gained Prohibition P29 (deny/drop above the cap, instead of queuing) and the merged-config keys line; `references/workflow-engine.md` and `references/receipt.md` updated to compose with it. +9 hermetic tests (60→69, incl. red-first proof that the concurrency assertion trips on a naive no-op gate before it is trusted against the real one).
+
 ## [Unreleased]
 
 ### Fixed
