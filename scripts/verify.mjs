@@ -9,6 +9,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { validateConfig } from './lib/config-schema.mjs';
 import { stripJsonc } from './lib/jsonc.mjs';
+import { DESC_CAP, frontmatterField } from './lib/desc-cap.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 let fails = 0;
@@ -55,22 +56,8 @@ console.log('description length cap (skills + commands):');
 // Skill-listing description cap: gate at 1024 = cross-platform-safe (agentskills.io / agnix);
 // CC's own listing truncation is 1536 chars combined description+when_to_use
 // (code.claude.com/docs/en/skills, verified 2026-07-16). USER standard 2026-07-16: never exceed.
-const DESC_CAP = 1024;
-function frontmatterField(text, key) {
-  const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (!m) return null;
-  const lines = m[1].split(/\r?\n/);
-  const i = lines.findIndex((l) => l.startsWith(key + ':'));
-  if (i === -1) return null;
-  let v = lines[i].slice(key.length + 1).trim();
-  if (/^[>|][-+]?$/.test(v)) {
-    const parts = [];
-    for (let j = i + 1; j < lines.length && /^\s+\S/.test(lines[j]); j++) parts.push(lines[j].trim());
-    return parts.join(' ');
-  }
-  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
-  return v;
-}
+// DESC_CAP + frontmatterField now live in ./lib/desc-cap.mjs (board #40 — extracted so
+// scripts/build-claude-ai-zips.mjs reads the SAME implementation, never a second copy).
 // Dynamic scan (skills/*/SKILL.md for any dir that has one, commands/*.md) so a
 // new skill/command is covered without editing this gate.
 const descTargets = [];
@@ -122,7 +109,7 @@ try {
 } catch (e) { fail(`factory config: ${e.message}`); }
 
 console.log('libs (import check):');
-for (const lib of ['config-schema.mjs', 'jsonc.mjs', 'admission-control.mjs']) {
+for (const lib of ['config-schema.mjs', 'jsonc.mjs', 'admission-control.mjs', 'desc-cap.mjs', 'claude-ai-trim.mjs']) {
   try { await import(pathToFileURL(path.join(repo, 'scripts', 'lib', lib)).href); ok(`${lib} imports`); }
   catch (e) { fail(`${lib}: ${e.message}`); }
 }

@@ -14,8 +14,11 @@ const TESTS = [
   'scripts/lib/admission-control.test.mjs',
   'scripts/lib/jsonc.test.mjs',
   'scripts/lib/hooks.test.mjs',
+  'scripts/lib/desc-cap.test.mjs',
+  'scripts/lib/claude-ai-trim.test.mjs',
   'scripts/build-plugin.test.mjs',
   'scripts/verify.test.mjs',
+  'scripts/build-claude-ai-zips.test.mjs',
 ];
 
 const missing = TESTS.filter((t) => !fs.existsSync(path.join(repo, t)));

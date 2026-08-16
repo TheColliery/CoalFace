@@ -12,6 +12,12 @@ function mkTmpRepoCopy() {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'coalface-verify-test-'));
   for (const name of fs.readdirSync(repo)) {
     if (name === '.git') continue;
+    // board #40: dist-claude-ai/ is a gitignored, CI-generated build artifact that
+    // build-claude-ai-zips.test.mjs writes + removes at the repo root while node:test
+    // runs test FILES in parallel by default -- copying it here raced that other
+    // test's own rmSync, an intermittent ENOENT with no relation to this gate at all.
+    // Excluded the same way .git already is: it is never part of what verify.mjs checks.
+    if (name === 'dist-claude-ai') continue;
     fs.cpSync(path.join(repo, name), path.join(tmp, name), { recursive: true });
   }
   return tmp;
