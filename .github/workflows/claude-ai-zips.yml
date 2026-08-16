@@ -15,12 +15,18 @@ on:
       - 'v*'
   workflow_dispatch: {} # board #99 findings-back: manual re-run against a tag ref whose push-triggered run already failed
 
+# Minimal top-level token (Scorecard Token-Permissions best practice, board #117 —
+# alert #14: a top-level `contents: write` grants write to every job in the file,
+# not just the one that needs it); only build-zips escalates to the write scope
+# `gh release create`/`gh release upload` need. Same idiom as dependabot-auto-merge.yml.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build-zips:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # only this job creates the Release and uploads assets
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

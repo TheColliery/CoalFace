@@ -709,10 +709,20 @@ test('write side: no project-config writer exists in this room (grep-proof N/A)'
   const sourceDirs = ['hooks', 'scripts', path.join('scripts', 'lib')];
   const writerHit = /writeFileSync\s*\([^)]*coalface\.json/;
   for (const dir of sourceDirs) {
-    for (const f of fs.readdirSync(path.join(REPO, dir))) {
+    // board #117 (CodeQL js/file-system-race, CWE-367): withFileTypes:true returns each
+    // entry's type from the SAME readdir syscall that enumerated it -- entry.isDirectory()
+    // is not a second stat-by-name call, so there is no separate check-then-use pair on
+    // `abs` between "is it a dir" and "read its contents" (the prior statSync(abs) + a
+    // later readFileSync(abs) were two independent lookups of the same NAME, the exact
+    // CWE-367 shape). readFileSync below is still one lookup-by-name, same as any file
+    // read; a full fd-based open+fstat+read would close that too, but this is a test
+    // reading its OWN checked-out source tree in CI, not an untrusted multi-writer
+    // environment -- over-engineering that for a threat model that does not apply here.
+    for (const entry of fs.readdirSync(path.join(REPO, dir), { withFileTypes: true })) {
+      const f = entry.name;
       if (f.endsWith('.test.mjs') || f.endsWith('.test.js')) continue; // this file's own fixtures are not the product
+      if (entry.isDirectory()) continue;
       const abs = path.join(REPO, dir, f);
-      if (fs.statSync(abs).isDirectory()) continue;
       const text = fs.readFileSync(abs, 'utf8');
       assert.ok(!writerHit.test(text), `${dir}/${f} writes a *.coalface.json -- update this test if a real writer was added (write-new-drop-old must then apply)`);
     }
