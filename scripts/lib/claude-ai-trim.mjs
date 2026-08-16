@@ -3,12 +3,12 @@
 // ZIP artifact; the source skills/*/SKILL.md description stays at our own
 // cross-platform 1024 cap (desc-cap.mjs) and is never edited by this.
 //
-// NAMED DIVERGENCE from CoalMine's copy (board #40 fixback F3, 2026-08-16):
-// this file was byte-identical to CoalMine/scripts/lib/claude-ai-trim.mjs at
-// port time; the surrogate-pair fix below is NOT yet ported back there. A
-// flock sweep is a cross-room decision, returned to main rather than applied
-// here — do not re-diverge silently if the sweep lands and this comment is
-// still here.
+// Divergence from CoalMine's copy NAMED 2026-08-16 (board #40 fixback F3) is now
+// CLOSED: CoalMine ported the same surrogate-pair fix back (`bf78c85`'s neighbor
+// commits, citing this room's own board #40 fixback F3 as the source) — the two
+// files' `trimDescription()` bodies are byte-identical again as of that commit;
+// only comment wording still differs (CoalMine's cites the UTF-16-vs-codepoint
+// dominance proof this room's own fix relied on implicitly but never wrote down).
 //
 // ⚠️ unverified (board #40 fixback F4): this trims `description` ALONE, while our own
 // desc-cap.mjs sums `description + when_to_use` against the 1024 cap on the stated
