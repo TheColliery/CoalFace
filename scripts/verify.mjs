@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { validateConfig } from './lib/config-schema.mjs';
 import { stripJsonc } from './lib/jsonc.mjs';
-import { DESC_CAP, frontmatterField } from './lib/desc-cap.mjs';
+import { DESC_CAP, descriptionCapCheck } from './lib/desc-cap.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 let fails = 0;
@@ -56,8 +56,11 @@ console.log('description length cap (skills + commands):');
 // Skill-listing description cap: gate at 1024 = cross-platform-safe (agentskills.io / agnix);
 // CC's own listing truncation is 1536 chars combined description+when_to_use
 // (code.claude.com/docs/en/skills, verified 2026-07-16). USER standard 2026-07-16: never exceed.
-// DESC_CAP + frontmatterField now live in ./lib/desc-cap.mjs (board #40 — extracted so
-// scripts/build-claude-ai-zips.mjs reads the SAME implementation, never a second copy).
+// DESC_CAP + descriptionCapCheck now live in ./lib/desc-cap.mjs, and this gate CALLS
+// descriptionCapCheck rather than re-deriving its arithmetic (fixback F1, board #40's own
+// INSPECT: the first extraction moved frontmatterField but left this loop hand-rolling the
+// cap-check logic inline — same numbers today, but a fix to descriptionCapCheck would have
+// silently never reached this gate. build-claude-ai-zips.mjs reads the SAME implementation.
 // Dynamic scan (skills/*/SKILL.md for any dir that has one, commands/*.md) so a
 // new skill/command is covered without editing this gate.
 const descTargets = [];
@@ -78,9 +81,9 @@ if (fs.existsSync(commandsDir)) {
 for (const [label, p, isSkill] of descTargets) {
   try {
     const text = fs.readFileSync(p, 'utf8');
-    const len = (frontmatterField(text, 'description') || '').length + (frontmatterField(text, 'when_to_use') || '').length;
+    const { len, over } = descriptionCapCheck(text);
     if (isSkill && len === 0) fail(`${label}: frontmatter description missing/unparsed`);
-    else if (len > DESC_CAP) fail(`${label}: description+when_to_use ${len} chars exceeds the ${DESC_CAP}-char cap`);
+    else if (over) fail(`${label}: description+when_to_use ${len} chars exceeds the ${DESC_CAP}-char cap`);
     else ok(`${label}: ${len} chars (cap ${DESC_CAP})`);
   } catch (e) { fail(`${label} description check: ${e.message}`); }
 }
