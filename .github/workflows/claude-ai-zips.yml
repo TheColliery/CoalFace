@@ -34,10 +34,15 @@ jobs:
         with:
           node-version: 24
 
-      - name: Check the tag is STABLE, not a pre-release (board #116 — scripts-quality.md section 3: tags = beta + stable, Releases = stable-only; this workflow created a Release, implicitly "Latest", for ANY v* push. This room is the live case, not a hypothetical one: 5 of this room's 19 tags are pre-release (re-derived: `git tag | grep -c -- -`), and this workflow has already carried the gap since v0.6.0 -- ported from CoalLedger's live-proven copy, the only one of the two prior exemplars to have actually skipped a beta tag rather than only being read as correct because its room never cut one.)
+      - name: Check the ref is a STABLE tag, not a branch or a pre-release tag (board #116 stability check + board #118 ref-type check -- scripts-quality.md section 3: tags = beta + stable, Releases = stable-only; this workflow created a Release, implicitly "Latest", for ANY v* push. Board #116's own hyphen check answers "is this tag stable" but never "is this even a tag" -- workflow_dispatch (board #99) is enabled and its UI defaults the ref picker to the default branch, so a manual re-run against `main` (GITHUB_REF_NAME="main", no hyphen) passed the old check and would have created a Release literally named "main". Found by CoalLedger's independent INSPECT during board #117, verified at source here, never fired live -- latent, not live. Both conditions must hold for is_stable=true; the hyphen check is unchanged, still correct for its own question.)
         id: gate
+        env:
+          REF_TYPE: ${{ github.ref_type }}
         run: |
-          if [[ "${GITHUB_REF_NAME}" == *-* ]]; then
+          if [[ "${REF_TYPE}" != "tag" ]]; then
+            echo "is_stable=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::ref_type is '${REF_TYPE}', not a tag -- skipping claude.ai ZIP packaging (a workflow_dispatch run against a branch has no tag to package)"
+          elif [[ "${GITHUB_REF_NAME}" == *-* ]]; then
             echo "is_stable=false" >> "$GITHUB_OUTPUT"
             echo "::notice::${GITHUB_REF_NAME} is a pre-release tag -- Releases are stable-only here, skipping claude.ai ZIP packaging"
           else
