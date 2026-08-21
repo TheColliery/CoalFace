@@ -52,7 +52,10 @@ Field notes:
   account tier` tells the user their `bandwidth` % settled at real capacity (correct
   behavior, not an error). `4/6 — machine cap` means the `maxLocalWorkers` admission
   bound floored it instead (`references/admission-control.md`) — also correct, never
-  an error: the excess queued, none denied.
+  an error: the excess queued, none denied. `1/<platform cap> — spawn denied` is
+  DIFFERENT from both: the `Agent`/`Task` (or `Bash` for `claude -p`) grant was refused,
+  not chosen — F9's sequential-pipeline degrade ran instead of a swarm (CLASSIFY-BLOCK).
+  State this explicitly; never let a denied fan-out read as a bandwidth/tier choice.
 - **Tokens vs solo** is an ESTIMATE both sides (char-heuristic class) — "~" always, never a
   precise claim. The swarm side runs HIGHER than solo (fan-out multiplies the per-sub baseline
   by N) — that is expected, not a regression; the wallet's win is in DOLLARS (cheap worker tiers)

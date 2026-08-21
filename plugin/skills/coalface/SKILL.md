@@ -32,6 +32,18 @@ You are the **CONDUCTOR** (the session main). Workers are **LEAVES** (P1) — sp
 
 Standing consent (P8): the user's original command IS the consent to run the swarm — a solo main would burn the same budget silently, and the wallet caps the swarm at that budget, so there is no NEW spend to ask about. ONE valve: when the scout finds a job MUCH bigger than the prompt implies, emit a one-line NON-BLOCKING heads-up ("found N spots, ~est X — starting; Esc to stop") — never a question-box, never a third gate. Post-run transparency = the RECEIPT.
 
+## Grants & denials (CLASSIFY-BLOCK — declared)
+A denial reaches the WORKER as a visible message and propagates NO further — not to the
+dispatcher, not as a catchable condition. Every row below states a branch or an explicit
+death; a step that dies says so in the output. Never report a denied step as done, skipped,
+or clean.
+
+| class | step it powers | grant | on denial |
+|---|---|---|---|
+| read | SCOUT (step 1) surveys the worksite + reads invariants/config | `Read`·`Grep`·`Glob` | Refuse before scouting — never a partial survey reported as complete; the heads-up/receipt say the scan could not run |
+| write | Step 7 single-writer APPLY (O4, the real tree) | `Write`·`Edit` | Report + courier the accepted orders to the dispatcher; never claim applied — O5's snapshot stays untaken, O6's journal and the receipt (O1) both state nothing was written |
+| spawn | WAVES (step 4) — worker fan-out | `Agent`·`Task` (or `Bash` for `claude -p`, its own grant) | Degrade to the sequential pipeline (F9/P24) AND SAY SO — the receipt's effective-width field states the fan-out did not happen and why, spawn denied vs. no fan-out tool on the platform (`references/receipt.md`); never reported as a swarm that ran |
+
 ## Prohibitions — 29, numbered P1–P29
 | # | Never | # | Never |
 |---|---|---|---|
