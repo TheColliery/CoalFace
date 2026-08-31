@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { trimDescription, CLAUDE_AI_DESC_CAP } from './claude-ai-trim.mjs';
+import { frontmatterField } from './desc-cap.mjs';
+
+const SKILL_MD = fileURLToPath(new URL('../../skills/coalface/SKILL.md', import.meta.url));
 
 test('CLAUDE_AI_DESC_CAP is 200 (the platform constraint this exists to satisfy)', () => {
   assert.strictEqual(CLAUDE_AI_DESC_CAP, 200);
@@ -55,8 +60,12 @@ test('a spaceless CJK/Thai-shaped description (no ASCII word breaks) still trims
 });
 
 test('the real CoalFace SKILL.md description trims to <=200 and stays non-empty', () => {
-  const real = 'Fan-out discipline for swarm work. When a task decomposes into many units (a bulk refactor, a repo-wide sweep, a corpus batch), CoalFace runs it as a disciplined factory: mandatory SCOUT surveys the worksite, deterministic PARTITION merges overlapping/tiny spots, workers return anchor-edit orders as TEXT (propose-not-execute), QC checks scope+spec at collection, main = SINGLE WRITER (pre-swarm snapshot + domain gate), RECEIPT shows tokens-vs-solo. Wallet caps DOLLAR cost at ~solo via cheap tiers (raw tokens run HIGHER — fan-out ×N the per-sub baseline), not raw tokens. Modes: coalfaceMode auto (default, rides the contract at/above autoFanoutFloor units) | on (scout every prompt) | off. Manual "/coalface" or "swarm this" convenes it in any mode except off. Cross-agent (native subagent tool; no fan-out → sequential-pipeline degrade). Disciplines fan-outs that would happen anyway — does not make models smarter or guarantee correctness. Zero-dependency, offline, no API keys.';
-  assert.ok(real.length > 200, 'fixture must actually exceed the cap to test trimming');
+  // Read live rather than a hand-copied fixture -- a hand-copied literal drifts
+  // silently the moment the frontmatter description changes (board CWK-034 F2:
+  // this exact fixture went stale the same unit that added it, with no gate to
+  // catch it, since this test never compared against the live file).
+  const real = frontmatterField(readFileSync(SKILL_MD, 'utf8'), 'description');
+  assert.ok(real.length > 200, 'live description must actually exceed the cap to test trimming');
   const out = trimDescription(real);
   assert.ok(out.length <= 200);
   assert.ok(out.length > 0);

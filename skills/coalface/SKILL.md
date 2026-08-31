@@ -12,7 +12,7 @@ description: >-
   off. Manual "/coalface" or "swarm this" convenes it in any mode except off. Cross-agent
   (native subagent tool; no fan-out → sequential-pipeline degrade). Disciplines fan-outs
   that would happen anyway — does not make models smarter or guarantee correctness.
-  Zero-dependency, offline, no API keys.
+  Zero-dependency, offline by default, no API keys.
 ---
 
 # CoalFace — the fan-out discipline
@@ -101,7 +101,7 @@ or clean.
 
 **3 · HEADS-UP (conditional, non-blocking, P7).** Job dwarfs the prompt → the one-liner above, then proceed.
 
-**4 · WAVES.** Effective width = floor(platform width × `bandwidth`%) (def 25% ≈ 4 slots on a 16-slot platform), then floored again by the MACHINE bound: `min(that, maxLocalWorkers)` — a cap on workers holding a local CPU-bound gate slot (build/test), auto-derived from this machine's cores when `maxLocalWorkers` is 0 (`references/admission-control.md`, P29); excess queues, none denied. Spawn wave by wave; each worker gets the work-contract (`references/contract-template.md`) carrying its scope + the shared-digest + the locked invariants. Model: a main-EQUIVALENT model is the default on every platform; on Claude Code, CoalTipple delegate-down tiering is an OPTIONAL enhancement (degrade-safe absent; sensitive units stay main-tier, P21). 429/quota/zombie handling per F5/F6/F7/F8, P14/P15/P19. **AIMD:** a 429 SHRINKS the next wave (multiplicative); clear waves re-GROW it additively back toward the set `bandwidth`% — a % above real capacity just settles at real capacity, nothing breaks.
+**4 · WAVES.** Effective width = floor(platform width × `bandwidth`%) (def 25% ≈ 4 slots on a 16-slot platform), then floored again by the MACHINE bound: `min(that, maxLocalWorkers)` — a cap on concurrent apply-time domain-gate runs (main's own step-7 build/test, or a depth-1 nested conductor's own for its scope — never a worker's, which is a spawn-tool-less leaf), auto-derived from this machine's cores when `maxLocalWorkers` is 0 (`references/admission-control.md`, P29); a configured value only lowers the cap, never raises it past the derived one; excess queues, none denied. Spawn wave by wave; each worker gets the work-contract (`references/contract-template.md`) carrying its scope + the shared-digest + the locked invariants. Model: a main-EQUIVALENT model is the default on every platform; on Claude Code, CoalTipple delegate-down tiering is an OPTIONAL enhancement (degrade-safe absent; sensitive units stay main-tier, P21). 429/quota/zombie handling per F5/F6/F7/F8, P14/P15/P19. **AIMD:** a 429 SHRINKS the next wave (multiplicative); clear waves re-GROW it additively back toward the set `bandwidth`% — a % above real capacity just settles at real capacity, nothing breaks.
 
 **5 · RETURN = ORDERS AS TEXT (propose-not-execute, P1/P9/P10).** Edits → ANCHOR-EDITS (`old-text → new-text`, exact-match, position-independent — the same-file-100-spots case works because anchors don't shift). Non-edit domains → the completed unit as text (a translated paragraph, a record, a report section). Side-effects fire only at step 7's sequential apply — already covered by Activation's standing consent, no fresh ask here.
 

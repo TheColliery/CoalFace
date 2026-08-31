@@ -29,8 +29,11 @@ test('deriveMachineCap: rejects a non-positive-integer cpuCount', () => {
   assert.throws(() => deriveMachineCap({}), RangeError);
 });
 
-test('resolveCap: an explicit positive config value wins over derivation', () => {
+test('resolveCap: a config value can lower the cap but never raise it above the machine-derived one', () => {
+  // lowering: 3 is below the machine cap of 7 on a 16-core box -- the explicit value wins
   assert.strictEqual(resolveCap(3, { cpuCount: 16 }), 3);
+  // raising: 64 is far above the machine cap of 1 on a 2-core box -- the clamp wins, not the config
+  assert.strictEqual(resolveCap(64, { cpuCount: 2 }), 1);
 });
 
 test('resolveCap: 0 or absent falls through to deriveMachineCap', () => {
