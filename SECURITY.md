@@ -6,7 +6,13 @@ CoalFace is verified under the same framework as **[CoalMine](https://github.com
 
 ## 🔒 Reporting a Vulnerability
 
-Open an issue at `github.com/TheColliery/CoalFace`, or request a private channel for sensitive PoC logs. We investigate promptly.
+**Channel:** [GitHub private vulnerability reporting](https://github.com/TheColliery/CoalFace/security/advisories/new) — *Security → Report a vulnerability* on the repo page. Enabled for this repo, verified live at press.
+
+**Scope:** the shipped `plugin/` skill and its conductor hooks (`coalface-conductor.js`, `ag-conductor.js`), the build/verify scripts under `scripts/`, and the swarm-discipline mechanisms (snapshot/rollback, worker isolation, QC gating) described below.
+
+**What to expect:** an acknowledgement, triage against the scope above, and coordinated disclosure timing agreed with you before any public detail — all inside the advisory thread, never a public issue.
+
+A public issue stays the route for ordinary bugs; it is not the route for a vulnerability.
 
 ---
 
