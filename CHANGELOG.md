@@ -4,6 +4,13 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.7.5] - 2026-09-04
+
+### Fixed
+- **`references/admission-control.md` named the bare project config as `maxLocalWorkers`' home (CWK-064 sibling convention: ONE CONFIG-READ PATH PER ROOM).** The line read `` `maxLocalWorkers` (`.coalface.json`, default `0`) `` — a mention governed by a rail that does not describe how the key is actually read: the conductor's `readCfg()` reads the GLOBAL `~/.claude/.coalface.json` overlaid by the nearest project config, so a reader following the doc on a machine configured only globally would look for a project file that is not there. Corrected to state the real read path and why the bare project file alone is wrong. This is the room's only instance — the whole shipped surface was swept, not just the file the convention was noticed in.
+
+*Internal, not shipped (no dist change of its own): `scripts/lib/config-keys.mjs` + `scripts/verify.mjs` block 2.9 — the config-key drift gate adopted under CWK-060, which is what found the line above. Per the "does the shipped artifact change?" test, `scripts/` alone would have earned no version; this entry exists because the reference doc it corrected does ship.*
+
 ## [0.7.4] - 2026-08-31
 
 ### Fixed

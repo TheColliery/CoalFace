@@ -16,6 +16,7 @@ const TESTS = [
   'scripts/lib/hooks.test.mjs',
   'scripts/lib/desc-cap.test.mjs',
   'scripts/lib/claude-ai-trim.test.mjs',
+  'scripts/lib/config-keys.test.mjs',
   'scripts/build-plugin.test.mjs',
   'scripts/verify.test.mjs',
   'scripts/build-claude-ai-zips.test.mjs',

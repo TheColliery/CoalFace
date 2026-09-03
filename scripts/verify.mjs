@@ -149,5 +149,46 @@ try {
   if (!pins) fail('no version-pin marker found in .github/ISSUE_TEMPLATE (the bug-report placeholder must carry one)');
 } catch (e) { fail(`version pins: ${e.message}`); }
 
+console.log('config-key drift (docs vs schema, CWK-060):');
+// Every config key NAMED on a user-facing surface must RESOLVE in the schema, or be
+// declared. Ported from CoalMine's CWK-059/061 exemplar; every list and number in
+// config-keys.mjs is measured on THIS room's surfaces (see that file's header).
+// Dynamic import per node/runtime.md §1 — a GATE's local lib imports resolve at LINKING
+// time, before the first try/catch exists, so a static one cannot be wrapped.
+try {
+  const { checkConfigKeys } = await import(pathToFileURL(path.join(repo, 'scripts', 'lib', 'config-keys.mjs')).href);
+  const { CONFIG_SCHEMA } = await import(pathToFileURL(path.join(repo, 'scripts', 'lib', 'config-schema.mjs')).href);
+  const rel = (...p) => path.join(repo, ...p);
+  const findings = checkConfigKeys({
+    schemaKeys: CONFIG_SCHEMA.map((s) => s.key),
+    // SOURCE ONLY, never the plugin/ twins — verify.mjs's own parity check already
+    // enforces they are byte-identical, so scanning both would double every finding
+    // without adding one bit of coverage.
+    mdFiles: [
+      rel('skills', 'coalface', 'SKILL.md'),
+      rel('skills', 'coalface', 'references', 'contract-template.md'),
+      rel('skills', 'coalface', 'references', 'taxonomy.md'),
+      rel('skills', 'coalface', 'references', 'receipt.md'),
+      rel('skills', 'coalface', 'references', 'admission-control.md'),
+      rel('skills', 'coalface', 'references', 'workflow-engine.md'),
+      rel('README.md'),
+      rel('commands', 'stats.md'),
+      rel('commands', 'update.md'),
+    ],
+    hookFiles: [rel('hooks', 'coalface-conductor.js'), rel('hooks', 'ag-conductor.js')],
+    templateFiles: [rel('platform-configs', '.coalface.json')],
+    keyTables: [{ file: rel('README.md'), heading: 'Configure' }],
+    read: (f) => fs.readFileSync(f, 'utf8'),
+    label: (f) => path.relative(repo, f).split(path.sep).join('/'),
+  });
+  // SKIP is disclosure, not failure — it must never redden the gate, and it must never
+  // be silent either (CoalMine's MEDIUM-1: a stop bought by spending the disclosure).
+  for (const f of findings) (f.level === 'FAIL' ? fail : ok)(f.msg);
+  if (!findings.some((f) => f.level === 'FAIL')) {
+    const blind = findings.some((f) => f.level === 'SKIP' && f.msg.startsWith('blind to'));
+    ok(`every ${blind ? 'DETECTABLE ' : ''}config key named on a scanned surface resolves in the schema`);
+  }
+} catch (e) { fail(`config-key drift: ${e.message}`); }
+
 console.log(fails ? `\nVERIFY: FAIL (${fails})` : '\nVERIFY: PASS');
 process.exit(fails ? 1 : 0);
