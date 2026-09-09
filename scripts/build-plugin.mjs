@@ -92,8 +92,13 @@ export function checkDist(distRoot = dist) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (process.argv.includes('--check')) {
     const f = checkDist();
-    if (f.length) { console.error('plugin/ dist OUT OF SYNC:\n' + f.map((x) => '  ' + x).join('\n') + '\n-> run: node scripts/build-plugin.mjs'); process.exit(1); }
-    console.log('plugin/ dist in sync with source.');
+    // CWK-071 bounce2 F6: a fifth process.exit() the chief's own rider enumeration did not
+    // carry, found by this room's own INSPECT and guarding the largest pending write of the
+    // five. process.exitCode + a natural fall-through, per node/runtime.md §7 -- moved the
+    // "in sync" log into an else branch so it never prints alongside an OUT OF SYNC report
+    // now that nothing exits early to prevent that.
+    if (f.length) { console.error('plugin/ dist OUT OF SYNC:\n' + f.map((x) => '  ' + x).join('\n') + '\n-> run: node scripts/build-plugin.mjs'); process.exitCode = 1; }
+    else console.log('plugin/ dist in sync with source.');
   } else {
     buildDist();
     console.log('plugin/ dist built (skills + hooks + commands + plugin.json) from source.');

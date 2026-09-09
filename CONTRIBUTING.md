@@ -18,7 +18,10 @@ CoalFace is **zero-dependency** (Node.js built-ins only). No `npm install` and n
 
 ```bash
 node scripts/build-plugin.mjs   # regenerate plugin/ from source
-node scripts/verify.mjs         # gate: files, manifests, factory config vs schema, dist-sync (both directions), version pins
+node scripts/verify.mjs         # gate: files · manifest/marketplace · description-length caps ·
+                                 #   factory config vs schema · lib imports · dist-sync (both
+                                 #   directions) · version pins · config-key drift (CWK-060) ·
+                                 #   pointer drift (CWK-079)
 node scripts/test.mjs           # zero-dependency test suite (node --test, explicit file list)
 ```
 

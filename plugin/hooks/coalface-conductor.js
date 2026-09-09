@@ -41,6 +41,9 @@ function physical(p) {
 // found wins) -- .gemini has no current consumer in this room, probed only for
 // flock-consistency (every room checks the same three, so a project's choice of agent dir
 // never depends on which room's config is being read).
+// Exported (CWK-079) so scripts/lib/pointer-check.mjs's caller DERIVES the pointer gate's
+// agent-home roots from this array rather than hand-copying it -- the exact CoalTipple
+// failure mode CWK-079's own dispatch names for a DIFFERENT hand-kept list (ourRoots).
 const AGENT_DIR_ORDER = ['claude', 'agents', 'gemini'];
 
 // Ordered per-level candidate list for one directory: the EXECUTING agent's own dir first
@@ -256,7 +259,7 @@ function main() {
 // per platform. Exporting does NOT change the spawned-hook behavior (main still runs
 // when this file is the entrypoint, below) — the hermetic tests keep spawning the real
 // file (hooks-safety §7).
-module.exports = { readCfg, directiveFor, languageLock };
+module.exports = { readCfg, directiveFor, languageLock, AGENT_DIR_ORDER };
 
 if (require.main === module) {
   try { main(); } catch { /* Phoenix #4: fail-silent, never crash the host */ }
