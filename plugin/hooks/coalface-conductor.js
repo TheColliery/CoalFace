@@ -202,6 +202,33 @@ function directiveFor(cfg) {
   return '';
 }
 
+// AL-2: a clause for a LOCKED (non-auto) language value — '' on auto/absent/unrecognized
+// (Phoenix #13 zero-noise: the factory default IS the behaviour, so a directive saying
+// "follow the conversation" is pure noise; an unrecognized value clamps to auto exactly
+// like modeOf/floorOf above, never a raw pass-through). Values hardcoded here rather than
+// imported from scripts/lib/config-schema.mjs — a CJS hook cannot require() an ESM module
+// (node/runtime.md §3), and every other clamp in this file (modeOf, floorOf) is already
+// self-contained the same way.
+//
+// Applied to the FINAL non-empty message at BOTH emit sites (main() below,
+// hooks/ag-conductor.js after its directiveFor(...) call) — NEVER folded into
+// directiveFor alone. The hole that creates: directiveFor returns '' when
+// coalfaceMode:off, but the self-update nudge in main() still fires (updateMode is its
+// own off-switch, orthogonal) — a lock living only inside directiveFor would silently
+// skip that nudge-only message.
+// NO `[CoalFace]` PREFIX HERE (F2, INSPECT bounce r29) — the prefix belongs at the CALL
+// SITE, exactly like the self-update nudge below (`(msg ? ' ' : '[CoalFace] ') + '...'`).
+// A prefix embedded in the return value doubles it whenever the message is already
+// non-empty (directive+lock, or nudge+lock) — 3 of 5 reachable states, measured by
+// INSPECT. Both call sites (main() below, hooks/ag-conductor.js) supply the prefix the
+// same way the nudge does.
+const LANGUAGE_VALUES = ['auto', 'th', 'en', 'ja', 'zh', 'es'];
+function languageLock(cfg) {
+  const v = lc(cfg.language || 'auto');
+  if (v === 'auto' || !LANGUAGE_VALUES.includes(v)) return '';
+  return `Reply language locked to '${v}'. Translate PROSE only -- commands, paths, identifiers, config keys and severity labels stay VERBATIM.`;
+}
+
 function main() {
   let input = {};
   try { const p = JSON.parse(readStdin() || '{}'); if (p && typeof p === 'object' && !Array.isArray(p)) input = p; } catch {}
@@ -216,14 +243,20 @@ function main() {
   if (updateDue(cfg)) {
     msg += (msg ? ' ' : '[CoalFace] ') + '[self-update due] Offer the /coalface:update check: web-check the latest CoalFace tag vs the installed plugin.json version; if newer, OFFER `claude plugin update coalface@coalface`; if current, say "up to date"; if git/network is unavailable, say so and suggest updating manually later (never assume). Consent-gated; the hook only scheduled it.';
   }
+  // AL-2: applied to the FINAL message (after the update nudge), never to directiveFor's
+  // own text alone — see languageLock's own comment for the hole this closes. Prefix at
+  // the call site (F2), same idiom as the update nudge two lines above.
+  const lock = languageLock(cfg);
+  if (lock) msg += (msg ? ' ' : '[CoalFace] ') + lock;
   if (msg) process.stdout.write(msg); // sanctioned SessionStart context-injection channel
 }
 
 // Shared core for the Antigravity adapter (hooks/ag-conductor.js): the config read +
-// the directive text stay ONE implementation, never forked per platform. Exporting
-// does NOT change the spawned-hook behavior (main still runs when this file is the
-// entrypoint, below) — the hermetic tests keep spawning the real file (hooks-safety §7).
-module.exports = { readCfg, directiveFor };
+// the directive text + the language-lock clause stay ONE implementation, never forked
+// per platform. Exporting does NOT change the spawned-hook behavior (main still runs
+// when this file is the entrypoint, below) — the hermetic tests keep spawning the real
+// file (hooks-safety §7).
+module.exports = { readCfg, directiveFor, languageLock };
 
 if (require.main === module) {
   try { main(); } catch { /* Phoenix #4: fail-silent, never crash the host */ }

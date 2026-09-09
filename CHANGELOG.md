@@ -4,6 +4,15 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.8.0] - 2026-09-10
+
+### Added
+- **The `language` config key (AL-2, owner-signed 2026-09-05).** Lock CoalFace's reply language with `"language": "auto" | "th" | "en" | "ja" | "zh" | "es"` in `.coalface.json`. `auto` (the default) is unchanged behaviour — follow the conversation's language, EN fallback, no extra work; a lock translates **prose only**, so commands, paths, identifiers, config keys and severity labels stay verbatim. The six-value closed enum is the flock shape, ported verbatim from CoalMine's `scripts/lib/config-schema.mjs` exemplar; a widening lands there first, never here. Shipped alongside CoalHearth's identical key (`8778447`) in the same round, and the two rooms wire it the same way by construction: a lock clause appended to the FINAL message the SessionStart hook emits, never folded into the discipline directive alone. That distinction is load-bearing here — `coalfaceMode: off` silences the directive while the self-update nudge still fires (the keys are orthogonal), so a lock living inside `directiveFor()` would have silently skipped user-facing prose. One implementation (`languageLock()`), applied at both emit sites — the Claude Code SessionStart path and the Antigravity adapter. `auto`, absent, and out-of-enum values are all silent (Phoenix #13: a directive restating the factory default is noise). Not clamped by `SAFER_ENUM`, deliberately: `hooks-safety.md` §9 clamps what gates consent, spend, or an outward action, and a language preference gates none — it has no loudness axis to order.
+
+### Fixed
+- **The config-key drift gate asserted `BLIND_KEYS` coverage it never verified (CWK-060 follow-through).** `scripts/lib/config-keys.mjs`'s dependency check confirmed that a key table *exists*, never that a blind key *appears* in one — so with `language` in the schema and its README row not yet written, `verify.mjs` returned PASS while printing "covered by the L2 key-table pass" against a coverage line whose four matched cells did not include it. Found by measurement during this unit, on the day the second blind key was added. The check now verifies each declared blind key against the set L2 actually matched — deliberately not against the gate's shared `seen` map, which accumulates across all four locators and would have passed whenever any locator saw the key while the *declared* coverage stayed absent.
+- **Double `[CoalFace]` prefix on three of five reachable SessionStart messages.** The language-lock clause carried the prefix in its own return while the file's own idiom puts it at the call site. Moved to the call site, matching the self-update nudge nine lines above.
+
 ## [0.7.5] - 2026-09-04
 
 ### Fixed

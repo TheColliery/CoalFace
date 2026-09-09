@@ -130,6 +130,7 @@ Everything is tunable in `.coalface.json` — global `~/.claude/.coalface.json` 
 | `bandwidth` | `25` | Percent of the platform's available subagent width a wave may use (`100` = saturate — starves every sibling session; never the default). Orthogonal to the wallet: how FAST the same budget burns, never how much. |
 | `autoFanoutFloor` | `4` | Fan-out size (units) at/above which an `auto`-mode fan-out must ride the contract; below it, 1-2-sub ad-hoc spawns keep zero ceremony. |
 | `maxLocalWorkers` | `0` | Ceiling on concurrent apply-time domain-gate runs (main's own build/test, or a depth-1 nested conductor's own) — `0` auto-derives from your machine's core count; a positive integer LOWERS it, never past the derived cap. Excess queue, never denied. |
+| `language` | `auto` | Locks the reply language (`auto`/`th`/`en`/`ja`/`zh`/`es`). `auto` follows the conversation's language, EN fallback, no extra work. A lock translates PROSE only — commands, paths, identifiers, config keys and severity labels stay VERBATIM. |
 
 Full key reference: every key + default lives in [`scripts/lib/config-schema.mjs`](scripts/lib/config-schema.mjs) and the commented template [`platform-configs/.coalface.json`](platform-configs/.coalface.json).
 

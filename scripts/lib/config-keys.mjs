@@ -15,8 +15,11 @@
 //      The exemplar's `indexOf('const TRANSLATIONS')` returns -1 here, so a straight copy
 //      would scan ZERO BYTES and report GREEN. Hence L3 locates by the `[CoalFace]` prefix
 //      every user-facing notice in this room actually carries, and hence ZERO_MATCH_FAILS.
-//   2. MIXED QUOTING. Line 197 is a backtick template literal, 200 and 217 are
-//      single-quoted. A single-quote-only matcher silently skips the first.
+//   2. MIXED QUOTING. `hooks/coalface-conductor.js`'s live notice sites: 197 (backtick
+//      template literal) · 200 (single-quoted) · 244 (single-quoted, the self-update
+//      nudge) · 250 (single-quoted, the language-lock clause — its `[CoalFace]` prefix
+//      lives at this CALL SITE, not inside the helper, per that file's own idiom). A
+//      single-quote-only matcher would silently skip 197.
 //   3. NO END SENTINEL. `directiveFor` is a FUNCTION, not an object literal, so the
 //      exemplar's `\n};` end marker does not bound it. L3 is line-scoped instead, and
 //      every locator PRINTS what it scanned so a silent locator cannot hide (ADDENDUM 2).
@@ -63,14 +66,16 @@ export const NOT_CONFIG = {
 // accepted. MANDATORY, NOT OPTIONAL: any schema key failing KEY_SHAPE and not declared
 // here is a hard FAIL, so the gate cannot silently ACQUIRE a blind spot.
 //
-// THIS ROOM'S ENTRY IS `bandwidth`, NOT `language` — and that difference is itself a
-// finding. The dispatch predicted `language` by construction, since AGENTS.md 5 Standard
-// Systems #2 mandates it flock-wide. THIS SCHEMA HAS NO `language` KEY AT ALL (measured:
-// 0 occurrences in config-schema.mjs), so the mandated key is MISSING rather than blind —
-// the same gap CoalHearth found. Reported to the chair, not silently patched here: adding
-// a schema key is a capability change, not this ticket's scope.
+// TWO ENTRIES: `bandwidth` (pre-existing) and `language` (AL-2, CWK-065/r29). This
+// schema previously had NO `language` key at all (measured 0 occurrences) — that gap
+// was reported to the chair rather than silently patched, the chair has since SIGNED
+// the addition and ruled the six-value closed enum stays the flock shape, ported
+// verbatim from CoalMine's exemplar. Both entries share the identical shape gap (a
+// single lowercase word, no internal capital) and the identical coverage: the L2
+// key-table pass, where the first cell is a key by the table's own contract.
 export const BLIND_KEYS = {
   bandwidth: 'a single lowercase word (no internal capital), indistinguishable from prose by shape; covered instead by the L2 key-table pass, where the first cell is a key by the table’s own contract',
+  language: 'AL-2 — a single lowercase word (no internal capital), the identical shape gap as bandwidth; covered instead by the L2 key-table pass (the README Configure row)',
 };
 
 const NL = String.fromCharCode(10);
@@ -203,6 +208,7 @@ export function checkConfigKeys({
   // table's own contract, so POSITION supplies what SHAPE cannot. This is the only path
   // that can see `bandwidth`, which is exactly why BLIND_KEYS points at it.
   let l2rows = 0, l2hits = 0;
+  const l2Tokens = new Set(); // F1 (r29 bounce): L2's OWN matched set, never the global `seen`
   for (const { file, heading } of keyTables) {
     const text = readOr(file);
     if (text === null) continue;
@@ -217,6 +223,7 @@ export function checkConfigKeys({
       if (!m) continue;
       const tok = m[1];
       note(tok, file); l2hits++;
+      l2Tokens.add(tok);
       if (known.has(tok) || Object.hasOwn(notConfig, tok) || Object.hasOwn(pending, tok)) continue;
       tableReported.add(tok);
       findings.push({
@@ -227,6 +234,32 @@ export function checkConfigKeys({
     }
   }
   cov.push('L2 ' + keyTables.length + ' table(s)/' + l2rows + ' rows→' + l2hits);
+
+  // F1 (INSPECT bounce r29): the dependency check above (":142", `blind.length && !keyTables.length`)
+  // proves a key table EXISTS — it never proves a DECLARED blind key actually APPEARS in one.
+  // BLIND_KEYS' own per-key text asserts "covered by the L2 key-table pass"; this is the check
+  // that VERIFIES that sentence rather than repeating it. Placed HERE, after L2 has run, because
+  // the matched tokens do not exist before that — `seen` at :170 postdates this file's whole
+  // precondition section, so no earlier point in the function could hold L2's own result.
+  //
+  // Checked against L2's OWN matched set (`l2Tokens`), never the global `seen` map: `seen`
+  // accumulates from ALL FOUR locators, so a `seen`-based check would pass if ANY locator merely
+  // happened to see the key while L2 itself — the DECLARED coverage — never did. Every other
+  // locator gates on KEY_SHAPE, which no blind key can pass by definition, so a seen-based check
+  // would have been ACCIDENTALLY correct today — the same shape as the defect this closes.
+  // Gated on keyTables.length: an absent key table already FAILs above; re-running this loop
+  // against an empty l2Tokens would only repeat that FAIL under a second message.
+  if (keyTables.length) {
+    for (const tok of Object.keys(blind)) {
+      if (known.has(tok) && !l2Tokens.has(tok)) {
+        findings.push({
+          level: 'FAIL',
+          msg: 'BLIND_KEYS declares ' + tok + ' as covered by the L2 key-table pass, but no scanned key '
+            + 'table row names it — the declared coverage does not exist. Add its row, or correct the declaration',
+        });
+      }
+    }
+  }
 
   // L3 — HOOK NOTICES, located by the `[CoalFace]` prefix every user-facing notice carries.
   // QUOTE-AGNOSTIC by construction: it scans the LINE, so a template literal, a single-quoted

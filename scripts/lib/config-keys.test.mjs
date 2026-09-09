@@ -65,10 +65,47 @@ test('BLIND: an undeclared schema key the shape rule cannot see is a HARD FAIL',
 
 test('BLIND: a DECLARED blind key does not fail, and still DISCLOSES via SKIP', () => {
   const out = checkConfigKeys({
-    ...BASE, schemaKeys: ['coalfaceMode', 'bandwidth'], blind: { bandwidth: 'lowercase' }, read: mk({}),
+    ...BASE, schemaKeys: ['coalfaceMode', 'bandwidth'], blind: { bandwidth: 'lowercase' },
+    // bandwidth's row MUST be present for F1's coverage check to pass — this fixture
+    // predates F1 and originally omitted it, which the F1 check now (correctly) catches;
+    // the test's own intent is the SKIP disclosure, not the coverage check, so the row is
+    // added here rather than exempted.
+    read: mk({ 'base.md': ['## Configure', '| Key | Default |', '| `coalfaceMode` | `auto` |', '| `bandwidth` | `25` |', ''].join('\n') }),
   });
   assert.equal(fails(out).length, 0);
   assert.match(skips(out).join(' '), /blind to 1 DECLARED schema key/);
+});
+
+// ---- F1 (INSPECT bounce, r29): BLIND_KEYS' coverage claim is PROVEN, never merely asserted ----
+
+test('F1: a declared blind key whose row is ABSENT from the key table FAILs, naming the coverage gap', () => {
+  const out = checkConfigKeys({
+    ...BASE, schemaKeys: ['coalfaceMode', 'bandwidth'], blind: { bandwidth: 'lowercase' },
+    keyTables: [{ file: 'r.md', heading: 'Configure' }],
+    read: mk({ 'r.md': '## Configure\n| Key | Default |\n| `coalfaceMode` | `auto` |\n' }), // bandwidth's row missing
+  });
+  assert.match(fails(out).join(' '), /BLIND_KEYS declares bandwidth as covered by the L2 key-table pass, but no scanned key table row names it/);
+});
+
+test('F1: a declared blind key whose row IS present passes the coverage check', () => {
+  const out = checkConfigKeys({
+    ...BASE, schemaKeys: ['coalfaceMode', 'bandwidth'], blind: { bandwidth: 'lowercase' },
+    keyTables: [{ file: 'r.md', heading: 'Configure' }],
+    read: mk({ 'r.md': '## Configure\n| Key | Default |\n| `coalfaceMode` | `auto` |\n| `bandwidth` | `25` |\n' }),
+  });
+  assert.equal(fails(out).filter((m) => /no scanned key table row names it/.test(m)).length, 0);
+});
+
+test('F1: checked against L2\'s OWN matched set, not the global `seen` map — a blind key seen ONLY by a non-L2 locator still FAILs', () => {
+  const out = checkConfigKeys({
+    ...BASE, schemaKeys: ['coalfaceMode', 'bandwidth'], blind: { bandwidth: 'lowercase' },
+    // bandwidth cannot actually appear via L1/L3/L4 (they gate on KEY_SHAPE, which no blind
+    // key passes) — this proves the check reads l2Tokens specifically, not `seen`, by
+    // asserting the fail fires even though `note()` runs for every locator identically.
+    keyTables: [{ file: 'r.md', heading: 'Configure' }],
+    read: mk({ 'r.md': '## Configure\n| Key | Default |\n| `coalfaceMode` | `auto` |\n' }),
+  });
+  assert.match(fails(out).join(' '), /bandwidth as covered by the L2 key-table pass/);
 });
 
 test('BLIND expiry 1: a declaration whose key LEFT the schema FAILs', () => {

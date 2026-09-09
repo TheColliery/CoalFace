@@ -3,10 +3,20 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import { CONFIG_SCHEMA, validateValue, validateConfig } from './config-schema.mjs';
 
-test('schema ships exactly the 6 shipped keys, each with one-line help', () => {
+test('schema ships exactly the 7 shipped keys, each with one-line help', () => {
   const keys = CONFIG_SCHEMA.map((s) => s.key).sort();
-  assert.deepStrictEqual(keys, ['autoFanoutFloor', 'bandwidth', 'coalfaceMode', 'maxLocalWorkers', 'updateCheckDays', 'updateMode']);
+  assert.deepStrictEqual(keys, ['autoFanoutFloor', 'bandwidth', 'coalfaceMode', 'language', 'maxLocalWorkers', 'updateCheckDays', 'updateMode']);
   for (const s of CONFIG_SCHEMA) assert.ok(typeof s.help === 'string' && s.help.length > 0, `${s.key} has help`);
+});
+
+test('AL-2: language enum accepts its six values case-insensitively, rejects a seventh', () => {
+  const lang = CONFIG_SCHEMA.find((s) => s.key === 'language');
+  for (const v of ['auto', 'th', 'en', 'ja', 'zh', 'es']) {
+    assert.strictEqual(validateValue(lang, v), null, `${v} accepted`);
+    assert.strictEqual(validateValue(lang, v.toUpperCase()), null, `${v.toUpperCase()} accepted case-insensitively`);
+  }
+  assert.match(validateValue(lang, 'fr'), /must be one of/, 'a seventh value is rejected');
+  assert.strictEqual(lang.flags, undefined, 'no flags field -- this room ships no configure.mjs/CLI to read one');
 });
 
 test('validateValue: enum accepts case-insensitively, rejects unknown', () => {

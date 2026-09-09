@@ -34,5 +34,9 @@
   // references/admission-control.md. A positive integer LOWERS the cap, never raises
   // it past the derived one. A CAP, not a consent/spend key: plain project-wins, no
   // safer-value-wins clamp needed.
-  "maxLocalWorkers": 0
+  "maxLocalWorkers": 0,
+  // Lock the reply language (auto, th, en, ja, zh, es). auto (default) follows the
+  // conversation's language, EN fallback -- no extra work. A lock translates PROSE
+  // only: commands, paths, identifiers, config keys and severity labels stay verbatim.
+  "language": "auto"
 }

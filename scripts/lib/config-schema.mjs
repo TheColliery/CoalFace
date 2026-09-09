@@ -17,6 +17,16 @@ export const CONFIG_SCHEMA = [
   { key: 'updateMode', type: 'enum', values: ['ask', 'auto', 'remind', 'off'], help: 'Self-update behavior at session start (ask, auto, remind, off). The hook never networks — the agent verifies + offers, consent-gated. Orthogonal to coalfaceMode — its own off-switch. Default ask' },
   { key: 'updateCheckDays', type: 'int', min: 1, max: 365, help: 'Days between self-update checks/reminders (range 1-365; the hook CLAMPS an out-of-range value to the default on read). Default 14' },
   { key: 'maxLocalWorkers', type: 'int', min: 0, max: 64, help: 'Ceiling on concurrent apply-time DOMAIN-GATE runs (main\'s own step-7 build/test, or a depth-1 nested conductor\'s own) holding a CPU-bound slot -- the MACHINE bound, distinct from bandwidth (agent-process width/speed) and the wallet (dollars). Workers never hold this slot -- they cannot run a build/test step. 0 = auto-derive from this machine\'s core count (scripts/lib/admission-control.mjs: max(1, min(16, floor((cores-2)/2)))); a positive integer LOWERS the cap, never raises it past the derived one. A CAP, not a consent/spend key -- plain project-wins merge, no safer-value-wins clamp (hooks-safety.md §9\'s numeric-keys carve-out). Range 0-64, default 0 (auto)' },
+  // AL-2 (owner-signed 2026-09-05), shape ruled by the chief 2026-09-09: the six-value
+  // closed enum STAYS the flock shape -- a widening lands at the exemplar (CoalMine)
+  // first, never here. Values ported VERBATIM from CoalMine's scripts/lib/config-
+  // schema.mjs:17. 5 Standard Systems #2 (AGENTS.md): factory AUTO follows the
+  // conversation's language, EN fallback, no extra work -- this key exists to LOCK it.
+  // A lock translates PROSE only; commands, paths, identifiers, config keys and
+  // severity labels stay VERBATIM. No `flags` field -- this room ships no
+  // configure.mjs/CLI to read one (CWK-065 cell 1.7), same reason CoalHearth's AL-2
+  // entry states for its own room.
+  { key: 'language', type: 'enum', values: ['auto', 'th', 'en', 'ja', 'zh', 'es'], help: 'Lock the reply language (auto, th, en, ja, zh, es). Translates prose only -- commands, paths, identifiers, config keys and severity labels stay verbatim. Default auto' },
 ];
 
 // Validate an already-parsed JSON value against a spec entry.

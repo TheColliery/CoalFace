@@ -38,7 +38,7 @@
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { readCfg, directiveFor } = require('./coalface-conductor.js');
+const { readCfg, directiveFor, languageLock } = require('./coalface-conductor.js');
 
 // First non-empty string among keys (defensive: the current AG spec is camelCase
 // protojson; legacy snake_case — the pilot-era shape — stays accepted too).
@@ -113,8 +113,15 @@ function main() {
     fs.writeFileSync(marker, '', { flag: 'wx' });
   } catch { return; } // EEXIST (already ran) OR any write failure -> fail-closed, no emit
 
-  const msg = directiveFor(readCfg('agents')); // this adapter only ever runs under Antigravity
-  if (!msg) return; // coalfaceMode off -> silent (the marker still spares per-call config reads)
+  const cfg = readCfg('agents'); // this adapter only ever runs under Antigravity
+  let msg = directiveFor(cfg);
+  // AL-2: applied right after directiveFor, per the shared core's own contract — AG
+  // carries no self-update nudge (not ported here), so directiveFor's result IS the
+  // final message this adapter ever builds. Prefix at the call site (F2), same idiom
+  // as the CC nudge in coalface-conductor.js's main().
+  const lock = languageLock(cfg);
+  if (lock) msg += (msg ? ' ' : '[CoalFace] ') + lock;
+  if (!msg) return; // coalfaceMode off AND no language lock -> silent (the marker still spares per-call config reads)
 
   console.log(JSON.stringify({ injectSteps: [{ ephemeralMessage: msg }] })); // the one sanctioned AG stdout (current PreInvocation output contract)
 }

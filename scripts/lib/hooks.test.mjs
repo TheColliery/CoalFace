@@ -699,6 +699,109 @@ test('case 40: a corrupt NEW-path stamp falls back to the OLD path, same as an a
   } finally { clean(home, cwd); }
 });
 
+// ---------------------------------------------------------------------------
+// AL-2: language lock -- appended to the FINAL non-empty message at BOTH emit
+// sites (main() below, hooks/ag-conductor.js), never folded into directiveFor
+// alone. The enum (auto/th/en/ja/zh/es) mirrors config-schema.mjs; auto is
+// silent (Phoenix #13 -- the factory default IS the behavior).
+// ---------------------------------------------------------------------------
+
+test('case 41: language:auto -> no lock clause (the default is the behavior, Phoenix #13)', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home, { language: 'auto' });
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.doesNotMatch(r.stdout, /locked to/i, 'auto emits no lock clause');
+  } finally { clean(home, cwd); }
+});
+
+test('case 42: language:th -> lock clause appended to the auto directive', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home, { language: 'th' });
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.match(r.stdout, /\[CoalFace\] Fan-out discipline \(auto\)/, 'directive still present');
+    assert.match(r.stdout, /locked to 'th'/, 'lock clause appended');
+  } finally { clean(home, cwd); }
+});
+
+test('case 43: an out-of-enum language value CLAMPS to auto (no lock), same discipline as modeOf/floorOf', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home, { language: 'fr' }); // not one of the six shipped values
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.doesNotMatch(r.stdout, /locked to/i, 'unrecognized value clamps to auto, silent');
+  } finally { clean(home, cwd); }
+});
+
+test('case 44: a locked language reaches the update-nudge-only message when coalfaceMode:off (the item-2 hole)', () => {
+  const { home, cwd } = sandbox();
+  try {
+    writeGlobalCfg(home, { coalfaceMode: 'off', updateMode: 'auto', language: 'ja' }); // discipline silent, update due, language locked
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.doesNotMatch(r.stdout, /Fan-out discipline/, 'directive itself stays silent (coalfaceMode:off)');
+    assert.match(r.stdout, /self-update due/, 'the update nudge still fires (orthogonal off-switch)');
+    assert.match(r.stdout, /locked to 'ja'/, "the lock reaches the message even though directiveFor returned ''");
+  } finally { clean(home, cwd); }
+});
+
+test('case 45: AG carries the language lock too, appended after directiveFor (one implementation, both platforms)', () => {
+  const s = agSandbox();
+  try {
+    writeGlobalCfg(s.home, { language: 'zh' });
+    const r = agRun(s, agEvent({ session_id: 'sess-45' }));
+    assertGraceful(r);
+    const obj = JSON.parse(r.stdout.trim());
+    assert.match(obj.injectSteps[0].ephemeralMessage, /Fan-out discipline \(auto\)/);
+    assert.match(obj.injectSteps[0].ephemeralMessage, /locked to 'zh'/);
+  } finally { clean(s.home); }
+});
+
+// ---------------------------------------------------------------------------
+// F2 (INSPECT bounce, r29): the lock clause never duplicates the [CoalFace]
+// prefix -- languageLock carries no prefix of its own, the CALL SITE supplies
+// one only when the message would otherwise be empty (the update-nudge idiom).
+// ---------------------------------------------------------------------------
+
+test('case 46: directive + lock combined carries exactly ONE [CoalFace] prefix', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home, { language: 'th' });
+    const r = run(cwd, home);
+    assertGraceful(r);
+    const count = (r.stdout.match(/\[CoalFace\]/g) || []).length;
+    assert.strictEqual(count, 1, `expected exactly one [CoalFace] prefix, got ${count} in: ${r.stdout}`);
+  } finally { clean(home, cwd); }
+});
+
+test('case 47: a lock-only message (coalfaceMode:off, no nudge due) still carries exactly ONE prefix', () => {
+  const { home, cwd } = sandbox();
+  try {
+    writeGlobalCfg(home, { coalfaceMode: 'off', updateMode: 'off', language: 'en' });
+    const r = run(cwd, home);
+    assertGraceful(r);
+    const count = (r.stdout.match(/\[CoalFace\]/g) || []).length;
+    assert.strictEqual(count, 1, `expected exactly one [CoalFace] prefix, got ${count} in: ${r.stdout}`);
+    assert.match(r.stdout, /locked to 'en'/);
+  } finally { clean(home, cwd); }
+});
+
+test('case 48: AG directive + lock combined carries exactly ONE [CoalFace] prefix', () => {
+  const s = agSandbox();
+  try {
+    writeGlobalCfg(s.home, { language: 'zh' });
+    const r = agRun(s, agEvent({ session_id: 'sess-48' }));
+    assertGraceful(r);
+    const obj = JSON.parse(r.stdout.trim());
+    const count = (obj.injectSteps[0].ephemeralMessage.match(/\[CoalFace\]/g) || []).length;
+    assert.strictEqual(count, 1, `expected exactly one [CoalFace] prefix, got ${count}`);
+  } finally { clean(s.home); }
+});
+
 // Write side (namespace campaign checklist item 2): CoalFace has no project-config
 // writer anywhere in this codebase (no configure.mjs, no consent-persistence code --
 // unlike CoalTipple/CoalWash) -- grep-proof, not merely asserted, so a future writer
