@@ -151,13 +151,14 @@ export function collectSurfaces(repo, plan, io) {
 // copies that can drift; see `applyCheckIgnoreProbe` below for the CRLF false-match
 // this exists to dodge.
 //
-// NAMED DIVERGENCE FROM THE EXEMPLAR (r31 bounce2 F2), by the head's ruling, not a
-// regression: CoalMine (`verify.mjs:526`) declares the identical literal MODULE-LOCAL,
-// never exported. Ours is exported so the constant CANNOT drift from its consumer
-// (`applyCheckIgnoreProbe` below, and any future caller) the way two hand-kept copies
-// in two files could. Same mechanism (the suffix, the stripping step) — different
-// plumbing, deliberately. Proposed UPWARD to the exemplar in this unit's own return;
-// not reconciled downward here, and the exemplar's room is untouched.
+// RETIRED DIVERGENCE (r31 bounce2 F2 named it; CW-015c retires it). This room exported
+// the literal while CoalMine's `verify.mjs` declared it MODULE-LOCAL — a real divergence
+// at the time, proposed upward rather than reconciled downward. CoalMine's `c6f0108`
+// ("four flow-backs from adopters into the exemplar", CWK-092) ADOPTED it: its own
+// `scripts/lib/pointer-check.mjs` now exports `PROBE_SUFFIX` too, as of that commit. The
+// two rooms are character-identical on this constant as of `c6f0108` — there is no
+// surviving divergence to name. (Cited by SYMBOL + commit SHA, never a line number — a
+// line in another room's file rots the moment that room commits; r33 bounce1 F3.)
 export const PROBE_SUFFIX = '/.pointer-check-probe';
 
 // CHECK-IGNORE CLASSIFIER (r31 UNIT 1(a), CWK-090 fix 1, ported from CoalMine's
@@ -200,16 +201,15 @@ export function classifyCheckIgnoreResult(ci) {
 // failure, having already called `fail`) -- never mutates a Set the caller owns, to
 // match this module's own no-shared-mutable-state style elsewhere.
 //
-// NAMED DIVERGENCE FROM THE EXEMPLAR (r31 bounce2 F2), signature AND state discipline,
-// both deliberate: CoalMine's own `applyCheckIgnoreProbe` takes `PROBE_SUFFIX` as a
-// caller-suppliable parameter with NO default and MUTATES an `ignoredRoots` Set the
-// caller passes in and owns. Here `probeSuffix` DEFAULTS to this module's own exported
-// `PROBE_SUFFIX` (a required-but-silently-wrong value can never reach this function --
-// there is no wrong default to fall into) and the function RETURNS a fresh Set rather
-// than reaching into the caller's state. The stripping STEP is character-identical
-// between the two rooms (see `PROBE_SUFFIX`'s own comment) -- only the plumbing around
-// it differs, and it differs UP, not down: the head ruled this room's shape the better
-// of the two and is proposing it to the exemplar rather than regressing to match it.
+// RETIRED DIVERGENCE (r31 bounce2 F2 named it; CW-015c retires it). This room differed
+// from CoalMine's exemplar two ways: `probeSuffix` REQUIRED-with-no-default there vs.
+// DEFAULTED here to the exported `PROBE_SUFFIX`, and MUTATE-the-caller's-Set there vs.
+// RETURN-a-fresh-Set here. CoalMine's `c6f0108` ("four flow-backs from adopters into the
+// exemplar", CWK-092) ADOPTED both — its own `applyCheckIgnoreProbe` now defaults
+// `probeSuffix = PROBE_SUFFIX` and returns a fresh Set, character-identical to this
+// room's shape. The stripping STEP was always identical between the two rooms (see
+// `PROBE_SUFFIX`'s own comment); the plumbing around it now is too, and there is no
+// surviving divergence to name.
 export function applyCheckIgnoreProbe({ toProbe, probeSuffix = PROBE_SUFFIX, fail, runCheckIgnore }) {
   const ignored = new Set();
   if (!toProbe.length) return ignored;

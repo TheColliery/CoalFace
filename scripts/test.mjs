@@ -22,6 +22,7 @@ const TESTS = [
   'scripts/verify.test.mjs',
   'scripts/build-claude-ai-zips.test.mjs',
   'scripts/configure.test.mjs',
+  'scripts/link-check.test.mjs',
 ];
 
 // CWK-071: process.exit() forces the process to exit before pending stdout writes flush
