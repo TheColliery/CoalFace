@@ -4,6 +4,21 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.9.0] - 2026-09-10
+
+### Added
+- **`scripts/configure.mjs` — every setting from the command line (CWK-023, the flock's config standard).** `node scripts/configure.mjs --language th`, `--coalfaceMode on --bandwidth 50`, `--global --updateMode auto`, and `--help`. All seven keys are settable, validation runs through `scripts/lib/config-schema.mjs` rather than a second copy of the rules, and the help text is generated FROM the schema's own descriptions, so it cannot drift from what the gate enforces. Adopted from CoalLedger's gated shape; the project/global lookup is **imported** from the conductor's own `findProjectCfg` across the CJS/ESM boundary rather than forked — proven end to end, not reasoned: the CLI writes `.claude/coal/coalface.json`, the conductor's own walk returns that exact path, and the directive fires from it.
+
+### Changed
+- **The reply-language lock names all six verbatim categories.** It listed five; the flock's language frame names six, adding **tier/effort/grade/model names**. Corrected at every site that carries the clause — the shipped conductor directive, the README key row, the commented config template, and the schema's own help text.
+- **`concurrency:` groups on all six workflows (CWK-058).** Superseded runs of CI, CodeQL and markdownlint are now cancelled; Scorecard and the claude.ai ZIP build are not, because a run killed mid-flight can leave a partially-applied publish or a Release carrying a partial asset. Dependabot's auto-merge is grouped **per pull request**, so two Dependabot PRs never queue behind each other. The discriminator throughout is atomicity — whether a killed run leaves something half-done — never read-versus-write.
+
+### Fixed
+- **The pointer gate could read a broken `git` as a clean bill (CWK-090).** `git check-ignore --stdin` returns 0 for a match and 1 for none; every other status meant "nothing ignored" here, so a git that could not run at all — or an error carrying status 0 — passed silently. Now only 0 and 1 succeed, and anything else fails loudly naming the status and git's first stderr line. Ported from CoalMine, whose own redesign adopted this room's Windows probe fix in the same round.
+- **The gate's walked-surface list is data, not code.** One declared row per surface, each carrying its own reason, so narrowing the scope means deleting a row and stating why rather than editing the walker. The two files this room ships but never publishes are dropped rows now, and the tracked-only derivation is a structural filter over the whole plan — proven against a hostile ten-row redeclaration, which collected fifteen surfaces and filtered back to thirteen.
+- **A test forbade a path the code's own documentation invited** — it pinned that two specific files were absent from the plan while the plan's header explained how to add them back. It now asserts the invariant (every declared row is tracked) instead of the instance. This is the second pinned-absence assertion found in two days; the first blocked this release's own CLI from existing.
+- **Four stale rows in the Project Layout table**, each naming some of a directory's contents and reading as though it named all of them.
+
 ## [0.8.1] - 2026-09-10
 
 ### Fixed

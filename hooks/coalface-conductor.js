@@ -229,7 +229,7 @@ const LANGUAGE_VALUES = ['auto', 'th', 'en', 'ja', 'zh', 'es'];
 function languageLock(cfg) {
   const v = lc(cfg.language || 'auto');
   if (v === 'auto' || !LANGUAGE_VALUES.includes(v)) return '';
-  return `Reply language locked to '${v}'. Translate PROSE only -- commands, paths, identifiers, config keys and severity labels stay VERBATIM.`;
+  return `Reply language locked to '${v}'. Translate PROSE only -- commands, paths, identifiers, config keys, tier/effort/grade/model names and severity labels stay VERBATIM.`;
 }
 
 function main() {
@@ -258,8 +258,11 @@ function main() {
 // the directive text + the language-lock clause stay ONE implementation, never forked
 // per platform. Exporting does NOT change the spawned-hook behavior (main still runs
 // when this file is the entrypoint, below) — the hermetic tests keep spawning the real
-// file (hooks-safety §7).
-module.exports = { readCfg, directiveFor, languageLock, AGENT_DIR_ORDER };
+// file (hooks-safety §7). `findProjectCfg` exported (r31 UNIT 3, CWK-023) so
+// scripts/configure.mjs's WRITE path resolves through the SAME candidate-search-and-
+// stop-at-home walk this hook's own READ path already uses -- the identical bridge
+// pointer-check.mjs already crosses for AGENT_DIR_ORDER, not a second copy of the walk.
+module.exports = { readCfg, directiveFor, languageLock, AGENT_DIR_ORDER, findProjectCfg };
 
 if (require.main === module) {
   try { main(); } catch { /* Phoenix #4: fail-silent, never crash the host */ }

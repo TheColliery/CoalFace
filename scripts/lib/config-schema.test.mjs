@@ -16,7 +16,7 @@ test('AL-2: language enum accepts its six values case-insensitively, rejects a s
     assert.strictEqual(validateValue(lang, v.toUpperCase()), null, `${v.toUpperCase()} accepted case-insensitively`);
   }
   assert.match(validateValue(lang, 'fr'), /must be one of/, 'a seventh value is rejected');
-  assert.strictEqual(lang.flags, undefined, 'no flags field -- this room ships no configure.mjs/CLI to read one');
+  assert.strictEqual(lang.flags, undefined, 'no flags field -- the key name itself is the CLI flag (configure.mjs, CWK-023); flags are for ALIASES only, and this key has none');
 });
 
 test('validateValue: enum accepts case-insensitively, rejects unknown', () => {

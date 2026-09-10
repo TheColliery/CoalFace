@@ -76,6 +76,157 @@ export const PENDING_POINTERS = [
   // { path: 'scripts/lib/thing.mjs', reason: 'CWK-000 -- landing next unit' },
 ];
 
+// SURFACE PLAN, DECLARED (r31 UNIT 1(c), CWK-090 fix 3, CoalMine's `49def17`). The 15
+// candidate files this room's own pre-dispatch measurement funnel walked were CODE in
+// verify.mjs -- hardcoded for-loops with no countable home, so a reader copying "what
+// this gate walks" had to READ the driver rather than a table. Now it is DATA, one row
+// per walked surface, each carrying its own `why`.
+//
+// THE NARROWING FORM, verbatim from the exemplar (an adopter copies this sentence, not
+// a guess): a room that walks fewer surfaces DELETES the row and states its reason in
+// the row's own `why`, never by editing `collectSurfaces` or leaving the row in place
+// unused.
+//
+// TWO ROWS ARE DELETED HERE, not merely narrowed: `PLATFORM-LIMITS.md` and
+// `USAGE-DATA.md` are GITIGNORED and UNTRACKED (bounce2 F1 -- `.gitignore:8`/`:9`,
+// confirmed `git ls-files` returns neither) -- never shipped to a clone, so a gate
+// asking "reachable from a clone" has no business declaring them a surface at all. If
+// either ever becomes tracked, its row is added back here, not silently re-admitted.
+//
+// THE DERIVATION IS NOT LOST BY DELETING THEM -- it is made STRUCTURAL instead of
+// per-row: `verify.mjs` filters whatever `collectSurfaces` assembles through
+// `tracked.has(label)` before handing it to `checkPointers`, so ANY row -- these two,
+// or a future one nobody remembers to check against `.gitignore` first -- can never
+// re-admit an untracked file. Declaring fewer rows is documentation; the filter at the
+// caller is the guarantee.
+//
+// `dir: true` means `root` is a directory of `.md` files, walked recursively, whole
+// text. Its absence means `root` is one exact file. `historyOnly: true` marks a surface
+// `checkPointers` binds to the gitignored-root case only, never the ordinary resolve
+// check (CHANGELOG.md -- published history is never fixed forward).
+export const DEFAULT_SURFACE_PLAN = [
+  { root: 'README.md',
+    why: 'the front door -- every install/config claim starts here' },
+  { root: 'CHANGELOG.md', historyOnly: true,
+    why: 'published history is never fixed forward -- a path correct when the entry was written is not a defect now, but a gitignored citation was never correct on any day' },
+  { root: 'SECURITY.md',
+    why: 'the disclosure surface, and it cites internal paths (e.g. a hook line ref)' },
+  { root: 'CONTRIBUTING.md',
+    why: 'the dev-facing surface, and it cites internal paths' },
+  { root: 'PRIVACY.md',
+    why: 'the privacy surface, and it cites internal paths' },
+  { root: 'skills/coalface/SKILL.md',
+    why: 'the shipped skill body is ship-text a user reads' },
+  { root: 'skills/coalface/references', dir: true,
+    why: 'every reference doc is ship-text a user reads' },
+  { root: 'commands', dir: true,
+    why: 'command docs are ship-text a user reads' },
+];
+
+// COLLECT -- plan-driven, DI'd fs so this module stays pure (it imports nothing today
+// and must not start). `io.join`/`io.walkMd`/`io.read`/`io.rel` are the SAME filesystem
+// primitives the caller already owns. `io.walkMd(dir)` returns absolute `.md` paths
+// recursively. Runs the plan in ORDER, so a room's own surface count/order is exactly
+// its plan's -- no hidden reordering. The tracked-only filter is NOT applied here
+// (this function has no `tracked` set to filter against and must not invent one) --
+// see the plan's own header comment for where that filter actually lives.
+export function collectSurfaces(repo, plan, io) {
+  const surfaces = [];
+  for (const row of plan) {
+    if (row.dir) {
+      for (const f of io.walkMd(io.join(repo, row.root))) {
+        surfaces.push({ label: io.rel(f), text: io.read(f) });
+      }
+    } else {
+      const s = { label: row.root, text: io.read(io.join(repo, row.root)) };
+      if (row.historyOnly) s.historyOnly = true;
+      surfaces.push(s);
+    }
+  }
+  return surfaces;
+}
+
+// PROBE SUFFIX (CWK-090 fix 2 / the PROBE RECONCILE) -- a path UNDER the root, never a
+// bare `root/`. Exported so the module and its caller share ONE literal rather than two
+// copies that can drift; see `applyCheckIgnoreProbe` below for the CRLF false-match
+// this exists to dodge.
+//
+// NAMED DIVERGENCE FROM THE EXEMPLAR (r31 bounce2 F2), by the head's ruling, not a
+// regression: CoalMine (`verify.mjs:526`) declares the identical literal MODULE-LOCAL,
+// never exported. Ours is exported so the constant CANNOT drift from its consumer
+// (`applyCheckIgnoreProbe` below, and any future caller) the way two hand-kept copies
+// in two files could. Same mechanism (the suffix, the stripping step) — different
+// plumbing, deliberately. Proposed UPWARD to the exemplar in this unit's own return;
+// not reconciled downward here, and the exemplar's room is untouched.
+export const PROBE_SUFFIX = '/.pointer-check-probe';
+
+// CHECK-IGNORE CLASSIFIER (r31 UNIT 1(a), CWK-090 fix 1, ported from CoalMine's
+// `49def17`), pure -- takes the exact shape a `spawnSync('git', ['check-ignore',
+// '--stdin'], {...})` result carries and answers ONE question: did this run actually
+// tell us anything? Exit 0 and exit 1 both SUCCEED (1 = "none of the fed paths are
+// ignored", not an error); a spawn error or any OTHER status (128 included -- a bad
+// pattern, an unreadable `.gitignore`, a broken worktree) means the run answered
+// NOTHING, and the caller must not treat an empty stdout as "zero ignored". THE PRE-FIX
+// CODE HERE treated any non-`ci.error` outcome as success and read `ci.stdout` straight
+// through `typeof ci.stdout !== 'string' ? [] : ...` -- a non-0/1 status with a string
+// stdout (git still prints SOMETHING on some failure shapes) silently produced an empty
+// `ignoredRoots` and let the gate's own summary line print a git-derived count over a
+// run that derived no facts at all. That is the fail-open shape this whole class exists
+// to close: a git that cannot run must read as UNKNOWN, never as a clean gate.
+export function classifyCheckIgnoreResult(ci) {
+  if (ci.error) {
+    return { ok: false, message: `git check-ignore --stdin failed to spawn: ${ci.error.message}` };
+  }
+  if (ci.status !== 0 && ci.status !== 1) {
+    const stderrLine = typeof ci.stderr === 'string' ? ci.stderr.split('\n')[0].trim() : '';
+    return {
+      ok: false,
+      message: `git check-ignore --stdin exited ${ci.status}${stderrLine ? ` -- ${stderrLine}` : ''} -- cannot tell which cited roots are gitignored`,
+    };
+  }
+  return { ok: true, stdout: typeof ci.stdout === 'string' ? ci.stdout : '' };
+}
+
+// APPLY the check-ignore probe's verdict, or FAIL loudly -- moved OUT of verify.mjs's
+// own call site and into an exported, DI'd function (`runCheckIgnore` in place of a
+// real `spawnSync`) for exactly the reason CoalMine's own INSPECT found on this same
+// fix: `classifyCheckIgnoreResult` above is pure and well unit-tested, but nothing tied
+// THAT classification to the gate's own fail() -- an inline `if (!verdict.ok) {
+// fail(...) }` living in verify.mjs is invisible to a unit test that only imports this
+// module, so a mutation of that ONE condition (`if (false)`) can leave a whole suite
+// green while the fail-open hole is wide open again. Wiring it here means a test can
+// drive the EXACT branch verify.mjs runs, with an injected `runCheckIgnore`, no real git
+// child needed to reach the status-128 case. Returns the recovered root Set (empty on
+// failure, having already called `fail`) -- never mutates a Set the caller owns, to
+// match this module's own no-shared-mutable-state style elsewhere.
+//
+// NAMED DIVERGENCE FROM THE EXEMPLAR (r31 bounce2 F2), signature AND state discipline,
+// both deliberate: CoalMine's own `applyCheckIgnoreProbe` takes `PROBE_SUFFIX` as a
+// caller-suppliable parameter with NO default and MUTATES an `ignoredRoots` Set the
+// caller passes in and owns. Here `probeSuffix` DEFAULTS to this module's own exported
+// `PROBE_SUFFIX` (a required-but-silently-wrong value can never reach this function --
+// there is no wrong default to fall into) and the function RETURNS a fresh Set rather
+// than reaching into the caller's state. The stripping STEP is character-identical
+// between the two rooms (see `PROBE_SUFFIX`'s own comment) -- only the plumbing around
+// it differs, and it differs UP, not down: the head ruled this room's shape the better
+// of the two and is proposing it to the exemplar rather than regressing to match it.
+export function applyCheckIgnoreProbe({ toProbe, probeSuffix = PROBE_SUFFIX, fail, runCheckIgnore }) {
+  const ignored = new Set();
+  if (!toProbe.length) return ignored;
+  const ci = runCheckIgnore(toProbe.map((n) => n + probeSuffix).join('\n') + '\n');
+  const verdict = classifyCheckIgnoreResult(ci);
+  if (!verdict.ok) {
+    fail(verdict.message);
+    return ignored;
+  }
+  for (const line of verdict.stdout.split('\n')) {
+    const t = line.trim();
+    if (!t) continue;
+    ignored.add(t.endsWith(probeSuffix) ? t.slice(0, -probeSuffix.length) : t.replace(/\/$/, ''));
+  }
+  return ignored;
+}
+
 const GLOB = /[*?[\]{}|]/;
 const OUTSIDE = /^([~/]|[A-Za-z]:|[a-z][a-z0-9+.-]*:\/\/)/;
 // A `.` or `..` SEGMENT -- never a dot-DIR like `.github`, which is a real name.

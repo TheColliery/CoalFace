@@ -802,13 +802,19 @@ test('case 48: AG directive + lock combined carries exactly ONE [CoalFace] prefi
   } finally { clean(s.home); }
 });
 
-// Write side (namespace campaign checklist item 2): CoalFace has no project-config
-// writer anywhere in this codebase (no configure.mjs, no consent-persistence code --
-// unlike CoalTipple/CoalWash) -- grep-proof, not merely asserted, so a future writer
-// added without updating this test fails loud instead of silently violating
-// write-new-drop-old.
-test('write side: no project-config writer exists in this room (grep-proof N/A)', () => {
-  assert.strictEqual(fs.existsSync(path.join(REPO, 'scripts', 'configure.mjs')), false, 'no configure.mjs in this room');
+// Write side (namespace campaign checklist item 2), UPDATED (r31 UNIT 3, CWK-023):
+// this room now HAS a project-config writer -- `scripts/configure.mjs`. Its own
+// write-new-drop-old (move-on-CONFIG-WRITE-only) behaviour is proven behaviourally in
+// scripts/configure.test.mjs's own migration test (a legacy root .coalface.json is
+// read, merged, written to the new-shape path, and the legacy file removed) -- not
+// re-proven here. What THIS test still guards is the grep-proof half of the original
+// claim: no file OUTSIDE configure.mjs writes a `*coalface.json` target, so a second,
+// undeclared writer cannot land silently without updating this test (configure.mjs's
+// own `fs.writeFileSync(writePath, ...)` call takes a variable, not a literal
+// `coalface.json` substring, so it does not itself match `writerHit` below and needs
+// no exclusion).
+test('write side: only configure.mjs writes a *coalface.json target (grep-proof)', () => {
+  assert.strictEqual(fs.existsSync(path.join(REPO, 'scripts', 'configure.mjs')), true, 'configure.mjs is the project-config writer as of CWK-023 -- update this test if that changes');
   const sourceDirs = ['hooks', 'scripts', path.join('scripts', 'lib')];
   const writerHit = /writeFileSync\s*\([^)]*coalface\.json/;
   for (const dir of sourceDirs) {

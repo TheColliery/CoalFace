@@ -9,6 +9,16 @@ name: Dependabot auto-merge
 # reaches the merge step, so a human-opened PR never auto-merges.
 on: pull_request
 
+# cancel-in-progress: TRUE, grouped PER PULL REQUEST -- never per-ref or per-workflow,
+# because two different Dependabot PRs must not serialise behind each other. WITHIN one
+# PR's own group, cancelling is safe: enabling auto-merge is IDEMPOTENT (the same
+# atomicity discriminator this bullet applies elsewhere), so a superseded run corrupts
+# nothing -- the next push to that same PR simply re-enables it (CWK-058, canon's
+# `concurrency:` bullet).
+concurrency:
+  group: dependabot-auto-merge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 # Minimal top-level token (Scorecard Token-Permissions best practice); only the
 # merge job escalates to the write scopes `gh pr merge` needs.
 permissions:

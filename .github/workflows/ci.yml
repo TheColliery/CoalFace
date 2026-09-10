@@ -24,6 +24,14 @@ on:
       - 'LICENSE'
       - 'NOTICE'
 
+# cancel-in-progress: TRUE -- ci.yml only reads, tests and compares; it publishes nothing
+# and touches no external state, so a superseded run has nothing to leave half-done
+# (CWK-058, .github/SKILL-REPO-PATTERN.md's `concurrency:` bullet -- the discriminator is
+# ATOMICITY, never read-vs-write).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 

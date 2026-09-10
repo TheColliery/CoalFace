@@ -22,11 +22,14 @@ export const CONFIG_SCHEMA = [
   // first, never here. Values ported VERBATIM from CoalMine's scripts/lib/config-
   // schema.mjs:17. 5 Standard Systems #2 (AGENTS.md): factory AUTO follows the
   // conversation's language, EN fallback, no extra work -- this key exists to LOCK it.
-  // A lock translates PROSE only; commands, paths, identifiers, config keys and
-  // severity labels stay VERBATIM. No `flags` field -- this room ships no
-  // configure.mjs/CLI to read one (CWK-065 cell 1.7), same reason CoalHearth's AL-2
-  // entry states for its own room.
-  { key: 'language', type: 'enum', values: ['auto', 'th', 'en', 'ja', 'zh', 'es'], help: 'Lock the reply language (auto, th, en, ja, zh, es). Translates prose only -- commands, paths, identifiers, config keys and severity labels stay verbatim. Default auto' },
+  // A lock translates PROSE only; commands, paths, identifiers, config keys,
+  // tier/effort/grade/model names and severity labels stay VERBATIM. No `flags`
+  // field -- `--language` (the key name itself) is already how scripts/configure.mjs
+  // (CWK-023, r31) sets it; `flags` is for ALIASES only, and this key has none.
+  // CWK-065 cell 1.7's "this room ships no configure.mjs/CLI" reading is RETIRED by
+  // that same unit -- corrected here rather than left standing on a surface this
+  // exact change falsifies.
+  { key: 'language', type: 'enum', values: ['auto', 'th', 'en', 'ja', 'zh', 'es'], help: 'Lock the reply language (auto, th, en, ja, zh, es). Translates prose only -- commands, paths, identifiers, config keys, tier/effort/grade/model names and severity labels stay verbatim. Default auto' },
 ];
 
 // Validate an already-parsed JSON value against a spec entry.

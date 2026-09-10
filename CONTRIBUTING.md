@@ -48,10 +48,10 @@ CoalFace is **cross-agent** — the contract runs on any platform with concurren
 | Path | Purpose |
 |---|---|
 | `skills/coalface/SKILL.md` | The resident fan-out contract (scout → partition → waves → QC → single-writer apply → receipt). |
-| `skills/coalface/references/` | On-demand depth: `contract-template.md` (the 8-point worker contract) · `taxonomy.md` (per-domain units/invariants/gates) · `receipt.md` (receipt + heads-up formats). |
-| `hooks/coalface-conductor.js` · `hooks/hooks.json` | Phoenix-pure SessionStart conductor + its wiring. |
-| `commands/update.md` | The `/coalface:update` self-update procedure (agent-side; the hook only schedules). |
-| `scripts/` | Tool scripts: `build-plugin.mjs`, `verify.mjs`, `test.mjs`, `lib/` (config-schema SSoT, jsonc, tests). |
+| `skills/coalface/references/` | On-demand depth: `contract-template.md` (the 8-point worker contract) · `taxonomy.md` (per-domain units/invariants/gates) · `receipt.md` (receipt + heads-up formats) · `admission-control.md` (the MACHINE bound derivation) · `workflow-engine.md` (Workflow-tool wave/AIMD notes). |
+| `hooks/coalface-conductor.js` · `hooks/ag-conductor.js` · `hooks/hooks.json` | Phoenix-pure SessionStart conductor (Claude Code), the Antigravity PreInvocation adapter, + the wiring both share. |
+| `commands/` | `update.md` (the `/coalface:update` self-update procedure — agent-side, the hook only schedules) · `stats.md` (the `/coalface:stats` measurement command, one of the flock's 5 Standard Systems). |
+| `scripts/` | The three gates are listed under **Developing & Testing** above; `configure.mjs` is the settings CLI (`--help` for its own reference). `lib/` holds the shared core logic each of those consumes — one `.test.mjs` per module (`ls scripts/lib/` for the current set). |
 | `plugin/` | Generated Claude Code plugin distribution — never hand-edit. |
 | `platform-configs/.coalface.json` | Commented factory default configuration. |
 

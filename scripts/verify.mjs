@@ -198,19 +198,20 @@ console.log('pointer drift (CWK-079):');
 // at all before this unit; mechanism, the measured funnel and the named bounds all live
 // in scripts/lib/pointer-check.mjs's own header — not restated here.
 //
-// SURFACE SET: this room's own pre-dispatch measurement funnel walked 15 candidate
-// files; TWO of those (PLATFORM-LIMITS.md, USAGE-DATA.md) are gitignored and never
-// shipped to the public repo (see .gitignore) — bounce2 F1: a gate whose whole question
-// is "reachable from a clone" has no business judging citations inside a file no cloner
-// can ever open, so those two are DROPPED. The drop is DERIVED against `tracked`, not
-// hand-maintained — a surface that stops being tracked leaves this set by construction,
-// never by someone remembering to delete a line. The surviving set is SHIPPED-AND-TRACKED
-// ship-text, DELIBERATELY WIDER than the CWK-060 config-key gate's 9-file set two blocks
-// up — that gate asks "does this doc name a config key", this one asks "does this doc
-// point at a real path", and CHANGELOG/SECURITY/CONTRIBUTING/PRIVACY cite paths without
-// ever naming a config key, so a narrower set here would silently drop real ship-text.
+// SURFACE SET: DATA now (r31 UNIT 1(c), CWK-090 fix 3) — `DEFAULT_SURFACE_PLAN`
+// (pointer-check.mjs), walked here with THIS room's own fs IO. `PLATFORM-LIMITS.md` /
+// `USAGE-DATA.md` are DELETED from the plan (gitignored, never shipped, per .gitignore
+// and bounce2 F1) rather than declared and filtered — but the filter that made F1
+// derived-not-hand-kept is NOT lost: it now runs STRUCTURALLY over whatever the plan
+// assembles (`tracked.has(label)`, below), so no future row can re-admit an untracked
+// file even if nobody remembers to check .gitignore before adding it. The surviving set
+// is SHIPPED-AND-TRACKED ship-text, DELIBERATELY WIDER than the CWK-060 config-key
+// gate's 9-file set two blocks up — that gate asks "does this doc name a config key",
+// this one asks "does this doc point at a real path", and CHANGELOG/SECURITY/
+// CONTRIBUTING/PRIVACY cite paths without ever naming a config key, so a narrower set
+// here would silently drop real ship-text.
 try {
-  const { checkPointers, deriveIgnoredRoots } = await import(pathToFileURL(path.join(repo, 'scripts', 'lib', 'pointer-check.mjs')).href);
+  const { checkPointers, deriveIgnoredRoots, DEFAULT_SURFACE_PLAN, collectSurfaces, applyCheckIgnoreProbe, PROBE_SUFFIX } = await import(pathToFileURL(path.join(repo, 'scripts', 'lib', 'pointer-check.mjs')).href);
   const { AGENT_DIR_ORDER } = await import(pathToFileURL(path.join(repo, 'hooks', 'coalface-conductor.js')).href);
   const { execFileSync, spawnSync } = await import('node:child_process');
 
@@ -257,63 +258,64 @@ try {
     // project this tool writes into, not our own tree.
     const agentHomes = new Set(AGENT_DIR_ORDER.map((d) => '.' + d));
 
-    const readOrNull = (p) => { try { return fs.readFileSync(path.join(repo, p), 'utf8'); } catch { return null; } };
-    // The 15 surfaces this room's pre-dispatch measurement funnel walked. CHANGELOG.md IS
-    // historyOnly (BOUNCE 1, reversing this room's own first-cut ruling) -- matching
-    // CoalMine's own treatment for the identical reason: "published history is never fixed
-    // forward, so a path that was correct when the entry was written is not a defect now."
-    // This room's single non-resolving CHANGELOG citation (the `.github/tree/main/...`
-    // GitHub-URL-tail token) is the SHARPEST case for that rule, not an exception to it --
-    // the entry that cites it is the record of the fix itself ("README's benchmark link
-    // pointed at the raw folder tree ... retargeted to RESULTS.md directly"), so the token
-    // is quoted PRECISELY BECAUSE it was broken. Making it resolve would falsify the record.
-    // historyOnly SKIPS the non-resolving-citation check ONLY -- it does NOT exempt
-    // CHANGELOG.md from the gitignored-root check above: `checkPointers` runs that branch
-    // BEFORE it ever consults `s.historyOnly` (see pointer-check.mjs), so a citation to our
-    // own gitignored `dist-claude-ai/` in the SAME file still FAILs. That citation was never
-    // reachable on any day -- it is a real, present-tense ship-text defect, not history.
-    const candidateLabels = [
-      'README.md', 'CHANGELOG.md', 'SECURITY.md', 'CONTRIBUTING.md', 'PRIVACY.md',
-      'PLATFORM-LIMITS.md', 'USAGE-DATA.md',
-      'skills/coalface/SKILL.md',
-      ...fs.readdirSync(path.join(repo, 'skills', 'coalface', 'references')).map((f) => `skills/coalface/references/${f}`),
-      ...fs.readdirSync(path.join(repo, 'commands')).map((f) => `commands/${f}`),
-    ];
-    // bounce2 F1: SHIPPED-AND-TRACKED only, derived against `tracked` (git ls-files),
-    // never hand-dropped — see the header comment above.
-    const labels = candidateLabels.filter((l) => tracked.has(l));
-    const surfaces = labels.map((l) => ({ label: l, text: readOrNull(l), historyOnly: l === 'CHANGELOG.md' }));
+    // WALK the declared plan (pointer-check.mjs), DI'd with this room's own fs IO so the
+    // module stays pure. Then FILTER to SHIPPED-AND-TRACKED only (bounce2 F1, made
+    // structural per the plan's own header comment) -- this is the ONE place that
+    // guarantee lives now, so it protects every row the plan declares, present or future.
+    const walkMd = (dir, out = []) => {
+      if (!fs.existsSync(dir)) return out;
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) walkMd(p, out);
+        else if (e.name.endsWith('.md')) out.push(p);
+      }
+      return out;
+    };
+    const readAbs = (p) => { try { return fs.readFileSync(p, 'utf8'); } catch { return null; } };
+    const rel = (p) => path.relative(repo, p).split(path.sep).join('/');
+    const collected = collectSurfaces(repo, DEFAULT_SURFACE_PLAN, { join: path.join, walkMd, read: readAbs, rel });
+    // CHANGELOG.md's own historyOnly ruling (BOUNCE 1) lives in the PLAN now, not here --
+    // "published history is never fixed forward, so a path correct when the entry was
+    // written is not a defect now" -- matching CoalMine's identical treatment. historyOnly
+    // SKIPS the non-resolving-citation check ONLY -- it does NOT exempt CHANGELOG.md from
+    // the gitignored-root check below: `checkPointers` runs that branch BEFORE it ever
+    // consults `s.historyOnly` (see pointer-check.mjs), so a citation to our own
+    // gitignored `dist-claude-ai/` in the SAME file still FAILs.
+    const surfaces = collected.filter((s) => tracked.has(s.label));
 
     // IGNORED ROOTS, PATTERN-BASED, EXISTENCE-INDEPENDENT (CWK-079) — mechanism, the
     // ROOT-LEVEL-MASKING bound (real in this room: `.claude`/`.agents` are BOTH agent
     // homes AND genuinely gitignored here) and the NON-LOCALITY property all live at
     // deriveIgnoredRoots' own comment in pointer-check.mjs.
+    //
+    // r31 UNIT 1(a) / PROBE RECONCILE (CWK-090 fixes 1+2, CoalMine's `49def17`+`210dd96`):
+    // the batched call and its FAIL-OPEN closure now live in `applyCheckIgnoreProbe`
+    // (pointer-check.mjs), DI'd with a real `spawnSync` closure here so a unit test can
+    // drive the exact branch with an injected `runCheckIgnore` instead of mutating this
+    // call site and hoping a test notices. `checkIgnoreFailed` is set inside `fail` so the
+    // gitignored-root summary line below can tell "0 gitignored, genuinely" from "the
+    // probe never ran and this number means nothing" -- a git that cannot run must read
+    // as UNKNOWN, never as a clean 0.
+    //
+    // PROBE FEED, MEASURED live on this box (git 2.55.0.windows.5, this repo's own CRLF
+    // `.gitignore` under `core.autocrlf=true`): `git check-ignore -v "<anyNonexistentName>/"`
+    // reports a FALSE POSITIVE for EVERY nonexistent trailing-slash argument, matched
+    // against a phantom BLANK line in .gitignore -- reproduced against a genuinely
+    // non-matching name and root-caused to CRLF line endings in a MINIMAL from-scratch
+    // repo (LF-normalizing the same content in place made the false match disappear).
+    // `root/<filename>` never triggers it. `PROBE_SUFFIX` (pointer-check.mjs) is the
+    // shared literal both sides of the probe use, so this room's own live reproduction and
+    // the exemplar's `applyCheckIgnoreProbe` read as ONE mechanism, not two dialects.
+    let checkIgnoreFailed = false;
     const { candidateRoots, toProbe, homesHeldOut, ignoredRoots } = deriveIgnoredRoots({
       surfaces,
       agentHomes,
-      checkIgnore: (roots) => {
-        if (!roots.length) return [];
-        // A SYNTHETIC FILENAME INSIDE the candidate, never a bare `root/` -- MEASURED
-        // live on this box (git 2.55.0.windows.5, this repo's own CRLF `.gitignore`
-        // under `core.autocrlf=true`, the flock-standard combination scripts-quality.md
-        // §2 already names): `git check-ignore -v "<anyNonexistentName>/"` reports a
-        // FALSE POSITIVE for EVERY nonexistent trailing-slash argument, matched
-        // against a phantom BLANK line in .gitignore -- reproduced against a genuinely
-        // non-matching name (`zzzznonexistentdir123/`) and root-caused to CRLF line
-        // endings in a MINIMAL from-scratch repo (LF-normalizing the same content in
-        // place made the false match disappear). `root/<filename>` never triggers it
-        // (confirmed: a genuinely-ignored nonexistent dir still matches correctly; a
-        // non-matching one correctly does not) -- unambiguous "a file inside this
-        // directory" input takes a different code path than the bare directory form.
-        // This is the ported design's own "existence-independent" contract preserved
-        // by a different feed, not a design change: `git check-ignore` still answers
-        // for an absent path exactly as a present one, this room's probe just avoids
-        // the one shape that corrupts on this platform.
-        const ci = spawnSync('git', ['check-ignore', '--stdin'],
-          { cwd: repo, encoding: 'utf8', input: roots.map((r) => r + '/.pointer-check-probe').join('\n') + '\n' });
-        if (ci.error || typeof ci.stdout !== 'string') return [];
-        return ci.stdout.split('\n').map((l) => l.trim().replace(/\/\.pointer-check-probe$/, '')).filter(Boolean);
-      },
+      checkIgnore: (roots) => [...applyCheckIgnoreProbe({
+        toProbe: roots,
+        probeSuffix: PROBE_SUFFIX,
+        fail: (msg) => { checkIgnoreFailed = true; fail(msg); },
+        runCheckIgnore: (input) => spawnSync('git', ['check-ignore', '--stdin'], { cwd: repo, encoding: 'utf8', input }),
+      })],
     });
 
     // bounce2 1b/F3: checkPointers returns { findings, checked } (a proper field, never a
@@ -333,8 +335,12 @@ try {
     // PRINT the derived enumeration, CITED and PROBED as separate numbers — each means
     // exactly one thing. CITED = distinct first segments that survived shape-discovery
     // from ship-text. PROBED = CITED minus agent homes, the ones actually put to git
-    // check-ignore.
-    console.log(`  --   gitignored-root citations: ${candidateRoots.size} distinct shape-qualified first segment(s) cited, ${toProbe.length} probed through one git check-ignore call (${homesHeldOut} of ${agentHomes.size} agent-home root(s) held out) — ${ignoredRoots.size} gitignored`);
+    // check-ignore. r31 UNIT 1(a): when the probe FAILED, `ignoredRoots.size` is not a
+    // count of anything real -- state that honestly rather than print a clean "0
+    // gitignored" over a run that answered nothing (the fail-open shape this fix closes).
+    console.log(checkIgnoreFailed
+      ? `  --   gitignored-root citations: ${candidateRoots.size} distinct shape-qualified first segment(s) cited, ${toProbe.length} probed — check-ignore probe FAILED, see FAIL above; ignoredRoots is UNKNOWN, not zero`
+      : `  --   gitignored-root citations: ${candidateRoots.size} distinct shape-qualified first segment(s) cited, ${toProbe.length} probed through one git check-ignore call (${homesHeldOut} of ${agentHomes.size} agent-home root(s) held out) — ${ignoredRoots.size} gitignored`);
     // bounce2 1b/F3: printed UNCONDITIONALLY, on every run — pass OR fail. Previously this
     // number lived only inside the clean-run `ok(...)` line below, so a FAIL run printed no
     // resolution-coverage number at all (proven red-first: a synthetic FAIL made the whole

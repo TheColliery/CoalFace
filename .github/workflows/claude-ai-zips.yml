@@ -15,6 +15,15 @@ on:
       - 'v*'
   workflow_dispatch: {} # board #99 findings-back: manual re-run against a tag ref whose push-triggered run already failed
 
+# cancel-in-progress: FALSE -- a run killed mid-upload can leave a Release carrying a
+# partial or missing ZIP asset with nothing to signal it (CoalMine's own prior v3.17.1
+# incident: two overlapping runs racing onto the same tag). Grouped on the TAG
+# (`ref_name`), not the branch, since the collision this guards is per-Release
+# (CWK-058, canon's `concurrency:` bullet).
+concurrency:
+  group: claude-ai-zips-${{ github.ref_name }}
+  cancel-in-progress: false
+
 # Minimal top-level token (Scorecard Token-Permissions best practice, board #117 —
 # alert #14: a top-level `contents: write` grants write to every job in the file,
 # not just the one that needs it); only build-zips escalates to the write scope

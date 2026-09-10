@@ -11,6 +11,14 @@ on:
       - 'LICENSE'
       - 'NOTICE'
 
+# cancel-in-progress: FALSE -- this job uploads a SARIF AND posts to the OpenSSF API
+# (publish_results: true), so a mid-flight kill can leave a PARTIALLY-APPLIED publish,
+# unlike CodeQL's atomic upload-or-nothing (CWK-058, canon's `concurrency:` bullet).
+# Schedule-driven, so overlap is rare and queueing costs nothing.
+concurrency:
+  group: scorecard-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 

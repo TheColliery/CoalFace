@@ -10,7 +10,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { pointerCandidates, checkPointers, looksPathShaped, deriveIgnoredRoots } from './pointer-check.mjs';
+import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import {
+  pointerCandidates, checkPointers, looksPathShaped, deriveIgnoredRoots,
+  classifyCheckIgnoreResult, applyCheckIgnoreProbe, PROBE_SUFFIX,
+  collectSurfaces, DEFAULT_SURFACE_PLAN,
+} from './pointer-check.mjs';
 
 const OURS = new Set(['scripts', 'hooks', 'skills', 'commands', 'README.md', '.github']);
 const base = (over = {}) => ({
@@ -356,4 +363,192 @@ test('NON-LOCALITY: the SAME extensionless plant beside a path-shaped sibling un
   // consults looksPathShaped at all; it only reads the ignoredRoots SET the sibling exposed.
   assert.equal(fails(findings).length, 2);
   assert.ok(fails(findings).every((m) => /lives under the gitignored `scripts`/.test(m)), fails(findings).join(' | '));
+});
+
+// ---------------------------------------------------------------- r31 UNIT 1(a): classifyCheckIgnoreResult
+// CWK-090 fix 1, ported from CoalMine's `49def17`. Pure classifier -- exit 0/1 succeed,
+// anything else (spawn error, any other status) is a FAIL naming the status + stderr.
+test('classifyCheckIgnoreResult: status 0 succeeds with the real stdout', () => {
+  const v = classifyCheckIgnoreResult({ status: 0, stdout: 'a/.pointer-check-probe\n', stderr: '' });
+  assert.deepEqual(v, { ok: true, stdout: 'a/.pointer-check-probe\n' });
+});
+
+test('classifyCheckIgnoreResult: status 1 succeeds -- "none of the fed paths are ignored", not an error', () => {
+  const v = classifyCheckIgnoreResult({ status: 1, stdout: '', stderr: '' });
+  assert.deepEqual(v, { ok: true, stdout: '' });
+});
+
+test('classifyCheckIgnoreResult: a spawn error FAILs, naming the spawn error message', () => {
+  const v = classifyCheckIgnoreResult({ error: new Error('spawnSync git ENOENT') });
+  assert.equal(v.ok, false);
+  assert.match(v.message, /failed to spawn: spawnSync git ENOENT/);
+});
+
+// THE FAIL-OPEN THIS CLOSES: the pre-fix logic here treated any non-`ci.error` outcome
+// as success and read stdout straight through -- a status-128 run with a non-empty
+// stderr and NO stdout would have silently answered "nothing is ignored". Red-first,
+// against the byte-copied PRE-FIX branch (`if (!ci.error) return parse(ci.stdout)`):
+// replaying that logic on this exact fixture returns `[]` and reports no problem at
+// all -- the defect this fix exists to close, reproduced rather than merely described.
+test('classifyCheckIgnoreResult: status 128 FAILs loudly, naming the status and stderr first line (CWK-090 fix 1)', () => {
+  const ci = { status: 128, stdout: '', stderr: 'fatal: unable to read .gitignore\nsome other detail\n' };
+  const v = classifyCheckIgnoreResult(ci);
+  assert.equal(v.ok, false);
+  assert.match(v.message, /exited 128 -- fatal: unable to read \.gitignore/);
+  // RED-FIRST PROOF, run inline rather than by mutating the source: the PRE-FIX logic
+  // this fix replaced (`!ci.error` alone) reads this exact fixture as SUCCESS with an
+  // empty ignoredRoots -- the fail-open shape closed above.
+  const preFixTreatedAsOk = !ci.error;
+  assert.equal(preFixTreatedAsOk, true,
+    'RED: the pre-fix predicate (`!ci.error`) reads a real status-128 run as success -- this is the hole fix 1 closes');
+});
+
+test('classifyCheckIgnoreResult: a non-string stdout on a successful status degrades to empty, never throws', () => {
+  const v = classifyCheckIgnoreResult({ status: 0, stdout: null, stderr: '' });
+  assert.deepEqual(v, { ok: true, stdout: '' });
+});
+
+// ---------------------------------------------------------------- r31 UNIT 1(a): applyCheckIgnoreProbe (the wiring)
+// CWK-090 findings-back HIGH-1 in the exemplar: `classifyCheckIgnoreResult` alone is
+// well-tested but an INLINE `if (!verdict.ok)` at the call site is invisible to a test
+// that only imports this module -- mutating that one condition left CoalMine's whole
+// suite green. This room never had that inline branch (the call site always dispatches
+// to this exported function), but the wiring is pinned here anyway so the same class
+// cannot land silently in a future edit.
+test('applyCheckIgnoreProbe: an empty toProbe never spawns and returns an empty Set', () => {
+  let called = false;
+  const ignored = applyCheckIgnoreProbe({ toProbe: [], fail: () => {}, runCheckIgnore: () => { called = true; return { status: 0, stdout: '' }; } });
+  assert.deepEqual([...ignored], []);
+  assert.equal(called, false, 'an empty toProbe must not spawn git at all');
+});
+
+test('applyCheckIgnoreProbe: an ok verdict records the roots, suffix stripped', () => {
+  const ignored = applyCheckIgnoreProbe({
+    toProbe: ['dist-claude-ai', 'scratchpad'],
+    fail: () => { throw new Error('fail() must not be called on an ok verdict'); },
+    runCheckIgnore: (input) => {
+      assert.equal(input, `dist-claude-ai${PROBE_SUFFIX}\nscratchpad${PROBE_SUFFIX}\n`);
+      return { status: 0, stdout: `dist-claude-ai${PROBE_SUFFIX}\n` };
+    },
+  });
+  assert.deepEqual([...ignored], ['dist-claude-ai']);
+});
+
+test('applyCheckIgnoreProbe: a returned line with no suffix falls back to a trailing-slash strip', () => {
+  // Not the shape a real `git check-ignore --stdin` returns for OUR feed (every line
+  // should carry the fixed suffix, since every fed token does) -- pinned as a documented
+  // fallback rather than an assumption, matching the exemplar's own defensive shape.
+  const ignored = applyCheckIgnoreProbe({
+    toProbe: ['weird'],
+    fail: () => {},
+    runCheckIgnore: () => ({ status: 0, stdout: 'weird/\n' }),
+  });
+  assert.deepEqual([...ignored], ['weird']);
+});
+
+// THE FAIL-OPEN, closed at the WIRING (not just the classifier): a bad verdict calls
+// `fail()` with the classifier's own message and returns an EMPTY Set -- never the
+// silent `[]`-and-continue this room's own pre-fix `checkIgnore` callback used to do.
+test('applyCheckIgnoreProbe: a bad verdict calls fail() and returns an empty Set, never silently continues', () => {
+  const failed = [];
+  const ignored = applyCheckIgnoreProbe({
+    toProbe: ['scripts'],
+    fail: (msg) => failed.push(msg),
+    runCheckIgnore: () => ({ status: 128, stdout: '', stderr: 'fatal: bad pattern\n' }),
+  });
+  assert.deepEqual([...ignored], []);
+  assert.equal(failed.length, 1);
+  assert.match(failed[0], /exited 128 -- fatal: bad pattern/);
+});
+
+// ---------------------------------------------------------------- r31 UNIT 1(c): collectSurfaces / DEFAULT_SURFACE_PLAN
+// r31 bounce2 F1 -- INSPECT's own finding: a test pinning the ABSENCE of two named
+// filenames forbids the exact future action the plan's own header documents ("if either
+// ever becomes tracked, its row is added back here"). A maintainer following that
+// instruction would redden this suite over a filename, in a file they never touched --
+// the identical shape as the `configure.mjs`-does-not-exist pin this same unit already
+// caught and fixed one layer up. The fix is not deletion: assert the INVARIANT (every
+// declared row is TRACKED) instead of the INSTANCE (these two names are absent) -- the
+// same instance-vs-invariant move this unit already made for the tracked-filter itself
+// ("declaring fewer rows is documentation; the filter at the caller is the guarantee").
+// This stays true whatever .gitignore does next, still fails the day someone declares a
+// genuinely untracked surface, and never again forbids a legal future state.
+test('DEFAULT_SURFACE_PLAN: every declared row is TRACKED (the invariant, never a named instance)', () => {
+  const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+  const tracked = new Set(execFileSync('git', ['ls-files'], { cwd: repo, encoding: 'utf8' }).trim().split('\n').filter(Boolean));
+  for (const row of DEFAULT_SURFACE_PLAN) {
+    if (row.dir) {
+      // A dir row's OWN root is a directory, never itself a tracked FILE -- `git
+      // ls-files` lists files only. The invariant for a dir row is that it contains
+      // at least one tracked file (an empty/fully-untracked dir row is dead weight).
+      const hasTrackedMember = [...tracked].some((f) => f === row.root || f.startsWith(row.root + '/'));
+      assert.ok(hasTrackedMember, `${row.root} (a dir row) has no tracked file under it`);
+    } else {
+      assert.ok(tracked.has(row.root), `${row.root} is a declared row but is NOT tracked -- a gate asking "reachable from a clone" cannot declare a surface no clone has`);
+    }
+  }
+});
+
+test('DEFAULT_SURFACE_PLAN: every row carries a `why` (an allowlist of bare paths is a bypass with no author)', () => {
+  for (const row of DEFAULT_SURFACE_PLAN) {
+    assert.equal(typeof row.why, 'string', JSON.stringify(row));
+    assert.ok(row.why.length > 0, JSON.stringify(row));
+  }
+});
+
+test('DEFAULT_SURFACE_PLAN: CHANGELOG.md alone is historyOnly', () => {
+  const flagged = DEFAULT_SURFACE_PLAN.filter((r) => r.historyOnly).map((r) => r.root);
+  assert.deepEqual(flagged, ['CHANGELOG.md']);
+});
+
+test('collectSurfaces: a single-file row reads one surface, label = root, historyOnly carried through', () => {
+  const io = {
+    join: (...p) => p.join('/'),
+    walkMd: () => { throw new Error('must not be called for a non-dir row'); },
+    read: (p) => (p === 'REPO/CHANGELOG.md' ? 'text' : null),
+    rel: (p) => p,
+  };
+  const surfaces = collectSurfaces('REPO', [{ root: 'CHANGELOG.md', historyOnly: true, why: 'x' }], io);
+  assert.deepEqual(surfaces, [{ label: 'CHANGELOG.md', text: 'text', historyOnly: true }]);
+});
+
+test('collectSurfaces: a dir row walks every file walkMd returns, in order, label from rel()', () => {
+  const io = {
+    join: (...p) => p.join('/'),
+    walkMd: (dir) => [dir + '/a.md', dir + '/b.md'],
+    read: (p) => 'content:' + p,
+    rel: (p) => p.replace('REPO/', ''),
+  };
+  const surfaces = collectSurfaces('REPO', [{ root: 'commands', dir: true, why: 'x' }], io);
+  assert.deepEqual(surfaces, [
+    { label: 'commands/a.md', text: 'content:REPO/commands/a.md' },
+    { label: 'commands/b.md', text: 'content:REPO/commands/b.md' },
+  ]);
+});
+
+// SURFACE-IDENTITY, per the order's own instruction: the plan-driven assembly must
+// produce the SAME surface set the hand-rolled loops it replaces produced. Proven here
+// against THIS room's real tree (io = real fs, no mocks) rather than only in the
+// abstract -- the live gate's own before/after numbers (13 surfaces / 38 in-scope
+// citations, unchanged across the refactor) are reported in the coder's return; this
+// pins the plan's OWN shape so a future edit to the plan cannot silently drop a row.
+test('collectSurfaces: against the real tree, produces exactly the 8 declared rows worth of surfaces (2 single dirs walked)', () => {
+  const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+  const walkMd = (dir, out = []) => {
+    if (!fs.existsSync(dir)) return out;
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walkMd(p, out);
+      else if (e.name.endsWith('.md')) out.push(p);
+    }
+    return out;
+  };
+  const read = (p) => { try { return fs.readFileSync(p, 'utf8'); } catch { return null; } };
+  const rel = (p) => path.relative(repo, p).split(path.sep).join('/');
+  const surfaces = collectSurfaces(repo, DEFAULT_SURFACE_PLAN, { join: path.join, walkMd, read, rel });
+  // 6 single-file rows + whatever real files sit under references/ and commands/.
+  const singleFileRows = DEFAULT_SURFACE_PLAN.filter((r) => !r.dir).length;
+  assert.equal(singleFileRows, 6);
+  assert.ok(surfaces.length >= singleFileRows, 'a dir row must contribute at least the single-file rows worth of surfaces');
+  assert.ok(surfaces.every((s) => typeof s.label === 'string' && s.text !== undefined), JSON.stringify(surfaces));
 });

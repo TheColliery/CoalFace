@@ -18,6 +18,13 @@ on:
   schedule:
     - cron: '0 6 * * 1'
 
+# cancel-in-progress: TRUE -- a superseded run simply never uploads its SARIF, and the
+# PRIOR analysis stands: stale, never corrupt. The newer push analyzes the newer tree,
+# which is the state anyone actually cares about (CWK-058, canon's `concurrency:` bullet).
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 

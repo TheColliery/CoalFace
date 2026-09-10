@@ -37,6 +37,7 @@
   "maxLocalWorkers": 0,
   // Lock the reply language (auto, th, en, ja, zh, es). auto (default) follows the
   // conversation's language, EN fallback -- no extra work. A lock translates PROSE
-  // only: commands, paths, identifiers, config keys and severity labels stay verbatim.
+  // only: commands, paths, identifiers, config keys, tier/effort/grade/model names
+  // and severity labels stay verbatim.
   "language": "auto"
 }

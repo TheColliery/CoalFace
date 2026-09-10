@@ -10,6 +10,13 @@ on:
     paths:
       - '**.md'
 
+# cancel-in-progress: TRUE -- a lint run reads files and publishes nothing, so a
+# superseded run has no partial state to leave behind (CWK-058, canon's `concurrency:`
+# bullet).
+concurrency:
+  group: markdownlint-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
