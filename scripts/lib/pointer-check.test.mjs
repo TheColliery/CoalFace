@@ -366,8 +366,10 @@ test('NON-LOCALITY: the SAME extensionless plant beside a path-shaped sibling un
 });
 
 // ---------------------------------------------------------------- r31 UNIT 1(a): classifyCheckIgnoreResult
-// CWK-090 fix 1, ported from CoalMine's `49def17`. Pure classifier -- exit 0/1 succeed,
-// anything else (spawn error, any other status) is a FAIL naming the status + stderr.
+// CWK-090 fix 1, ported from CoalMine's `49def17`, extended by r34b CI-red bounce 1 -- a status
+// null/undefined (never spawned) FAILs, a status outside {0,1} FAILs naming the exit + stderr, a
+// status of 0/1 WITH a write-side error (`ci.error`) FAILs as a PARTIAL answer (the stdin write
+// may have died before every probe line reached git), and only a clean 0/1 with no error succeeds.
 test('classifyCheckIgnoreResult: status 0 succeeds with the real stdout', () => {
   const v = classifyCheckIgnoreResult({ status: 0, stdout: 'a/.pointer-check-probe\n', stderr: '' });
   assert.deepEqual(v, { ok: true, stdout: 'a/.pointer-check-probe\n' });
@@ -406,6 +408,73 @@ test('classifyCheckIgnoreResult: status 128 FAILs loudly, naming the status and 
 test('classifyCheckIgnoreResult: a non-string stdout on a successful status degrades to empty, never throws', () => {
   const v = classifyCheckIgnoreResult({ status: 0, stdout: null, stderr: '' });
   assert.deepEqual(v, { ok: true, stdout: '' });
+});
+
+// r34b CI RED (ubuntu-latest run 35227797667, on the push of fca0926 -- but the classifier
+// ordering this test guards was introduced by d882832, and fca0926 touched neither file; see
+// the `Fixes:` trailer on the commit this test landed in) -- node:child_process.spawnSync sets
+// `error` to a pipe-write failure (EPIPE on POSIX, EOF on this box's Windows libuv) when the
+// child closes its end of stdin before Node finishes writing `input` -- exactly what happens
+// here: git sees core.bare=true, prints "fatal: ... work tree" and exits 128 WITHOUT draining
+// stdin, and a large-enough `input` makes Node's write lose the race. The process still ran
+// and completed with a real, meaningful status; `ci.error` being set is a fact about the WRITE
+// side channel, not about whether git ever spawned. THE PRE-FIX bug (`if (ci.error) return
+// "failed to spawn"`, checked BEFORE `ci.status`) read this exact shape as an unrelated spawn
+// failure and discarded the real exit status + stderr, which is what shipped on `fca0926` and
+// turned a fully-informative status-128 failure into a misleading "failed to spawn: ... EPIPE"
+// -- reproduced locally (not merely described): a 470,000-byte stdin against a real
+// core.bare=true fixture on this box hit this exact shape 5/5 trials (Windows spells it EOF,
+// not EPIPE; `status` was 128 in every trial regardless of the error code word).
+test('classifyCheckIgnoreResult: a write-side error (EPIPE/EOF) with a real exit status classifies by STATUS, never "failed to spawn" (r34b CI RED fix, Fixes: d882832)', () => {
+  const ci = {
+    status: 128,
+    error: new Error('spawnSync git EPIPE'),
+    stdout: '',
+    stderr: 'fatal: this operation must be run in a work tree\n',
+  };
+  const v = classifyCheckIgnoreResult(ci);
+  assert.equal(v.ok, false);
+  assert.match(v.message, /exited 128 -- fatal: this operation must be run in a work tree/);
+  assert.doesNotMatch(v.message, /failed to spawn/,
+    'a run that produced a real status must never be reported as an unrelated spawn failure');
+});
+
+// The sibling case a status-first check must still get right: a TRUE spawn failure (git
+// missing from PATH, ENOENT) carries no status at all (`status` is `null`, per Node's own
+// spawnSync contract) -- that shape, and that shape alone, keeps the "failed to spawn" message.
+test('classifyCheckIgnoreResult: a genuine spawn failure (status null, ENOENT) keeps its own "failed to spawn" message', () => {
+  const v = classifyCheckIgnoreResult({ status: null, error: new Error('spawnSync git ENOENT'), stdout: null, stderr: null });
+  assert.equal(v.ok, false);
+  assert.match(v.message, /failed to spawn: spawnSync git ENOENT/);
+});
+
+// r34b CI-red BOUNCE 1, M1 (CONFIRMED) -- the CI-red fix above made the classifier STATUS-ONLY
+// for 0/1, which reopens the exact fail-open shape CWK-090 closed: a child that decides 0 or 1
+// WITHOUT draining stdin (measured reachable at the spawnSync layer, 10/10 trials, though real
+// git has never produced it -- it decides 0/1 only after reading EOF) fell through to
+// `{ok: true, stdout}` regardless of `ci.error`, so a run whose stdin write failed partway could
+// read as a clean answer built from only the roots git saw before the write broke. Both status
+// values pinned, per the reviewer's cure table -- status alone does not distinguish them.
+test('classifyCheckIgnoreResult: status 0 WITH a write-side error is a PARTIAL answer, never a clean pass', () => {
+  const ci = { status: 0, error: new Error('spawnSync git EPIPE'), stdout: 'ignored/.pointer-check-probe\n', stderr: '' };
+  const v = classifyCheckIgnoreResult(ci);
+  assert.equal(v.ok, false);
+  assert.match(v.message, /exited 0 but the stdin write failed \(spawnSync git EPIPE\) -- the answer may be partial/);
+});
+
+test('classifyCheckIgnoreResult: status 1 WITH a write-side error is a PARTIAL answer, never a clean pass', () => {
+  const ci = { status: 1, error: new Error('spawnSync git EPIPE'), stdout: '', stderr: '' };
+  const v = classifyCheckIgnoreResult(ci);
+  assert.equal(v.ok, false);
+  assert.match(v.message, /exited 1 but the stdin write failed \(spawnSync git EPIPE\) -- the answer may be partial/);
+});
+
+// r34b CI-red bounce 1, INSPECT's optional one-word improvement, taken (one small edit): when
+// `ci.signal` is set on a null-status shape, name it rather than reading only the error/nothing.
+test('classifyCheckIgnoreResult: a signal-killed child with a null status names the signal in the message', () => {
+  const v = classifyCheckIgnoreResult({ status: null, signal: 'SIGTERM', error: new Error('spawnSync git ETIMEDOUT'), stdout: null, stderr: null });
+  assert.equal(v.ok, false);
+  assert.match(v.message, /failed to spawn \(signal SIGTERM\): spawnSync git ETIMEDOUT/);
 });
 
 // ---------------------------------------------------------------- r31 UNIT 1(a): applyCheckIgnoreProbe (the wiring)

@@ -174,15 +174,45 @@ export const PROBE_SUFFIX = '/.pointer-check-probe';
 // `ignoredRoots` and let the gate's own summary line print a git-derived count over a
 // run that derived no facts at all. That is the fail-open shape this whole class exists
 // to close: a git that cannot run must read as UNKNOWN, never as a clean gate.
+// r34b CI RED (Fixes: d882832, the commit that introduced the error-first ordering this replaces
+// -- `2222b5e` only made it observable by adding the first test that exercises this path; run
+// 35227797667 is where it fired) -- `ci.status` is checked BEFORE `ci.error`, not after.
+// `spawnSync` sets `error` to a pipe-write failure (POSIX EPIPE, this box's Windows libuv spells
+// it EOF) whenever the child closes its stdin end before Node finishes writing `input` -- exactly
+// what happens here: `core.bare=true` makes git print "fatal: ... work tree" and exit 128 WITHOUT
+// draining stdin. The process still ran to completion with a real status; `ci.error` in that
+// shape is a fact about the WRITE side channel, never about whether the process spawned at all.
+// A `status !== null` is authoritative over "did it spawn" regardless of any write-side error
+// sitting beside it -- only a genuinely absent status (ENOENT, the process never started) is
+// "failed to spawn".
+//
+// r34b CI-red BOUNCE 1 (INSPECT M1, CONFIRMED) -- the fix above, taken alone, reopens the exact
+// fail-open shape CWK-090 closed: a `{status: 0|1, error}` shape (a child that decides 0/1 WITHOUT
+// draining stdin -- measured reachable at the spawnSync layer, 10/10, though real git has never
+// produced it, since it decides 0/1 only after reading EOF) fell through to `return {ok: true,
+// stdout}` regardless of `error`, so a run whose stdin write failed partway could read as a clean
+// answer built from only the roots git saw before the write broke. The function's own contract --
+// "a git that cannot run must read as UNKNOWN, never as a clean gate" -- depended on git's
+// internal read order rather than on this gate, and nothing pinned it. Fixed: a THIRD branch,
+// after the non-0/1 check, catches `ci.error` on an otherwise-0/1 status and reports the run as
+// partial rather than clean. The fail-closed property is restored for every status, not just the
+// non-0/1 one this fix's first pass covered.
 export function classifyCheckIgnoreResult(ci) {
-  if (ci.error) {
-    return { ok: false, message: `git check-ignore --stdin failed to spawn: ${ci.error.message}` };
+  if (ci.status === null || ci.status === undefined) {
+    const signalNote = ci.signal ? ` (signal ${ci.signal})` : '';
+    return { ok: false, message: `git check-ignore --stdin failed to spawn${signalNote}: ${ci.error ? ci.error.message : 'no status and no error -- unrecognized shape'}` };
   }
   if (ci.status !== 0 && ci.status !== 1) {
     const stderrLine = typeof ci.stderr === 'string' ? ci.stderr.split('\n')[0].trim() : '';
     return {
       ok: false,
       message: `git check-ignore --stdin exited ${ci.status}${stderrLine ? ` -- ${stderrLine}` : ''} -- cannot tell which cited roots are gitignored`,
+    };
+  }
+  if (ci.error) {
+    return {
+      ok: false,
+      message: `git check-ignore --stdin exited ${ci.status} but the stdin write failed (${ci.error.message}) -- the answer may be partial`,
     };
   }
   return { ok: true, stdout: typeof ci.stdout === 'string' ? ci.stdout : '' };
