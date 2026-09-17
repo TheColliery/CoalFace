@@ -24,7 +24,13 @@ function mkTmpRepoCopy() {
 }
 
 function runVerify(tmp) {
-  return spawnSync(process.execPath, [path.join(tmp, 'scripts', 'verify.mjs')], { encoding: 'utf8' });
+  // r34b FOLD R1 -- verify.mjs's own git spawns (check-ignore et al.) inherited no ceiling; a
+  // tmpdir sitting under a real repository let its NAMED-SKIP-vs-real-repo tests read the wrong
+  // premise. Pinned here so the child process's own git calls carry the ceiling by inheritance.
+  return spawnSync(process.execPath, [path.join(tmp, 'scripts', 'verify.mjs')], {
+    encoding: 'utf8',
+    env: { ...process.env, GIT_CEILING_DIRECTORIES: path.dirname(tmp) },
+  });
 }
 
 // board #64: verify.mjs's DESC_CAP gate walked skill/command frontmatter only —
@@ -55,15 +61,122 @@ test('verify.mjs negative path: an over-cap .claude-plugin/plugin.json descripti
 // ignoredRoots probe, CWK-090's fail-open close, the DEFAULT_SURFACE_PLAN walk) took its NAMED
 // SKIP in every spawned-verify test above and nothing exercised it — every line in that block
 // was deletable with the suite staying green (proven below, RED-FIRST).
-function gitInit(tmp) {
-  const opts = { cwd: tmp, encoding: 'utf8' };
-  spawnSync('git', ['init', '-q', '.'], opts);
+//
+// r34 ITEM A — THE FIXTURE RAIL. CORRECTED r34b: this block first blamed a git FIXTURE for the
+// umbrella's 2026-09-10 `core.bare` incident; that story was wrong (dispatch-transport.md's own
+// sixth amendment, corrected in the umbrella's `2c31e54`, names it by name). The real write was
+// a HEAD's own Bash call — a `node -e "…"` with backticks inside a DOUBLE-QUOTED bash string,
+// run from `TheColliery/scratchpad` — which bash command-substituted and executed against the
+// nearest repository the cwd could walk up to: the umbrella's. No fixture was involved.
+//
+// The rail below stands on its OWN evidence regardless of that incident: `git init` can fail
+// (a path that cannot be created, a `git` binary that is missing or misbehaving), and this
+// fixture used to proceed straight to `git config` on any outcome, scoped only by `cwd: tmp` —
+// which is exactly what a broken init defeats, since git's own directory walk-up would then take
+// every subsequent `config`/`add`/`commit` call to the nearest ANCESTOR repository instead of
+// failing. Fixed: assert BOTH the spawn's own exit status AND `tmp/.git`'s existence immediately
+// after `init`, and FAIL LOUD before any `config` call ever runs. `-C tmp` is now explicit on
+// every call too (belt-and-suspenders alongside `cwd: tmp`, so intent reads at the call site,
+// not only in the spawn options object).
+//
+// r34b BOUNCE 1 L1/L2 (CONFIRMED, fixed) — INSPECT proved the assertions above were correct but
+// UNDEFENDED: a mutation matrix showed stripping the `.git`-exists check alone left all 5 tests
+// green, because the only broken shape any test drove was init exiting non-zero, which the STATUS
+// assertion already catches first. Worse, the ordering test's own regression detector shelled out
+// to REAL git against a `.git`-less `tmp` the moment the guard regressed -- performing the exact
+// walk-up hazard it exists to catch. `GIT_CEILING_DIRECTORIES` pinned to `tmp`'s own parent below
+// makes gitInit()'s own calls structurally incapable of reaching an ancestor repository, whatever
+// state any assertion is in -- belt-and-suspenders on top of the assertions, not a replacement
+// for them (git still refuses cleanly; the assertions still name WHY to a human reading the test
+// output).
+//
+// r34b FOLD R1 (CONFIRMED, fixed) — RE-INSPECT caught this comment overstating its own reach: the
+// pin above covered gitInit() only, and two other fixture git spawns in this file carried none --
+// the `core.bare` write below (a `.git`-less `tmp`, under the exists-assertion-stripped mutation,
+// let that write reach a real ancestor repository, reproducing the exact 2026-09-10 incident value)
+// and `runVerify()`'s own child spawn. Both are pinned now; every fixture git spawn in this file --
+// enumerate them: gitInit()'s init/config/config/add/commit, the `core.bare` write below, and
+// runVerify()'s child -- every one carries the ceiling, so "every fixture call" is now true rather
+// than aspirational.
+//
+// `spawn` is DI'd (defaults to the real `spawnSync`) so a test can prove the ORDERING itself —
+// that a failed init is never followed by a single `config`/`add`/`commit` spawn — without
+// needing a genuinely broken git binary.
+function gitInit(tmp, { spawn = spawnSync } = {}) {
+  const opts = {
+    cwd: tmp,
+    encoding: 'utf8',
+    // r34b bounce1 L2 — no fixture call can walk up past `tmp`'s own parent, structurally,
+    // regardless of what `.git` does or does not exist inside `tmp` itself.
+    env: { ...process.env, GIT_CEILING_DIRECTORIES: path.dirname(tmp) },
+  };
+  const init = spawn('git', ['init', '-q', '.'], opts);
+  assert.equal(init.status, 0, `fixture git init failed (exit ${init.status}): ${init.stderr || ''}`);
+  assert.ok(fs.existsSync(path.join(tmp, '.git')),
+    'fixture .git must exist before any git config runs against it -- a fixture whose init only ' +
+    'LOOKS to have succeeded is one config write away from landing on the nearest real repository ' +
+    'a directory walk-up finds (r34 ITEM A)');
   // Throwaway LOCAL identity — never touches the operator's own global git config.
-  spawnSync('git', ['config', 'user.email', 'ci@coalface.invalid'], opts);
-  spawnSync('git', ['config', 'user.name', 'coalface-verify-test'], opts);
-  spawnSync('git', ['add', '-A'], opts);
-  spawnSync('git', ['commit', '-q', '-m', 'fixture'], opts);
+  spawn('git', ['-C', tmp, 'config', 'user.email', 'ci@coalface.invalid'], opts);
+  spawn('git', ['-C', tmp, 'config', 'user.name', 'coalface-verify-test'], opts);
+  spawn('git', ['-C', tmp, 'add', '-A'], opts);
+  spawn('git', ['-C', tmp, 'commit', '-q', '-m', 'fixture'], opts);
 }
+
+test('gitInit(): a failed init FAILs LOUD before any git config/add/commit spawn -- the ordering, not just the failure', () => {
+  const tmp = mkTmpRepoCopy();
+  try {
+    // args[0] is 'init' for the first call, but '-C' for every call after (this fix's own
+    // explicit `-C tmp` addition) -- verb() reads the real subcommand either shape.
+    const verb = (args) => (args[0] === '-C' ? args[2] : args[0]);
+    const calls = [];
+    // r34b bounce1 L2 -- NEVER shells out to real git, for ANY verb: a regression detector
+    // must not itself perform the hazard it exists to catch. Before this fix, a regressed
+    // guard made this line run real `git -C <tmp> config …` against a `.git`-less `tmp`,
+    // which is exactly the walk-up this whole rail exists to close.
+    const brokenSpawn = (cmd, args) => {
+      calls.push(verb(args)); // 'init' | 'config' | 'add' | 'commit'
+      if (verb(args) === 'init') return { status: 1, stderr: 'synthetic init failure (red-first)' };
+      return { status: 0 }; // fake success -- no child process, no real git, ever
+    };
+    assert.throws(() => gitInit(tmp, { spawn: brokenSpawn }), /fixture git init failed/,
+      'a failed init must throw at the assertion, never proceed');
+    assert.deepEqual(calls, ['init'],
+      'zero config/add/commit spawns may run after a failed init -- proves the ORDER, not only that it eventually failed');
+    assert.ok(!fs.existsSync(path.join(tmp, '.git')), 'no real .git was ever created by the intercepted init');
+
+    // Green direction, same fixture, the REAL spawnSync: init succeeds, every step runs in order.
+    calls.length = 0;
+    const spy = (cmd, args, opts2) => { calls.push(verb(args)); return spawnSync(cmd, args, opts2); };
+    gitInit(tmp, { spawn: spy });
+    assert.deepEqual(calls, ['init', 'config', 'config', 'add', 'commit']);
+    assert.ok(fs.existsSync(path.join(tmp, '.git')), 'a successful init leaves a real .git behind');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+// r34b bounce1 L1 -- the case the original order named had NO test: init exits 0 (so the
+// STATUS assertion is satisfied) but `.git` is never actually created (a pathological or
+// misbehaving git binary). INSPECT's mutation matrix proved the exists-assertion was
+// UNDEFENDED without this case: stripping it alone left every prior test green.
+test('gitInit(): an init that exits 0 but creates NO .git still FAILs LOUD at the .git-exists assertion, zero further spawns', () => {
+  const tmp = mkTmpRepoCopy();
+  try {
+    const verb = (args) => (args[0] === '-C' ? args[2] : args[0]);
+    const calls = [];
+    // Reports SUCCESS without ever running real git for any verb -- so `tmp/.git` never
+    // materializes, driving exactly the branch the exists-assertion exists to catch.
+    const fakeInit = (cmd, args) => { calls.push(verb(args)); return { status: 0 }; };
+    assert.throws(() => gitInit(tmp, { spawn: fakeInit }),
+      /fixture \.git must exist before any git config runs/,
+      'a fake init reporting success with no real .git must still throw, at the EXISTS assertion');
+    assert.deepEqual(calls, ['init'],
+      'zero config/add/commit spawns may run when .git never materialized -- proves the ordering, not only the eventual failure');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
 
 test('verify.mjs pointer-drift block RUNS under a real git repo (no NAMED SKIP)', () => {
   const tmp = mkTmpRepoCopy();
@@ -91,7 +204,14 @@ test('verify.mjs pointer-drift block FAILs LOUD when git check-ignore cannot run
     // work tree", exit 128. Real, portable git behaviour, no PATH shim needed (a bare
     // spawnSync with no shell:true resolves the real git.exe regardless of PATH order, so a
     // shim git on PATH would never be reached anyway — measured, not re-derived here).
-    spawnSync('git', ['config', 'core.bare', 'true'], { cwd: tmp, encoding: 'utf8' });
+    // r34b FOLD R1 -- pinned like every other fixture spawn: `tmp` has no ancestor .git of its
+    // own concern here, but a `.git`-less `tmp` (the exists-assertion-stripped mutation) would
+    // otherwise let this specific write land on whatever real repository os.tmpdir() sits under.
+    spawnSync('git', ['config', 'core.bare', 'true'], {
+      cwd: tmp,
+      encoding: 'utf8',
+      env: { ...process.env, GIT_CEILING_DIRECTORIES: path.dirname(tmp) },
+    });
 
     const r = runVerify(tmp);
     assert.equal(r.status, 1,
