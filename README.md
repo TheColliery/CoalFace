@@ -23,7 +23,7 @@
 
 [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [Privacy](PRIVACY.md) · [Releases](https://github.com/TheColliery/CoalFace/releases)
 
-**Part of [TheColliery](https://github.com/TheColliery/.github)** — siblings: **[CoalMine](https://github.com/HetCreep/CoalMine)** (quality canaries) · **[CoalTipple](https://github.com/TheColliery/CoalTipple)** (model/effort routing) · **[CoalBoard](https://github.com/TheColliery/CoalBoard)** (consensus board) · **[CoalHearth](https://github.com/TheColliery/CoalHearth)** (session warm-resume) · **[CoalWash](https://github.com/TheColliery/CoalWash)** (memory defrag) · **[CoalLedger](https://github.com/TheColliery/CoalLedger)** (docs health).
+**Part of [TheColliery](https://github.com/TheColliery/.github)** — siblings: **[CoalMine](https://github.com/TheColliery/CoalMine)** (quality canaries) · **[CoalTipple](https://github.com/TheColliery/CoalTipple)** (model/effort routing) · **[CoalBoard](https://github.com/TheColliery/CoalBoard)** (consensus board) · **[CoalHearth](https://github.com/TheColliery/CoalHearth)** (session warm-resume) · **[CoalWash](https://github.com/TheColliery/CoalWash)** (memory defrag) · **[CoalLedger](https://github.com/TheColliery/CoalLedger)** (docs health).
 
 </div>
 
@@ -153,7 +153,7 @@ The structure sets the shape:
 
 CoalFace is the **fan-out discipline** of the mining series, alongside its siblings:
 
-- [CoalMine](https://github.com/HetCreep/CoalMine) — quality canaries
+- [CoalMine](https://github.com/TheColliery/CoalMine) — quality canaries
 - [CoalTipple](https://github.com/TheColliery/CoalTipple) — model/effort routing
 - [CoalBoard](https://github.com/TheColliery/CoalBoard) — consensus & debate
 - [CoalHearth](https://github.com/TheColliery/CoalHearth) — session warm-resume
