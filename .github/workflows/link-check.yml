@@ -1,0 +1,74 @@
+name: link-check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**.md'
+  pull_request:
+    branches: [main]
+    paths:
+      - '**.md'
+
+permissions:
+  contents: read
+
+# cancel-in-progress: TRUE (CWK-058, canon: .github/SKILL-REPO-PATTERN.md) -- this
+# workflow reads files and publishes nothing, so a superseded run leaves nothing
+# half-done to clean up.
+concurrency:
+  group: link-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      # NOT continue-on-error -- this is a real gate on a tree already verified clean
+      # (0 findings), not a report-only cleanup pass. A report-only link gate is the
+      # cry-wolf shape this room's own canon exists to ban.
+      #
+      # ENGINE: scripts/lib/link-check.mjs (CW-017) -- this room had NO link-checking
+      # capability before this unit, so the engine is a fresh, zero-dep build (walks
+      # markdown, checks internal relative links + anchors), never a reused AST parser.
+      #
+      # SCOPE: every TRACKED root/skill/command .md file, excluding `plugin/**` (the
+      # GENERATED dist copy -- scanning it would double-report every finding the source
+      # copy already caught) and `scripts/fixtures/**` (the engine's own planted-defect
+      # fixtures, which deliberately fail the engine's own unit tests -- scanning them
+      # here would fail this gate by design, forever).
+      #
+      # WRAPPED, NOT BARE: scripts/link-check.mjs's own exit code already fails loud on a
+      # finding (scripts-quality.md §1 CLI discipline -- unlike doc-structure-style
+      # engines, this one was built for exactly one consumer and has no reason to report
+      # findings without failing). The `node ... || exit 1` below is still explicit,
+      # never relying on the runner's default shell behaviour, so this step is proven to
+      # fail on findings by its own text, not by an implicit `set -e`.
+      #
+      # CANNOT FAIL OPEN ON AN EMPTY FILE LIST -- guarded the same way CoalLedger's own
+      # CWK-092 findings-back closed it there: if the git ls-files/grep chain ever
+      # yields nothing (a layout change moves every doc under an excluded prefix), this
+      # step asserts non-empty and exits 1 BEFORE the engine ever runs, rather than
+      # reporting green having scanned nothing.
+      #
+      # r33 bounce1 F4 (CONFIRMED, fixed) -- the guard above was UNREACHABLE as first
+      # written. GitHub Actions' default `run:` shell is `bash -e`; a `grep` matching
+      # nothing exits 1, and that failure inside the `$(...)` command substitution kills
+      # the step under `-e` BEFORE the `if [ -z "$files" ]` line ever runs -- measured:
+      # the empty-scope case exited 1 with NO output at all, neither the guard's own
+      # `::error::` message nor the (correct, but unreached) intent below it. The safety
+      # property already held either way (a killed step still exits non-zero), but the
+      # diagnostic did not fire. `|| true` on the substitution lets a matchless grep chain
+      # produce an EMPTY `$files` instead of killing the step, so the guard below is the
+      # one that actually explains the failure.
+      - run: |
+          files=$(git ls-files '*.md' | grep -v '^plugin/' | grep -v '^scripts/fixtures/' || true)
+          if [ -z "$files" ]; then
+            echo "::error::link-check found NO markdown files to scan -- the scope filter is broken, not the tree"
+            exit 1
+          fi
+          node scripts/link-check.mjs $files || { echo "::error::link-check found broken internal links/anchors -- see FAIL lines above"; exit 1; }

@@ -1,0 +1,66 @@
+// Single source of truth for every .coalface.json key (flat, mirrors CoalTipple's
+// config-schema.mjs pattern). verify.mjs validates the factory config against it —
+// a key added here is automatically validated and documented. No speculative keys:
+// every key has a live consumer (the conductor hook or the SKILL contract).
+//
+// Spec fields:
+//   key     canonical .coalface.json key
+//   type    'int' | 'enum'
+//   min/max bounds for 'int'
+//   values  allowed values for 'enum' (compared case-insensitively)
+//   help    one-line description
+
+export const CONFIG_SCHEMA = [
+  { key: 'coalfaceMode', type: 'enum', values: ['auto', 'on', 'off'], help: 'Fan-out discipline mode: auto (default — a fan-out of >= autoFanoutFloor units rides the /coalface contract), on (scout every prompt, fan out everything decomposable), off (CoalFace fully out; native fan-out untouched)' },
+  { key: 'bandwidth', type: 'int', min: 1, max: 100, help: 'Percent of the platform\'s available subagent width a wave may use (effective width = floor(platform width x bandwidth%)). 100 = saturate — fastest AND starves every sibling session on the box; never the default. Orthogonal to the wallet (speed of burn, not amount). Range 1-100, default 25' },
+  { key: 'autoFanoutFloor', type: 'int', min: 1, max: 50, help: 'Fan-out size (units) at/above which an auto-mode fan-out must ride the CoalFace contract; below it, 1-2-sub ad-hoc spawns keep zero ceremony. Range 1-50, default 4' },
+  { key: 'updateMode', type: 'enum', values: ['ask', 'auto', 'remind', 'off'], help: 'Self-update behavior at session start (ask, auto, remind, off). The hook never networks — the agent verifies + offers, consent-gated. Orthogonal to coalfaceMode — its own off-switch. Default ask' },
+  { key: 'updateCheckDays', type: 'int', min: 1, max: 365, help: 'Days between self-update checks/reminders (range 1-365; the hook CLAMPS an out-of-range value to the default on read). Default 14' },
+  { key: 'maxLocalWorkers', type: 'int', min: 0, max: 64, help: 'Ceiling on concurrent apply-time DOMAIN-GATE runs (main\'s own step-7 build/test, or a depth-1 nested conductor\'s own) holding a CPU-bound slot -- the MACHINE bound, distinct from bandwidth (agent-process width/speed) and the wallet (dollars). Workers never hold this slot -- they cannot run a build/test step. 0 = auto-derive from this machine\'s core count (scripts/lib/admission-control.mjs: max(1, min(16, floor((cores-2)/2)))); a positive integer LOWERS the cap, never raises it past the derived one. A CAP, not a consent/spend key -- plain project-wins merge, no safer-value-wins clamp (hooks-safety.md §9\'s numeric-keys carve-out). Range 0-64, default 0 (auto)' },
+  // AL-2 (owner-signed 2026-09-05), shape ruled by the chief 2026-09-09: the six-value
+  // closed enum STAYS the flock shape -- a widening lands at the exemplar (CoalMine)
+  // first, never here. Values ported VERBATIM from CoalMine's scripts/lib/config-
+  // schema.mjs:17. 5 Standard Systems #2 (AGENTS.md): factory AUTO follows the
+  // conversation's language, EN fallback, no extra work -- this key exists to LOCK it.
+  // A lock translates PROSE only; commands, paths, identifiers, config keys,
+  // tier/effort/grade/model names and severity labels stay VERBATIM. No `flags`
+  // field -- `--language` (the key name itself) is already how scripts/configure.mjs
+  // (CWK-023, r31) sets it; `flags` is for ALIASES only, and this key has none.
+  // CWK-065 cell 1.7's "this room ships no configure.mjs/CLI" reading is RETIRED by
+  // that same unit -- corrected here rather than left standing on a surface this
+  // exact change falsifies.
+  { key: 'language', type: 'enum', values: ['auto', 'th', 'en', 'ja', 'zh', 'es'], help: 'Lock the reply language (auto, th, en, ja, zh, es). Translates prose only -- commands, paths, identifiers, config keys, tier/effort/grade/model names and severity labels stay verbatim. Default auto' },
+];
+
+// Validate an already-parsed JSON value against a spec entry.
+// Returns an error message fragment ("must be ...") or null when valid.
+export function validateValue(spec, v) {
+  switch (spec.type) {
+    case 'int':
+      if (typeof v !== 'number' || !Number.isFinite(v)) return 'must be a finite number';
+      if (!Number.isInteger(v)) return 'must be an integer';
+      if (spec.min != null && v < spec.min) return `must be >= ${spec.min}`;
+      if (spec.max != null && v > spec.max) return `must be <= ${spec.max}`;
+      return null;
+    case 'enum':
+      return typeof v === 'string' && spec.values.includes(v.toLowerCase())
+        ? null
+        : `must be one of: ${spec.values.join(', ')}`;
+    default:
+      return `has an unknown spec type '${spec.type}'`;
+  }
+}
+
+// Validate a full parsed config object. Unknown keys are reported, never thrown
+// (fail loud at the gate, degrade silent in the hook — the hook clamps on read).
+export function validateConfig(cfg) {
+  const errors = [];
+  if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) return ['config must be a JSON object'];
+  for (const [key, v] of Object.entries(cfg)) {
+    const spec = CONFIG_SCHEMA.find((s) => s.key === key);
+    if (!spec) { errors.push(`'${key}' not in schema`); continue; }
+    const err = validateValue(spec, v);
+    if (err) errors.push(`'${key}' ${err}`);
+  }
+  return errors;
+}

@@ -1,0 +1,43 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      # CodeQL analyzes js/ts + this room's GitHub Actions workflows (CWK-112) — NO markdown needs a security scan either way, so skip ALL docs (a doc-only commit doesn't run CodeQL). Shipped SKILL.md/commands consistency is ci.yml's job (verify dist-sync), not CodeQL's.
+      - '**.md'
+      - 'LICENSE'
+      - 'NOTICE'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      # CodeQL analyzes js/ts + this room's GitHub Actions workflows (CWK-112) — NO markdown needs a security scan either way, so skip ALL docs (a doc-only commit doesn't run CodeQL). Shipped SKILL.md/commands consistency is ci.yml's job (verify dist-sync), not CodeQL's.
+      - '**.md'
+      - 'LICENSE'
+      - 'NOTICE'
+  schedule:
+    - cron: '0 6 * * 1'
+
+# cancel-in-progress: TRUE -- a superseded run simply never uploads its SARIF, and the
+# PRIOR analysis stands: stale, never corrupt. The newer push analyzes the newer tree,
+# which is the state anyone actually cares about (CWK-058, canon's `concurrency:` bullet).
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: analyze (javascript)
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4
+        with:
+          languages: javascript-typescript, actions
+          queries: security-and-quality
+      - uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4
