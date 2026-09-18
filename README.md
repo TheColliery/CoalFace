@@ -1,0 +1,173 @@
+<div align="center">
+
+# ⛏️ CoalFace
+
+> *A coal face is the active surface of the seam — the one place the whole crew swarms to cut coal.* This one disciplines your agent's swarm.
+
+**A fan-out discipline for swarm work.** When a task decomposes into many units — a bulk refactor, a repo-wide sweep, a 100-spot edit, a corpus batch — CoalFace runs the fan-out as a disciplined factory instead of an ad-hoc swarm: a mandatory scout, a deterministic partition, workers returning anchor-edit orders as text, mechanical QC at collection, one writer applying behind a snapshot, and a receipt at the end.
+
+![version](https://img.shields.io/github/v/tag/TheColliery/CoalFace?sort=semver&label=version&color=blue)
+![license](https://img.shields.io/badge/license-Apache_2.0-blue)
+![status](https://img.shields.io/badge/status-stable-brightgreen)
+
+*Compatibility: **validated** on Claude Code · **works with** every other concurrent-subagent platform (Antigravity, Cursor, Codex, Gemini CLI, Cline, Copilot — installs and runs, not yet run by us; see the table for Antigravity's wired-but-unvalidated auto-conductor detail) · claude.ai has no subagents at all, so it runs the contract's built-in sequential-pipeline degrade instead — see the Compatibility table below.*
+
+![Claude Code](https://img.shields.io/badge/Claude_Code-validated-brightgreen)
+![Antigravity](https://img.shields.io/badge/Antigravity-works--with-blue)
+![Cursor](https://img.shields.io/badge/Cursor-works--with-blue)
+![Codex](https://img.shields.io/badge/Codex-works--with-blue)
+![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-works--with-blue)
+![Cline](https://img.shields.io/badge/Cline-works--with-blue)
+![Copilot](https://img.shields.io/badge/Copilot-works--with-blue)
+![claude.ai](https://img.shields.io/badge/claude.ai-sequential_degrade-blue)
+
+[Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [Privacy](PRIVACY.md) · [Releases](https://github.com/TheColliery/CoalFace/releases)
+
+**Part of [TheColliery](https://github.com/TheColliery/.github)** — siblings: **[CoalMine](https://github.com/TheColliery/CoalMine)** (quality canaries) · **[CoalTipple](https://github.com/TheColliery/CoalTipple)** (model/effort routing) · **[CoalBoard](https://github.com/TheColliery/CoalBoard)** (consensus board) · **[CoalHearth](https://github.com/TheColliery/CoalHearth)** (session warm-resume) · **[CoalWash](https://github.com/TheColliery/CoalWash)** (memory defrag) · **[CoalLedger](https://github.com/TheColliery/CoalLedger)** (docs health).
+
+</div>
+
+---
+
+## ⛏️ What it is
+
+Agents already fan work out to subagents — CoalFace does not invent that. It disciplines it. An ad-hoc fan-out makes the same three promises with **no guarantee**; CoalFace makes them **enforced by structure**:
+
+| Promise | Ad-hoc fan-out | CoalFace |
+|---|---|---|
+| **Cost** | UNBOUNDED — uncontrolled spawn overhead, N workers re-reading the same files, retry storms, stray runaway workers | Overhead BOUNDED (shared-digest + min-unit floor + no self-retry) and **cheaper in $** via cheap worker tiers. NOTE: raw **tokens run HIGHER than solo** — fan-out multiplies the ~per-sub baseline by N (the benchmark showed ~5.3× on a small job); the wallet bounds **dollars + wall-time**, never raw tokens |
+| **Speed** | UNDER-FANNED — a lazy orchestrator batches 100 spots into 5-8 bloated workers whose tail quality drops | Full width — worker count = spot count, floor/width-bounded waves |
+| **Quality** | Can dip BELOW solo — a deviant worker, real-tree writes, a half-applied death | Netted — mechanical QC at collection, single-writer apply behind a pre-swarm snapshot, a domain gate |
+
+Honest frame up front: CoalFace disciplines fan-outs that would happen anyway — it does **not** make models smarter and does **not** guarantee correctness (see the QC ceiling below). Zero-dependency, offline by default, no API keys — "by default" because the consent-gated self-update check (`/coalface:update`) goes online; the hooks never do.
+
+## 🏭 How it works
+
+The flow is fixed — a swarm never skips a step:
+
+| # | Step | What happens |
+|---|---|---|
+| 1 | **Scout** (mandatory) | Survey the worksite before sizing anything: the spot list, the dependency graph, the invariants to lock (your standing rules, glossary, API/style), the end-of-run domain gate, the swarm mode, and the **shared-digest** — the common context paid for once and shipped to every worker (never N workers re-reading the same files). |
+| 2 | **Partition** (deterministic) | An interval-intersection check merges overlapping spots and chains dependent ones — a rule table, not model judgment. A unit smaller than spawn overhead merges with a neighbor (the min-unit floor). |
+| 3 | **Heads-up** (conditional) | If the job dwarfs the prompt, one NON-blocking line ("found N spots, ~est X — starting; Esc to stop") — never a question-box. |
+| 4 | **Waves** | Effective width = floor(platform width × `bandwidth`%), floored again by `maxLocalWorkers` — a MACHINE cap on concurrent apply-time domain-gate runs (main's own step-7 build/test, or a depth-1 nested conductor's own; auto-derived from your cores; excess queues, none denied). AIMD backoff: a 429 shrinks the next wave, clear stretches re-grow — a `bandwidth` set above your account's real capacity simply settles AT the real capacity, nothing breaks. |
+| 5 | **Orders as text** | Workers return **anchor-edits** (`old-text → new-text`, exact-match, position-independent — that is why 100 spots in ONE file works) or the completed unit as text. Propose-not-execute: workers never touch the tree. |
+| 6 | **QC at collection** | Mechanical, before any apply: SCOPE (every anchor inside the assigned range, no foreign files) + SPEC (locked invariants grep-verifiable). Reject → quarantine + ONE bounded rework; a 2nd fail goes to you via the receipt. |
+| 7 | **Apply** (single writer) | Behind a pre-swarm snapshot (git stash / HEAD-record, or plain file copies — git is never assumed), sequentially in topological order, then the domain gate (build+test / corpus rules / lint+links / schema-validate). Gate red = full rollback. |
+| 8 | **Receipt** (always) | Spots · workers · waves · effective width · tokens vs the solo estimate · quarantined items · test-uncovered flags — in your language, plain wording first. |
+
+**Activation.** `coalfaceMode: auto` (the default) lets the agent judge — any fan-out of ≥ `autoFanoutFloor` units (default 4) rides the contract; 1-2-sub ad-hoc spawns keep zero ceremony. `on` scouts every prompt; `off` removes CoalFace entirely. Manual **`/coalface`** convenes it in any mode except `off`. There is no pre-pay gate: your command IS the consent — a solo run would burn a comparable **dollar** budget silently, and the wallet caps the swarm's dollar cost at ~that — so transparency arrives as the receipt.
+
+**The wallet — a DOLLAR bound, not a token one.** The whole swarm — scout + workers + apply — fits inside the estimated solo **dollar** cost, NOT its token count. Raw tokens run *higher* than solo: fan-out multiplies the fixed ~per-sub baseline by N (the [benchmark](https://github.com/TheColliery/.github/blob/main/benchmarks/CoalFace/RESULTS.md) showed ~5.3× solo tokens on a small 6-spot job — its CF arm ran 3 workers, extrapolated to 6). What holds the *dollar* line is that Claude Code's cheap worker tiers cost ~5× less per token — so N cheap workers can undercut one expensive solo main (the benchmark: −15% in $). The shared-digest, min-unit floor, and no-self-retry rule (a per-worker-return journal + at most one re-spawn on the remainder) keep that overhead *bounded* — the guarantee is "≤ solo **in dollars**, much faster, QC'd", never "fewer tokens".
+
+**No worksite "breaks."** The scout classifies the shape and routes it to a safe mode:
+
+| Worksite shape | Mode |
+|---|---|
+| Disjoint spots (flat) | Full parallel waves — worker count = spot count (floor/width-bounded) |
+| Dependency chain | Topologically-ordered waves; a full chain = pipeline degrade (discipline kept; honesty: no speedup) |
+| Global invariant (glossary/style/totals) | Lock first → ship in the shared-digest → consistency sweep at the end |
+| Holistic quality (voice/architecture) | Analyze-swarm only — ONE voice writes |
+| Side-effects | Closed by propose-not-execute — side-effects fire only at the consented apply |
+| Non-decomposable | Honest refusal: "not swarmable — solo" |
+
+**The QC ceiling (honesty).** QC is mechanical. An in-scope, on-spec, semantically-WRONG return with no covering test can pass — the receipt flags those test-uncovered spots, and the escalation for that class is [CoalBoard](https://github.com/TheColliery/CoalBoard) (the error-not-allowed lane), never another swarm. On error-not-allowed work CoalBoard wins outright: critical work goes to consensus, not throughput.
+
+## 🖥️ Compatibility
+
+| Platform | Support | What you get |
+|---|---|---|
+| **Claude Code** | ✅ **validated** | One-command plugin install; the SessionStart conductor injects the standing discipline; [CoalTipple](https://github.com/TheColliery/CoalTipple) (if installed) adds delegate-down worker tiering — a cost bonus, never a gate, and its sensitive-unit rule (crypto/auth/payment/migration stays main-tier) is inherited even when it's absent. |
+| **Antigravity** | **works with** | The skill-file contract — manual `/coalface` spawns real workers there (native subagent tool), same as any other row below. AG 2.0 also shipped a real hook engine, so the standing `auto` conductor is *wired* for it (built + hermetically tested against the current AG hook contract — the `injectSteps` emit, re-derived 2026-07-23) via a one-time copy of [`platform-configs/hooks.json`](platform-configs/hooks.json) (see Install); whether that directive actually lands in the agent's context on live AG is **not yet validated**, so manual `/coalface` stays the reliable floor. Doesn't work as documented? [File an issue](https://github.com/TheColliery/CoalFace/issues). |
+| **Other concurrent-subagent platforms** (Cursor, Codex, Gemini CLI, Cline, Copilot, Amp, Goose, …) | **works with** | The skill file is the whole contract — workers spawn via the platform's native subagent tool, no API; we have not run a swarm there ourselves, so the contract itself says to treat width/nesting conservatively. Hooks and plugin commands are Claude-Code-only, so there is no standing `auto` directive: install the skill (or point your agent at it) and convene it on bulk work. Doesn't work as documented? [File an issue](https://github.com/TheColliery/CoalFace/issues). |
+| **claude.ai** (web / desktop app) | ⚠️ Sequential degrade | No subagents there — the contract's built-in degrade path runs instead (scout → units in order → QC → apply): the discipline without the parallel speed. Download the ZIP from [Releases](https://github.com/TheColliery/CoalFace/releases) and upload as a custom skill — see Install below. |
+| **No concurrent fan-out** | Sequential degrade | The same contract runs as a pipeline (scout → units in order → QC → apply) — no speedup, discipline kept, never broken. |
+
+Workers default to a main-equivalent model on every platform — capability never depends on Claude Code; only the cheap-worker cost option does.
+
+## 🚀 Install
+
+**Claude Code** — one command (also wires the SessionStart conductor + `/coalface:update`):
+
+```bash
+claude plugin marketplace add TheColliery/CoalFace
+claude plugin install coalface@coalface
+```
+
+**Antigravity** — *works with; the swarm is e2e-proven only on Claude Code — re-verify on yours.* Antigravity has no plugin manager: a skill is installed by copying its folder into a customizations root, which Antigravity auto-discovers at session start (no install command, no manifest):
+
+```powershell
+git clone https://github.com/TheColliery/CoalFace.git --depth 1
+# global (all workspaces):
+Copy-Item -Recurse CoalFace/skills/coalface "$env:USERPROFILE\.gemini\config\skills\coalface"
+# — or per-project: copy into <your-repo>\.agents\skills\coalface instead
+Remove-Item -Recurse -Force CoalFace   # optional cleanup
+```
+
+Start a new Antigravity session; `coalface` appears in the skills list, and `/coalface` convenes it manually.
+
+**Auto conductor on AG (wired — live AG validation pending):** AG 2.0 shipped a real hook engine, so the standing `auto` directive can now ride Antigravity too. Keep the clone (the adapter is [`hooks/ag-conductor.js`](hooks/ag-conductor.js), which requires its sibling [`hooks/coalface-conductor.js`](hooks/coalface-conductor.js)) — or copy the `hooks/` folder wherever you keep the skill — then copy [`platform-configs/hooks.json`](platform-configs/hooks.json) to `<workspace>/.agents/hooks.json` (per project) or `~/.gemini/config/hooks.json` (global) and replace `__COALFACE_DIR__` with the directory holding `hooks/`. The directive rides the first `PreInvocation` of a session (AG never fires `SessionStart`), at most once per session; delivery into the agent is not yet live-validated (the **wired** tier — defined in the Compatibility table; the adapter emits the current `injectSteps` contract, re-derived 2026-07-23 — the pilot-era `additionalContext` key was a dead letter) — so manual `/coalface` remains the reliable floor. `/coalface:update` stays Claude-Code-only (the self-update nudge is deliberately not ported — its payload is a CC plugin command; on AG, update by re-copying).
+
+**Other concurrent-subagent platforms** (Cursor, Codex, Copilot, Gemini CLI, Cline, Amp, Goose, … — *works with; swarm e2e-proven only on Claude Code*) — the skill file is the whole contract: point your agent at [`skills/coalface/SKILL.md`](skills/coalface/SKILL.md) (it convenes via your platform's native subagent tool, no API; no one-command installer, and hooks + `/coalface:update` are Claude-Code-only there). Gemini CLI's parallel subagents are now first-party official (`/agents`) — business Standard/Enterprise plans only (individual tiers lost access 2026-06-18). **The fan-out discipline is cross-agent by design but proven only on Claude Code — re-verify concurrent-subagent support on yours.** A platform with no concurrent fan-out runs the same contract as a sequential pipeline (no speedup, discipline kept).
+
+**claude.ai** (web / desktop app) — no subagents there, so the contract's built-in sequential-pipeline degrade runs instead. Download `coalface.zip` from the [Releases page](https://github.com/TheColliery/CoalFace/releases) (built by CI on every tag) and upload it as a custom skill (Settings → Capabilities → Skills). Manual invocation only — no hooks there. **Don't hand-zip `skills/coalface` yourself** — the description in `SKILL.md` runs to our own 1024-char cap, well past claude.ai's 200-char skill-listing limit; the published ZIP has its description deterministically trimmed to fit (`scripts/build-claude-ai-zips.mjs`; the source `skills/coalface/SKILL.md` is never edited). The Release also carries `SHA256SUMS.txt` — verify with `sha256sum -c SHA256SUMS.txt` (Windows: `(Get-FileHash coalface.zip).Hash -ieq (Select-String coalface.zip SHA256SUMS.txt).Line.Split()[0]`). General steps + capability notes: [CLAUDE-AI-INSTALL](https://github.com/TheColliery/.github/blob/main/CLAUDE-AI-INSTALL.md).
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `/coalface` | Manually convene the fan-out discipline (scout → partition → waves → QC → single-writer apply → receipt) in any mode except `off`. |
+| `/coalface:stats` | CoalFace stats for this session — swarms run, receipts, wallet outcome vs the solo baseline. |
+| `/coalface:update` | Check for a newer CoalFace version and offer to apply it, or set how updates are handled. |
+
+## ⚙️ Configure
+
+Everything is tunable in `.coalface.json` — global `~/.claude/.coalface.json` overlaid per key by the nearest project config (project wins; the lookup walks up from the cwd and stops at your home dir). **Per-project config lives under an agent dir** (`.claude/coal/coalface.json`, `.agents/coal/coalface.json`, or `.gemini/coal/coalface.json`), checked in this order at each directory level: **the dir of the agent actually reading this file first** (e.g. `.agents/coal/coalface.json` on Antigravity, `.claude/coal/coalface.json` on Claude Code — check your own agent's dir, not the CC default, if you're on a different platform), then the other dirs in fixed order `.claude` → `.agents` → `.gemini` (first found wins), then the legacy `<project>/.coalface.json` at the root (still read normally — no breakage for an existing config). This lets you **tune or shut off a globally-installed skill per project** (off-switch: `coalfaceMode: off`) — a skill you don't need in a given project stops loading (and burning tokens) there. Every key is optional; an out-of-range value clamps to its default on read. **Prefer the CLI over hand-editing:** `node scripts/configure.mjs --<key> <value>` sets any schema key — validated against the same `scripts/lib/config-schema.mjs` rules `verify.mjs` enforces — and writes the project layer by default, or the global one with `--global`; `node scripts/configure.mjs --help` lists every key with its range and default. The JSON above still works — the CLI is an addition, not a replacement, and hand-editing stays the only path for a reader with no shell. The high-impact keys:
+
+| Key | Default | What it does |
+|---|---|---|
+| `coalfaceMode` | `auto` | The discipline mode. `auto` — the agent judges; any fan-out of ≥ `autoFanoutFloor` units rides the contract. `on` — scout every prompt. `off` — CoalFace fully out; your platform's native fan-out untouched. |
+| `bandwidth` | `25` | Percent of the platform's available subagent width a wave may use (`100` = saturate — starves every sibling session; never the default). Orthogonal to the wallet: how FAST the same budget burns, never how much. |
+| `autoFanoutFloor` | `4` | Fan-out size (units) at/above which an `auto`-mode fan-out must ride the contract; below it, 1-2-sub ad-hoc spawns keep zero ceremony. |
+| `maxLocalWorkers` | `0` | Ceiling on concurrent apply-time domain-gate runs (main's own build/test, or a depth-1 nested conductor's own) — `0` auto-derives from your machine's core count; a positive integer LOWERS it, never past the derived cap. Excess queue, never denied. |
+| `language` | `auto` | Locks the reply language (`auto`/`th`/`en`/`ja`/`zh`/`es`). `auto` follows the conversation's language, EN fallback, no extra work. A lock translates PROSE only — commands, paths, identifiers, config keys, tier/effort/grade/model names and severity labels stay VERBATIM. |
+
+Full key reference: every key + default lives in [`scripts/lib/config-schema.mjs`](scripts/lib/config-schema.mjs) and the commented template [`platform-configs/.coalface.json`](platform-configs/.coalface.json).
+
+## Permissions
+
+Workers only **read and propose** — anchor-edit text, never touching the tree; the conductor (main) is the **sole writer**, applying behind a pre-swarm snapshot with full rollback on a failed gate. Neither role deletes files or reaches the network in the swarm itself (main's apply-time gate does run the repo's own local build/test/lint). Workers get strictly less than main: no spawning, no user-facing prompts, no writes of their own.
+
+Full series matrix + the must-fail set: [Permission Matrix](https://github.com/TheColliery/.github/blob/main/PERMISSION-MATRIX.md)
+
+## 📊 Benchmark
+
+**Fan-out cost, measured (2026-07-03, beta.2).** On a 6-spot shared-context job: fanning out costs **more raw tokens** than solo — the per-sub baseline × N (ad-hoc 4.2×, fully measured; CF-with-scout 5.3× — the CF arm measured 3 workers, extrapolated ×2 to 6). In **dollars**, cheap-tier fan-out lands **−15% vs a solo Opus main** (Haiku workers are ~5× cheaper/token) — but CF's scout is overhead that only pays back above a shared-context threshold, so on THIS small job CF itself costs a little MORE than plain ad-hoc. CF's real lever is **coarse packing** (fewest cheap workers): 2×3 workers = **−67% tokens vs naive ad-hoc**, the cheapest arm overall. The wallet is a **$-via-cheap-tier + right-sizing** bound, not a token saving vs solo. Full table + caveats: [`TheColliery/.github/benchmarks/CoalFace`](https://github.com/TheColliery/.github/blob/main/benchmarks/CoalFace/RESULTS.md). (Measured at beta.2; CoalFace graduated to stable on its first real full-pipeline run — a 15-spot, 5-repo doc-conform sweep, 2026-07-09 — whose receipt matched this benchmark's honest frame: discipline and QC are the value, not a token saving.)
+
+The structure sets the shape:
+
+- **Wall-clock saturates at wave width.** Wall ≈ ceil(N / width) × unit-time — a 100-spot job at width 4 runs ~25 waves, not 100× faster; slicing finer than ~2-4× the width buys nothing, and a full dependency chain degrades to a pipeline with **no speedup at all**.
+- **The wallet is a DOLLAR bound, not free.** Spawn overhead is real and raw tokens run *higher* than solo; the invariant is that the swarm's **dollar** cost fits inside the estimated solo dollar cost — "about solo cost in $, much faster, with QC", never "fewer tokens".
+
+## 🧭 Part of TheColliery
+
+CoalFace is the **fan-out discipline** of the mining series, alongside its siblings:
+
+- [CoalMine](https://github.com/TheColliery/CoalMine) — quality canaries
+- [CoalTipple](https://github.com/TheColliery/CoalTipple) — model/effort routing
+- [CoalBoard](https://github.com/TheColliery/CoalBoard) — consensus & debate
+- [CoalHearth](https://github.com/TheColliery/CoalHearth) — session warm-resume
+- [CoalWash](https://github.com/TheColliery/CoalWash) — memory defrag
+- [CoalLedger](https://github.com/TheColliery/CoalLedger) — docs health
+
+Install one, it stands alone; install all, they compose without conflict — CoalBoard wins on error-not-allowed work (consensus, not throughput; CoalFace may serve as its apply-hand after), CoalTipple tiering is an optional worker-cost bonus.
+
+Shared doctrine: Phoenix-13 hooks (zero-dependency, no network, fail-silent, no child processes, deterministic), single-source-of-truth config schemas, and a strict no-overkill discipline. Series doctrine: [`TheColliery/.github`](https://github.com/TheColliery/.github).
+
+Zero-dependency, offline by default, no API keys — "by default" because the consent-gated self-update check (`/coalface:update`) goes online; the hooks never do.
+
+---
+
+## 📄 License
+
+Apache License 2.0. See [LICENSE](LICENSE).
