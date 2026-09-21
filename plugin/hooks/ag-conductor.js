@@ -38,7 +38,7 @@
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { readCfg, directiveFor, languageLock } = require('./coalface-conductor.js');
+const { loadCfg, appendNotices, directiveFor, languageLock } = require('./coalface-conductor.js');
 
 // First non-empty string among keys (defensive: the current AG spec is camelCase
 // protojson; legacy snake_case — the pilot-era shape — stays accepted too).
@@ -113,7 +113,7 @@ function main() {
     fs.writeFileSync(marker, '', { flag: 'wx' });
   } catch { return; } // EEXIST (already ran) OR any write failure -> fail-closed, no emit
 
-  const cfg = readCfg('agents'); // this adapter only ever runs under Antigravity
+  const { cfg, notices } = loadCfg('agents', true); // this adapter only ever runs under Antigravity; probeStrays=true (UMB-133)
   let msg = directiveFor(cfg);
   // AL-2: applied right after directiveFor, per the shared core's own contract — AG
   // carries no self-update nudge (not ported here), so directiveFor's result IS the
@@ -121,7 +121,10 @@ function main() {
   // as the CC nudge in coalface-conductor.js's main().
   const lock = languageLock(cfg);
   if (lock) msg += (msg ? ' ' : '[CoalFace] ') + lock;
-  if (!msg) return; // coalfaceMode off AND no language lock -> silent (the marker still spares per-call config reads)
+  // UMB-133: LEGACY / IGNORED notices ride the SAME ONE ephemeralMessage (the once-per-
+  // session marker above already latched, so a notice repeats at most once per session).
+  msg = appendNotices(msg, notices);
+  if (!msg) return; // coalfaceMode off AND no language lock AND no notice -> silent (the marker still spares per-call config reads)
 
   console.log(JSON.stringify({ injectSteps: [{ ephemeralMessage: msg }] })); // the one sanctioned AG stdout (current PreInvocation output contract)
 }

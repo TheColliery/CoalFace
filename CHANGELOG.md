@@ -4,6 +4,18 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.10.0] - 2026-09-21
+
+### Added
+- **The nested legacy config `<project>/.claude/.coalface.json` is now read (UMB-133, the flock's config-path unification).** The conductor's per-level walk was canonical (`.claude/coal/coalface.json`, then `.agents/`, then `.gemini/`) followed by the root `.coalface.json`; the nested shape a sibling room shipped — and a user may reasonably write — was silently walked past, so a config there did nothing and nothing said so. The order is now canonical → nested legacy (`.claude` → `.agents` → `.gemini`) → root legacy, first found wins, a nearer directory level still beats a farther one, and the consent-bearing clamp is unchanged.
+- **`LEGACY:` and `IGNORED:` lines at SessionStart.** When the winning project config is a legacy shape the hook names it (`LEGACY: <abs path> is a legacy config path; canonical = .claude/coal/coalface.json`); when a `.coalface.json` sits at a path the walk never reads — `<project>/coalface.json`, `.claude/coalface.json`, `.claude/coal/.coalface.json` — it names that too (`IGNORED: <abs path> is not a config path; canonical = .claude/coal/coalface.json`). They report where a config was found; they are not the deprecation warning (see Deprecated). A correctly placed config, or none, prints nothing, even with `coalfaceMode: off`; a legacy config still prints its `LEGACY:` line under `coalfaceMode: off`, and moving it to the canonical path ends that too.
+
+### Changed
+- **`scripts/configure.mjs` migrates a nested legacy config too.** A write through the CLI already moved a root `.coalface.json` to the canonical path and removed it; it now does the same for `.claude/.coalface.json` (and the `.agents/`, `.gemini/` twins) instead of editing the deprecated file in place forever.
+
+### Deprecated
+- **The two legacy project-config paths: `<project>/.claude/.coalface.json` and `<project>/.coalface.json`.** Both are still read. **Replacement:** `.claude/coal/coalface.json` — move the file there unchanged, or run any `node scripts/configure.mjs --<key> <value>` and the CLI migrates it. **Window:** deprecated in this MINOR release, removable at the next MAJOR release. **Owner:** the CoalFace room. **Channel:** this entry and README § Deprecated config paths — ship-text only; there is no runtime deprecation warning, because Phoenix #13 lets a hook emit on its sanctioned channels alone.
+
 ## [0.9.0] - 2026-09-10
 
 ### Added

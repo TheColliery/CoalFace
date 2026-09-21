@@ -64,6 +64,22 @@ function assertGraceful(r) {
   assert.strictEqual(r.signal, null, 'hook must not be killed by a signal');
 }
 
+// UMB-133: a hit on a LEGACY project config (root `.coalface.json` or the nested
+// `.<agent>/.coalface.json`) now emits one `LEGACY:` migration line by design. The
+// clamp cases below deliberately keep their legacy-root fixtures (that is the shape a
+// cloned repo most plausibly carries), so their "the directive stayed silent" assertion
+// filters EXACTLY that one line and nothing else: any other byte -- a directive, a
+// nudge, an IGNORED line -- still fails them. The LEGACY line itself is pinned by
+// case 53, not re-proven here.
+function assertSilentBesidesLegacyNote(stdout, msg) {
+  const rest = stdout.split('\n').filter((l) => !/^(\[CoalFace\] )?LEGACY: /.test(l)).join('\n');
+  assert.strictEqual(rest, '', msg);
+}
+// The AG adapter wraps its message in one injectSteps/ephemeralMessage JSON line.
+function agMessage(r) {
+  return r.stdout.trim() ? JSON.parse(r.stdout.trim()).injectSteps[0].ephemeralMessage : '';
+}
+
 // ---------------------------------------------------------------------------
 // Directive per mode
 // ---------------------------------------------------------------------------
@@ -444,7 +460,7 @@ test('case 23: an untrusted project config cannot ESCALATE coalfaceMode past an 
     fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"coalfaceMode":"on"}', 'utf8'); // a cloned repo trying to force it back on
     const r = run(cwd, home);
     assertGraceful(r);
-    assert.strictEqual(r.stdout, '', 'global off must hold -> project cannot escalate to on');
+    assertSilentBesidesLegacyNote(r.stdout, 'global off must hold -> project cannot escalate to on');
   } finally { clean(home, cwd); }
 });
 
@@ -455,7 +471,7 @@ test('case 24: a project config MAY quieten coalfaceMode below an explicit globa
     fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"coalfaceMode":"off"}', 'utf8'); // legit per-project off-switch
     const r = run(cwd, home);
     assertGraceful(r);
-    assert.strictEqual(r.stdout, '', 'project may quieten global on -> off, silent');
+    assertSilentBesidesLegacyNote(r.stdout, 'project may quieten global on -> off, silent');
   } finally { clean(home, cwd); }
 });
 
@@ -478,7 +494,7 @@ test('case 26: an untrusted project config cannot ESCALATE updateMode past an ex
     fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"updateMode":"auto"}', 'utf8');
     const r = run(cwd, home);
     assertGraceful(r);
-    assert.strictEqual(r.stdout, '', 'global updateMode:off must hold -> project cannot escalate to auto (no self-update nudge)');
+    assertSilentBesidesLegacyNote(r.stdout, 'global updateMode:off must hold -> project cannot escalate to auto (no self-update nudge)');
   } finally { clean(home, cwd); }
 });
 
@@ -489,7 +505,7 @@ test('case 27: a project-only coalfaceMode QUIETER than the default (no global s
     fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"coalfaceMode":"off"}', 'utf8'); // quieter than the default -> not an escalation
     const r = run(cwd, home);
     assertGraceful(r);
-    assert.strictEqual(r.stdout, '', 'off is quieter than the implicit auto default -> project stays free to disable');
+    assertSilentBesidesLegacyNote(r.stdout, 'off is quieter than the implicit auto default -> project stays free to disable');
   } finally { clean(home, cwd); }
 });
 
@@ -500,7 +516,7 @@ test('case 28: an UPPERCASE project value cannot escalate coalfaceMode past a lo
     fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"coalfaceMode":"ON"}', 'utf8'); // mixed-case escalation attempt
     const r = run(cwd, home);
     assertGraceful(r);
-    assert.strictEqual(r.stdout, '', 'case-folded compare -> ON is still clamped to off, same as case 23');
+    assertSilentBesidesLegacyNote(r.stdout, 'case-folded compare -> ON is still clamped to off, same as case 23');
   } finally { clean(home, cwd); }
 });
 
@@ -533,7 +549,7 @@ test('case 30: a MALFORMED project value cannot escalate past an explicit global
     fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"coalfaceMode":"on "}', 'utf8'); // trailing space: fails the exact SAFER_ENUM lookup
     const r = run(cwd, home);
     assertGraceful(r);
-    assert.strictEqual(r.stdout, '', 'malformed project value rejected -> global off holds, silent (not passed through as a live coalfaceMode)');
+    assertSilentBesidesLegacyNote(r.stdout, 'malformed project value rejected -> global off holds, silent (not passed through as a live coalfaceMode)');
   } finally { clean(home, cwd); }
 });
 
@@ -554,7 +570,7 @@ test('case 31: a MALFORMED project updateMode cannot escalate past an explicit g
     fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"updateMode":"auto "}', 'utf8'); // trailing space: fails the exact SAFER_ENUM lookup
     const r = run(cwd, home);
     assertGraceful(r);
-    assert.strictEqual(r.stdout, '', 'malformed project updateMode rejected -> global off floor holds -> no self-update nudge');
+    assertSilentBesidesLegacyNote(r.stdout, 'malformed project updateMode rejected -> global off floor holds -> no self-update nudge');
   } finally { clean(home, cwd); }
 });
 
@@ -570,7 +586,7 @@ test('case 32: AG inherits the fail-open close via the shared readCfg -> a malfo
     fs.writeFileSync(path.join(proj, '.coalface.json'), '{"coalfaceMode":"on "}', 'utf8'); // trailing space, mirrors case 30 on the AG path
     const r = agRun(s, agEvent({ session_id: 'sess-32', cwd: proj }));
     assertGraceful(r);
-    assert.strictEqual(r.stdout, '', 'clamp reached through readCfg on the AG adapter too -> global off holds, no injectSteps emitted');
+    assertSilentBesidesLegacyNote(agMessage(r), 'clamp reached through the shared loadCfg on the AG adapter too -> global off holds, no directive emitted (only the LEGACY note may ride the message)');
   } finally { clean(s.home); }
 });
 
@@ -678,7 +694,7 @@ test('case 39: nearest-wins holds ACROSS priority -- a closer legacy config beat
     fs.writeFileSync(path.join(child, '.coalface.json'), '{"coalfaceMode":"off"}', 'utf8'); // CLOSER, lower-priority (legacy) candidate
     const r = run(child, home); // cwd = child; own dir = claude (CC hook)
     assertGraceful(r);
-    assert.strictEqual(r.stdout, '', 'the closer legacy config (off) wins -- the farther own-dir config (on) at "mid" is never reached');
+    assertSilentBesidesLegacyNote(r.stdout, 'the closer legacy config (off) wins -- the farther own-dir config (on) at "mid" is never reached');
   } finally { clean(home, mid); }
 });
 
@@ -799,6 +815,229 @@ test('case 48: AG directive + lock combined carries exactly ONE [CoalFace] prefi
     const obj = JSON.parse(r.stdout.trim());
     const count = (obj.injectSteps[0].ephemeralMessage.match(/\[CoalFace\]/g) || []).length;
     assert.strictEqual(count, 1, `expected exactly one [CoalFace] prefix, got ${count}`);
+  } finally { clean(s.home); }
+});
+
+// ---------------------------------------------------------------------------
+// UMB-133 -- config-path unification (holes 1 + 2). The candidate walk honours BOTH
+// legacy shapes after the canonical three (nested `<dir>/.<agent>/.coalface.json`, then
+// root `<dir>/.coalface.json`), and a `.coalface.json` at a NON-candidate path is NAMED,
+// never silently walked past. Each case discriminates ONE mechanism: distinct
+// autoFanoutFloor values (5 canonical / 6 nested legacy / 7 root legacy) make the
+// winning file visible in the directive text, so a wrong winner cannot pass by accident.
+// ---------------------------------------------------------------------------
+
+const CANON = '.claude/coal/coalface.json';
+const ignoredLine = (p) => `IGNORED: ${p} is not a config path; canonical = ${CANON}`;
+const legacyLine = (p) => `LEGACY: ${p} is a legacy config path; canonical = ${CANON}`;
+function putCfg(file, obj) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(obj), 'utf8');
+}
+const linesStarting = (stdout, prefix) => stdout.split('\n').filter((l) => l.startsWith(prefix));
+
+test('case 49: a config at <dir>/.claude/.coalface.json (nested legacy) is FOUND', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home);
+    putCfg(path.join(cwd, '.claude', '.coalface.json'), { autoFanoutFloor: 6 });
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.match(r.stdout, />= 6 units/, 'the nested legacy config is honoured (floor 6), not skipped');
+  } finally { clean(home, cwd); }
+});
+
+test('case 50: a config at <dir>/.coalface.json (root legacy) is still FOUND', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home);
+    putCfg(path.join(cwd, '.coalface.json'), { autoFanoutFloor: 7 });
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.match(r.stdout, />= 7 units/, 'the root legacy shape keeps working');
+  } finally { clean(home, cwd); }
+});
+
+test('case 51: canonical WINS over both legacies, and the nested legacy beats the root one', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home);
+    putCfg(path.join(cwd, '.claude', 'coal', 'coalface.json'), { autoFanoutFloor: 5 });
+    putCfg(path.join(cwd, '.claude', '.coalface.json'), { autoFanoutFloor: 6 });
+    putCfg(path.join(cwd, '.coalface.json'), { autoFanoutFloor: 7 });
+    const r1 = run(cwd, home);
+    assertGraceful(r1);
+    assert.match(r1.stdout, />= 5 units/, 'canonical beats nested legacy AND root legacy');
+    fs.rmSync(path.join(cwd, '.claude', 'coal', 'coalface.json'));
+    const r2 = run(cwd, home);
+    assertGraceful(r2);
+    assert.match(r2.stdout, />= 6 units/, 'with canonical gone, the nested legacy beats the root legacy');
+    fs.rmSync(path.join(cwd, '.claude', '.coalface.json'));
+    const r3 = run(cwd, home);
+    assertGraceful(r3);
+    assert.match(r3.stdout, />= 7 units/, 'with only the root legacy left, it is read');
+  } finally { clean(home, cwd); }
+});
+
+test('case 52: canonical .agents beats a nested-legacy .claude (canonical tier outranks every legacy, whatever the agent dir)', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home);
+    putCfg(path.join(cwd, '.agents', 'coal', 'coalface.json'), { autoFanoutFloor: 5 });
+    putCfg(path.join(cwd, '.claude', '.coalface.json'), { autoFanoutFloor: 6 });
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.match(r.stdout, />= 5 units/, 'a canonical file in ANY agent dir outranks a legacy one in the own dir');
+  } finally { clean(home, cwd); }
+});
+
+test('case 53: a legacy hit emits ONE migration line naming the canonical path; a canonical hit emits none', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home);
+    const real = fs.realpathSync(cwd);
+    const nested = path.join(cwd, '.claude', '.coalface.json');
+    putCfg(nested, { autoFanoutFloor: 6 });
+    const r1 = run(cwd, home);
+    assertGraceful(r1);
+    assert.deepStrictEqual(linesStarting(r1.stdout, 'LEGACY:'), [legacyLine(path.join(real, '.claude', '.coalface.json'))], 'nested legacy: exactly one LEGACY line');
+    fs.rmSync(nested);
+    const root = path.join(cwd, '.coalface.json');
+    putCfg(root, { autoFanoutFloor: 7 });
+    const r2 = run(cwd, home);
+    assertGraceful(r2);
+    assert.deepStrictEqual(linesStarting(r2.stdout, 'LEGACY:'), [legacyLine(path.join(real, '.coalface.json'))], 'root legacy: exactly one LEGACY line');
+    fs.rmSync(root);
+    putCfg(path.join(cwd, '.claude', 'coal', 'coalface.json'), { autoFanoutFloor: 5 });
+    const r3 = run(cwd, home);
+    assertGraceful(r3);
+    assert.deepStrictEqual(linesStarting(r3.stdout, 'LEGACY:'), [], 'a canonical hit is not a legacy hit');
+  } finally { clean(home, cwd); }
+});
+
+const STRAY_SHAPES = [
+  'coalface.json',
+  '.claude/coalface.json', '.agents/coalface.json', '.gemini/coalface.json',
+  '.claude/coal/.coalface.json', '.agents/coal/.coalface.json', '.gemini/coal/.coalface.json',
+];
+
+test('case 54: a .coalface.json at a NON-candidate path is REPORTED (exact line) and never honoured -- every probed shape', () => {
+  for (const rel of STRAY_SHAPES) {
+    const { home, cwd } = sandbox();
+    try {
+      muteUpdate(home);
+      const real = fs.realpathSync(cwd);
+      const stray = path.join(cwd, ...rel.split('/'));
+      putCfg(stray, { autoFanoutFloor: 9 });
+      const r = run(cwd, home);
+      assertGraceful(r);
+      assert.deepStrictEqual(linesStarting(r.stdout, 'IGNORED:'), [ignoredLine(path.join(real, ...rel.split('/')))], `${rel}: named exactly once, exact shape`);
+      assert.match(r.stdout, />= 4 units/, `${rel}: a non-candidate is REPORTED, never read (floor stays default 4)`);
+      assert.deepStrictEqual(linesStarting(r.stdout, 'LEGACY:'), [], `${rel}: a stray is not a legacy hit`);
+    } finally { clean(home, cwd); }
+  }
+});
+
+test('case 55: no stray and no legacy file -> NO IGNORED/LEGACY line (Phoenix #13: silence on the happy path)', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home);
+    putCfg(path.join(cwd, '.claude', 'coal', 'coalface.json'), { autoFanoutFloor: 5 });
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.doesNotMatch(r.stdout, /IGNORED|LEGACY/);
+    const r0 = run(fs.mkdtempSync(path.join(home, 'cf-empty-')), home);
+    assertGraceful(r0);
+    assert.doesNotMatch(r0.stdout, /IGNORED|LEGACY/, 'no config at all is also silent');
+  } finally { clean(home, cwd); }
+});
+
+test('case 56: a stray beside a winning canonical config is still REPORTED, and no LEGACY line is emitted', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home);
+    const real = fs.realpathSync(cwd);
+    putCfg(path.join(cwd, '.claude', 'coal', 'coalface.json'), { autoFanoutFloor: 5 });
+    putCfg(path.join(cwd, 'coalface.json'), { autoFanoutFloor: 9 });
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.match(r.stdout, />= 5 units/);
+    assert.deepStrictEqual(linesStarting(r.stdout, 'IGNORED:'), [ignoredLine(path.join(real, 'coalface.json'))]);
+    assert.deepStrictEqual(linesStarting(r.stdout, 'LEGACY:'), []);
+  } finally { clean(home, cwd); }
+});
+
+test('case 57: the probe is scoped to the levels the walk READS -- a stray above the winning level is not probed, below it is', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home);
+    const real = fs.realpathSync(cwd);
+    const mid = path.join(cwd, 'mid');
+    const deep = path.join(mid, 'deep');
+    fs.mkdirSync(deep, { recursive: true });
+    putCfg(path.join(mid, '.claude', 'coal', 'coalface.json'), { autoFanoutFloor: 5 }); // winner one level ABOVE cwd=deep
+    putCfg(path.join(deep, 'coalface.json'), { autoFanoutFloor: 9 });                   // stray at a level the walk reached
+    putCfg(path.join(cwd, 'coalface.json'), { autoFanoutFloor: 9 });                    // stray ABOVE the winner: never visited
+    const r = run(deep, home);
+    assertGraceful(r);
+    assert.match(r.stdout, />= 5 units/);
+    assert.deepStrictEqual(linesStarting(r.stdout, 'IGNORED:'), [ignoredLine(path.join(real, 'mid', 'deep', 'coalface.json'))], 'only the stray at a visited level is named');
+  } finally { clean(home, cwd); }
+});
+
+test('case 58: a notice-only message (coalfaceMode:off + a stray) carries exactly ONE [CoalFace] prefix', () => {
+  const { home, cwd } = sandbox();
+  try {
+    writeGlobalCfg(home, { coalfaceMode: 'off', updateMode: 'off' });
+    const real = fs.realpathSync(cwd);
+    putCfg(path.join(cwd, 'coalface.json'), { autoFanoutFloor: 9 });
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.strictEqual(r.stdout, `[CoalFace] ${ignoredLine(path.join(real, 'coalface.json'))}`);
+  } finally { clean(home, cwd); }
+});
+
+test('case 59: the safer-value clamp is untouched by a nested-legacy hit (a cloned-repo legacy config cannot escalate)', () => {
+  const { home, cwd } = sandbox();
+  try {
+    writeGlobalCfg(home, { coalfaceMode: 'off', updateMode: 'off' });
+    putCfg(path.join(cwd, '.claude', '.coalface.json'), { coalfaceMode: 'on' });
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.doesNotMatch(r.stdout, /FORCED \(on\)|Fan-out discipline/, 'legacy nested project config must not out-loud an explicit global off');
+  } finally { clean(home, cwd); }
+});
+
+test('case 60: AG adapter reports too -- a nested-legacy hit is read + LEGACY-noted, a stray is IGNORED-noted, in the ONE ephemeralMessage', () => {
+  const s = agSandbox();
+  try {
+    muteUpdate(s.home);
+    const real = fs.realpathSync(s.cwd);
+    putCfg(path.join(s.cwd, '.claude', '.coalface.json'), { autoFanoutFloor: 6 });
+    putCfg(path.join(s.cwd, 'coalface.json'), { autoFanoutFloor: 9 });
+    const r = agRun(s, agEvent({ session_id: 'sess-60' }));
+    assertGraceful(r);
+    const msg = JSON.parse(r.stdout.trim()).injectSteps[0].ephemeralMessage;
+    assert.match(msg, />= 6 units/, 'AG walk honours the nested legacy too');
+    assert.deepStrictEqual(linesStarting(msg, 'LEGACY:'), [legacyLine(path.join(real, '.claude', '.coalface.json'))]);
+    assert.deepStrictEqual(linesStarting(msg, 'IGNORED:'), [ignoredLine(path.join(real, 'coalface.json'))]);
+    assert.strictEqual((msg.match(/\[CoalFace\]/g) || []).length, 1, 'still exactly one prefix');
+  } finally { clean(s.home); }
+});
+
+test('case 61: AG notice-only message (mode off + a stray) still emits, and the AG once-per-session marker still latches', () => {
+  const s = agSandbox();
+  try {
+    writeGlobalCfg(s.home, { coalfaceMode: 'off', updateMode: 'off' });
+    const real = fs.realpathSync(s.cwd);
+    putCfg(path.join(s.cwd, 'coalface.json'), { autoFanoutFloor: 9 });
+    const r1 = agRun(s, agEvent({ session_id: 'sess-61' }));
+    assertGraceful(r1);
+    const msg = JSON.parse(r1.stdout.trim()).injectSteps[0].ephemeralMessage;
+    assert.strictEqual(msg, `[CoalFace] ${ignoredLine(path.join(real, 'coalface.json'))}`);
+    const r2 = agRun(s, agEvent({ session_id: 'sess-61' }));
+    assertGraceful(r2);
+    assert.strictEqual(r2.stdout, '', 'second PreInvocation of the same session: silent (marker)');
   } finally { clean(s.home); }
 });
 

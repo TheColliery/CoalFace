@@ -122,7 +122,7 @@ Start a new Antigravity session; `coalface` appears in the skills list, and `/co
 
 ## ⚙️ Configure
 
-Everything is tunable in `.coalface.json` — global `~/.claude/.coalface.json` overlaid per key by the nearest project config (project wins; the lookup walks up from the cwd and stops at your home dir). **Per-project config lives under an agent dir** (`.claude/coal/coalface.json`, `.agents/coal/coalface.json`, or `.gemini/coal/coalface.json`), checked in this order at each directory level: **the dir of the agent actually reading this file first** (e.g. `.agents/coal/coalface.json` on Antigravity, `.claude/coal/coalface.json` on Claude Code — check your own agent's dir, not the CC default, if you're on a different platform), then the other dirs in fixed order `.claude` → `.agents` → `.gemini` (first found wins), then the legacy `<project>/.coalface.json` at the root (still read normally — no breakage for an existing config). This lets you **tune or shut off a globally-installed skill per project** (off-switch: `coalfaceMode: off`) — a skill you don't need in a given project stops loading (and burning tokens) there. Every key is optional; an out-of-range value clamps to its default on read. **Prefer the CLI over hand-editing:** `node scripts/configure.mjs --<key> <value>` sets any schema key — validated against the same `scripts/lib/config-schema.mjs` rules `verify.mjs` enforces — and writes the project layer by default, or the global one with `--global`; `node scripts/configure.mjs --help` lists every key with its range and default. The JSON above still works — the CLI is an addition, not a replacement, and hand-editing stays the only path for a reader with no shell. The high-impact keys:
+Everything is tunable in `.coalface.json` — global `~/.claude/.coalface.json` overlaid per key by the nearest project config (project wins; the lookup walks up from the cwd and stops at your home dir). **Per-project config lives under an agent dir** (`.claude/coal/coalface.json`, `.agents/coal/coalface.json`, or `.gemini/coal/coalface.json`), checked in this order at each directory level: **the dir of the agent actually reading this file first** (e.g. `.agents/coal/coalface.json` on Antigravity, `.claude/coal/coalface.json` on Claude Code — check your own agent's dir, not the CC default, if you're on a different platform), then the other dirs in fixed order `.claude` → `.agents` → `.gemini` (first found wins), then the two **deprecated** legacy shapes — the nested `.claude/.coalface.json` (`.agents/` and `.gemini/` likewise, same agent-dir order), then the root `<project>/.coalface.json` — both still read, so no existing config breaks ([Deprecated config paths](#deprecated-config-paths)). This lets you **tune or shut off a globally-installed skill per project** (off-switch: `coalfaceMode: off`) — a skill you don't need in a given project stops loading (and burning tokens) there. Every key is optional; an out-of-range value clamps to its default on read. **Prefer the CLI over hand-editing:** `node scripts/configure.mjs --<key> <value>` sets any schema key — validated against the same `scripts/lib/config-schema.mjs` rules `verify.mjs` enforces — and writes the project layer by default, or the global one with `--global`; `node scripts/configure.mjs --help` lists every key with its range and default. The JSON above still works — the CLI is an addition, not a replacement, and hand-editing stays the only path for a reader with no shell. The high-impact keys:
 
 | Key | Default | What it does |
 |---|---|---|
@@ -133,6 +133,30 @@ Everything is tunable in `.coalface.json` — global `~/.claude/.coalface.json` 
 | `language` | `auto` | Locks the reply language (`auto`/`th`/`en`/`ja`/`zh`/`es`). `auto` follows the conversation's language, EN fallback, no extra work. A lock translates PROSE only — commands, paths, identifiers, config keys, tier/effort/grade/model names and severity labels stay VERBATIM. |
 
 Full key reference: every key + default lives in [`scripts/lib/config-schema.mjs`](scripts/lib/config-schema.mjs) and the commented template [`platform-configs/.coalface.json`](platform-configs/.coalface.json).
+
+### Deprecated config paths
+
+The canonical project config path is `.claude/coal/coalface.json` (its `.agents/` and `.gemini/` twins on those platforms). Two older shapes are **deprecated** — still read, but slated for removal:
+
+| Deprecated path | Replace with |
+|---|---|
+| `<project>/.claude/.coalface.json` (and `.agents/.coalface.json`, `.gemini/.coalface.json`) | `.claude/coal/coalface.json` |
+| `<project>/.coalface.json` | `.claude/coal/coalface.json` |
+
+- **Marker:** the two rows above, and the `### Deprecated` entry in [CHANGELOG.md](CHANGELOG.md).
+- **Notice — how to migrate:** move the file to `.claude/coal/coalface.json`, contents unchanged. Or run any `node scripts/configure.mjs --<key> <value>`: a write through the CLI moves a legacy project config to the first agent dir the project already has (`.claude` if none) and removes the legacy file.
+- **Window:** deprecated as of v0.10.0 (a MINOR release); removable at the next MAJOR release, never sooner, and never on a months-count.
+- **Owner:** the CoalFace room (this repo).
+- **Channel: ship-text only** — this section and the CHANGELOG entry. There is no runtime deprecation warning, by design: Phoenix #13 lets a hook emit only on its sanctioned channels, and a deprecation notice is not one of them, so none is coming.
+
+What the SessionStart hook does print is a report of *where* it found a config — not the deprecation warning:
+
+```text
+LEGACY: <abs path> is a legacy config path; canonical = .claude/coal/coalface.json
+IGNORED: <abs path> is not a config path; canonical = .claude/coal/coalface.json
+```
+
+`LEGACY:` names the project config the walk selected when it is one of the two deprecated shapes; it says where the file is, not that it parsed — an unreadable or malformed one is named but not applied. `IGNORED:` names a file that looks like a config but sits at a path the walk never reads, so it is not being applied — `<project>/coalface.json` (no dot), `.claude/coalface.json` (no `coal/`), or `.claude/coal/.coalface.json` (old name inside the canonical dir). Only directory levels the walk reads are probed. A correctly placed config, or none at all, prints nothing — even with `coalfaceMode: off`. A legacy config is the one case that still prints its `LEGACY:` line under `coalfaceMode: off`; moving it to the canonical path ends that too. On Antigravity the same lines ride the adapter's one message.
 
 ## Permissions
 

@@ -118,15 +118,19 @@ async function main() {
   const globalPath = path.join(os.homedir(), '.claude', '.coalface.json');
   const foundProjectPath = isGlobal ? null : findProjectCfg('claude');
   const readPath = isGlobal ? globalPath : foundProjectPath;
-  // WRITE goes back to wherever the config was found, EXCEPT a config found at the
-  // LEGACY root dotfile migrates on this write — to the FIRST agent dir the project
+  // Both LEGACY shapes the hook reads at this level (UMB-133): the root dotfile and the
+  // nested `.<agent>/.coalface.json`. A config found at either migrates on this write.
+  const legacyPaths = [legacyPath, ...AGENT_DIR_ORDER.map((d) => path.join(cwd, '.' + d, '.coalface.json'))];
+  const readIsLegacy = !isGlobal && readPath !== null && legacyPaths.includes(readPath);
+  // WRITE goes back to wherever the config was found, EXCEPT a config found at a
+  // LEGACY shape (root dotfile or nested) migrates on this write — to the FIRST agent dir the project
   // ALREADY HAS on disk (never a bare .claude planted into a project that only uses
   // .agents/.gemini), falling back to .claude only when the project has none of the
   // three (move-on-CONFIG-WRITE-only, Phoenix #5 — a hook never performs this move on
   // a mere read; this is a CLI script the user/agent explicitly runs).
   const writePath = isGlobal
     ? globalPath
-    : (readPath === null || readPath === legacyPath) ? ownDirDefault(cwd, AGENT_DIR_ORDER) : readPath;
+    : (readPath === null || readIsLegacy) ? ownDirDefault(cwd, AGENT_DIR_ORDER) : readPath;
 
   let cfg = {};
   let hadComments = false;
@@ -182,14 +186,14 @@ async function main() {
   try {
     fs.mkdirSync(path.dirname(writePath), { recursive: true });
     fs.writeFileSync(writePath, JSON.stringify(cfg, null, 2) + '\n', 'utf8');
-    // Move-on-CONFIG-WRITE-only (no-old-version-leftover): the legacy root file is
-    // removed only AFTER the new-home write above succeeded, and only when this write
+    // Move-on-CONFIG-WRITE-only (no-old-version-leftover): the legacy file (root or
+    // nested) is removed only AFTER the new-home write above succeeded, and only when this write
     // actually migrated it. Best-effort — a failed delete here still leaves a
     // correctly-written new config; the stray legacy file is simply not cleaned up
     // this run.
-    if (readPath === legacyPath && writePath !== legacyPath) {
-      try { fs.rmSync(legacyPath, { force: true }); } catch {}
-      console.log(`Migrated the project config from ${legacyPath} to ${writePath}.`);
+    if (readIsLegacy && writePath !== readPath) {
+      try { fs.rmSync(readPath, { force: true }); } catch {}
+      console.log(`Migrated the project config from ${readPath} to ${writePath}.`);
     }
     if (hadComments) {
       console.warn('Note: inline comments were stripped (this tool writes plain JSON). Every key stays documented in platform-configs/.coalface.json.');

@@ -46,22 +46,65 @@ function physical(p) {
 // failure mode CWK-079's own dispatch names for a DIFFERENT hand-kept list (ourRoots).
 const AGENT_DIR_ORDER = ['claude', 'agents', 'gemini'];
 
-// Ordered per-level candidate list for one directory: the EXECUTING agent's own dir first
-// (own-dir may be absent from AGENT_DIR_ORDER's fixed positions -- e.g. a 4th agent this
-// room doesn't otherwise probe -- so it is prepended, not looked up in the fixed list),
-// then the fixed fallback order (own dir deduped out so it is never checked twice), then
-// the LEGACY root dotfile (the pre-2026-08-08 shape -- still read normally, no breakage).
-// The dedup has no OBSERVABLE behavior (checking one path twice changes nothing) -- it
-// is correct by TRACE, not by test; no case in hooks.test.mjs proves it, none can
-// (INSPECT, namespace campaign #69+#39).
-function candidatesFor(dir, ownAgentDir) {
-  const dirs = ownAgentDir ? [ownAgentDir, ...AGENT_DIR_ORDER.filter((d) => d !== ownAgentDir)] : AGENT_DIR_ORDER;
-  return [...dirs.map((d) => path.join(dir, `.${d}`, 'coal', 'coalface.json')), path.join(dir, '.coalface.json')];
+// The agent-dir list for one walk: the EXECUTING agent's own dir first (own-dir may be
+// absent from AGENT_DIR_ORDER's fixed positions -- e.g. a 4th agent this room doesn't
+// otherwise probe -- so it is prepended, not looked up in the fixed list), then the fixed
+// fallback order (own dir deduped out so it is never checked twice). The dedup has no
+// OBSERVABLE behavior (checking one path twice changes nothing) -- it is correct by
+// TRACE, not by test; no case in hooks.test.mjs proves it, none can (INSPECT, namespace
+// campaign #69+#39).
+function agentDirsFor(ownAgentDir) {
+  return ownAgentDir ? [ownAgentDir, ...AGENT_DIR_ORDER.filter((d) => d !== ownAgentDir)] : AGENT_DIR_ORDER;
 }
 
-// Find the nearest project config by walking UP from cwd (a hook cwd may be a SUBDIR, not
-// the project root — Phoenix #10), checking the full candidate list (own dir -> fixed
-// fallback order -> legacy) AT EACH LEVEL before moving to the parent — so a new-shape
+// The flock's ONE canonical project-config path, shown verbatim in every migration /
+// ignored-file notice below (UMB-133: every room names the same path).
+const CANONICAL_PATH = '.claude/coal/coalface.json';
+
+// Ordered per-level candidate list for one directory, first existing file wins (UMB-133,
+// the flock's unified legacy list). Three tiers, each in agent-dir order:
+//   1. CANONICAL  <dir>/.<agent>/coal/coalface.json
+//   2. LEGACY (nested)  <dir>/.<agent>/.coalface.json   -- the pre-2026-08-08 shape written
+//      inside an agent dir; built over the SAME agent-dir list as tier 1 (head ruling),
+//      so `.claude` is covered as the row requires and `.agents`/`.gemini` come along
+//      consistently (no shipped room ever wrote those two nested shapes -- they are
+//      honoured only for flock-consistency, the same reason `.gemini` is probed at all).
+//   3. LEGACY (root)    <dir>/.coalface.json
+// Canonical beats both legacies at the same level; the nested legacy beats the root one.
+// `legacy` marks tiers 2-3 so a hit can be NOTED (loadCfg) without a second path parse.
+function candidatesFor(dir, ownAgentDir) {
+  const dirs = agentDirsFor(ownAgentDir);
+  return [
+    ...dirs.map((d) => ({ file: path.join(dir, `.${d}`, 'coal', 'coalface.json'), legacy: false })),
+    ...dirs.map((d) => ({ file: path.join(dir, `.${d}`, '.coalface.json'), legacy: true })),
+    { file: path.join(dir, '.coalface.json'), legacy: true },
+  ];
+}
+
+// The NON-CANDIDATE paths worth naming at one directory level -- a `.coalface.json` (or
+// its dotless twin) a user might reasonably write and the walk would otherwise pass over
+// in silence. Defined as: ONE path component away from a real candidate, at a level the
+// walk already visits --
+//   <dir>/coalface.json                     dotless typo of the root legacy
+//   <dir>/.<agent>/coalface.json            missing the `coal/` segment (or the dot)
+//   <dir>/.<agent>/coal/.coalface.json      the legacy dot-name inside the canonical dir
+// Seven paths for the CC hook (three agent dirs). NOT probed, by design: an agent dir
+// outside the three (would need a directory listing -- a crawl, not a probe); case
+// variants (a case-insensitive volume already matches them as candidates, a
+// case-sensitive one is a different file); any level the walk does not visit (above the
+// winning level, at or above home); and the GLOBAL layer (~/.claude/), out of scope.
+function strayPathsFor(dir, ownAgentDir) {
+  const dirs = agentDirsFor(ownAgentDir);
+  return [
+    path.join(dir, 'coalface.json'),
+    ...dirs.map((d) => path.join(dir, `.${d}`, 'coalface.json')),
+    ...dirs.map((d) => path.join(dir, `.${d}`, 'coal', '.coalface.json')),
+  ];
+}
+
+// Walk UP from cwd (a hook cwd may be a SUBDIR, not the project root — Phoenix #10),
+// checking the full candidate list (canonical -> nested legacy -> root legacy, own agent
+// dir first inside each tier) AT EACH LEVEL before moving to the parent — so a new-shape
 // config one level down always wins over a legacy config further up, matching the
 // pre-migration nearest-wins behavior. STOP at the home dir: its config is the GLOBAL
 // (read separately from ~/.claude/), and nothing above home is "this project" (also keeps
@@ -69,21 +112,35 @@ function candidatesFor(dir, ownAgentDir) {
 // v1.5.1 lesson). ownAgentDir: the executing agent's own identity ('claude' for the CC
 // hook, 'agents' for the Antigravity adapter) — undefined falls back to the fixed order
 // alone (defensive; every real caller in this file passes one explicitly).
-function findProjectCfg(ownAgentDir) {
+// Returns { file, legacy, strays }: `strays` is filled ONLY when probeStrays is true and
+// only for levels the walk actually reads (the winning level included, nothing above it),
+// so a caller that does not report (findProjectCfg, the configure.mjs write path) pays
+// nothing for the probe (Phoenix #3: the probe is 7 existsSync per visited level).
+function walkProject(ownAgentDir, probeStrays) {
+  const out = { file: null, legacy: false, strays: [] };
   try {
     const home = physical(os.homedir());
     let dir = physical(process.cwd());
     for (let i = 0; i < 40; i++) {
       if (dir === home) break;
-      for (const f of candidatesFor(dir, ownAgentDir)) {
-        if (fs.existsSync(f)) return f;
+      if (probeStrays) {
+        for (const s of strayPathsFor(dir, ownAgentDir)) if (fs.existsSync(s)) out.strays.push(s);
+      }
+      for (const c of candidatesFor(dir, ownAgentDir)) {
+        if (fs.existsSync(c.file)) { out.file = c.file; out.legacy = c.legacy; return out; }
       }
       const parent = path.dirname(dir);
       if (parent === dir) break;
       dir = parent;
     }
   } catch {}
-  return null;
+  return out;
+}
+
+// The path of the nearest project config, or null. Contract unchanged for every caller
+// (scripts/configure.mjs's write path): a path or null, no notices, no stray probe.
+function findProjectCfg(ownAgentDir) {
+  return walkProject(ownAgentDir, false).file;
 }
 
 // Config-cascade clamp (hooks-safety.md §9): the project .coalface.json ARRIVES
@@ -117,17 +174,27 @@ const SAFER_ENUM_DEFAULT = { coalfaceMode: 'auto', updateMode: 'ask' };
 // update-check stamp, and CoalBoard's shipped precedent in the same campaign made the
 // identical narrower call. The doc itself is inconsistent here (INSPECT, namespace
 // campaign #69+#39) -- reported to main, not resolved unilaterally in this room.
-function readCfg(ownAgentDir) {
+// The merged config PLUS the notices a report-capable caller emits (UMB-133): one
+// `LEGACY:` line when the winning project file is a legacy shape (this names the
+// canonical path to migrate to; it deliberately does NOT claim the file was READ -- a
+// directory or a malformed file at a legacy path is a hit that parses to nothing, and
+// "still read" would then be false, INSPECT F3), one `IGNORED:` line per NON-candidate
+// `.coalface.json` the walk passed over. `probeStrays` false = the read-only shape
+// (readCfg): no probe, no notices, byte-identical to the pre-UMB-133 read cost.
+function loadCfg(ownAgentDir, probeStrays) {
   let globalCfg = {};
   let projectCfg = {};
+  const notices = [];
   try {
     const f = path.join(os.homedir(), '.claude', '.coalface.json');
     if (fs.existsSync(f)) globalCfg = parseJsonc(fs.readFileSync(f, 'utf8'));
   } catch {}
+  const hit = walkProject(ownAgentDir, probeStrays); // never throws (its own try/catch)
   try {
-    const f = findProjectCfg(ownAgentDir);
-    if (f && fs.existsSync(f)) projectCfg = parseJsonc(fs.readFileSync(f, 'utf8'));
+    if (hit.file && fs.existsSync(hit.file)) projectCfg = parseJsonc(fs.readFileSync(hit.file, 'utf8'));
   } catch {}
+  if (hit.file && hit.legacy) notices.push(`LEGACY: ${hit.file} is a legacy config path; canonical = ${CANONICAL_PATH}`);
+  for (const s of hit.strays) notices.push(`IGNORED: ${s} is not a config path; canonical = ${CANONICAL_PATH}`);
   const out = { ...globalCfg, ...projectCfg }; // project overlays global per key
   for (const [key, order] of Object.entries(SAFER_ENUM)) {
     if (projectCfg[key] === undefined) continue; // no project override attempted -> nothing to clamp
@@ -144,7 +211,23 @@ function readCfg(ownAgentDir) {
     // used to fall through `out` untouched instead of being clamped, case 30).
     out[key] = (pi !== -1 && pi <= gi) ? projectCfg[key] : floor; // project may not be LOUDER than the floor
   }
-  return out;
+  return { cfg: out, notices };
+}
+
+// The read-only entry every existing caller uses: the merged config, nothing else.
+function readCfg(ownAgentDir) {
+  return loadCfg(ownAgentDir, false).cfg;
+}
+
+// Append notices to the FINAL message, one per line. The `[CoalFace]` prefix is supplied
+// at the call site exactly like the update nudge and the language lock: only when the
+// message would otherwise be empty, so a notice-only message still carries exactly ONE
+// prefix and a notice never doubles one (F2). Newline-separated so each notice is its
+// own greppable line and the flock's exemplar `IGNORED: ...` shape stays verbatim.
+function appendNotices(msg, notices) {
+  let m = msg;
+  for (const n of notices) m += (m ? '\n' : '[CoalFace] ') + n;
+  return m;
 }
 
 // Clamped reads: an out-of-range/wrong-type value silently degrades to the default,
@@ -239,7 +322,9 @@ function main() {
   // SessionStart ONLY — any other/unknown event stays silent (Phoenix #13 zero-noise).
   if (event !== 'SessionStart') return;
 
-  const cfg = readCfg('claude'); // this hook only ever runs under Claude Code
+  // probeStrays=true: this SessionStart line is the one place a NON-candidate config is
+  // named (UMB-133 hole 1) -- on the already-sanctioned channel, never a new one.
+  const { cfg, notices } = loadCfg('claude', true); // this hook only ever runs under Claude Code
   let msg = directiveFor(cfg);
   // mode 'off' -> no directive; self-update is ORTHOGONAL (its own off-switch is
   // updateMode), so it still fires when the discipline is off — the keys are independent.
@@ -251,6 +336,8 @@ function main() {
   // the call site (F2), same idiom as the update nudge two lines above.
   const lock = languageLock(cfg);
   if (lock) msg += (msg ? ' ' : '[CoalFace] ') + lock;
+  // UMB-133: LEGACY / IGNORED notice lines ride LAST, on their own lines (see appendNotices).
+  msg = appendNotices(msg, notices);
   if (msg) process.stdout.write(msg); // sanctioned SessionStart context-injection channel
 }
 
@@ -262,7 +349,7 @@ function main() {
 // scripts/configure.mjs's WRITE path resolves through the SAME candidate-search-and-
 // stop-at-home walk this hook's own READ path already uses -- the identical bridge
 // pointer-check.mjs already crosses for AGENT_DIR_ORDER, not a second copy of the walk.
-module.exports = { readCfg, directiveFor, languageLock, AGENT_DIR_ORDER, findProjectCfg };
+module.exports = { readCfg, loadCfg, appendNotices, directiveFor, languageLock, AGENT_DIR_ORDER, findProjectCfg };
 
 if (require.main === module) {
   try { main(); } catch { /* Phoenix #4: fail-silent, never crash the host */ }

@@ -82,6 +82,24 @@ test('a LEGACY root .coalface.json is read, merged, and MIGRATED to the new-shap
   assert.deepEqual(JSON.parse(fs.readFileSync(migrated, 'utf8')), { bandwidth: 10, autoFanoutFloor: 8 });
 });
 
+// UMB-133: the nested legacy `<dir>/.claude/.coalface.json` is now a candidate the hook
+// READS, so the write path must not quietly keep editing it in place -- it migrates on
+// the write exactly like the root legacy (move-on-CONFIG-WRITE-only), into the first
+// agent dir the project already has (here `.claude`, which the legacy file itself created).
+test('a NESTED legacy .claude/.coalface.json is read, merged, and MIGRATED to .claude/coal/coalface.json, and the legacy file is removed', (t) => {
+  const { home, project } = sandbox();
+  t.after(() => { fs.rmSync(home, { recursive: true, force: true }); fs.rmSync(project, { recursive: true, force: true }); });
+  const legacy = path.join(project, '.claude', '.coalface.json');
+  fs.mkdirSync(path.dirname(legacy), { recursive: true });
+  fs.writeFileSync(legacy, JSON.stringify({ bandwidth: 10 }) + '\n');
+  const r = run(['--autoFanoutFloor', '8'], { cwd: project, home });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /Migrated the project config/);
+  assert.equal(fs.existsSync(legacy), false, 'the nested legacy file must be removed after a successful migration write');
+  const migrated = path.join(project, '.claude', 'coal', 'coalface.json');
+  assert.deepEqual(JSON.parse(fs.readFileSync(migrated, 'utf8')), { bandwidth: 10, autoFanoutFloor: 8 });
+});
+
 test('--global writes ~/.claude/.coalface.json (never the project layer), and every key including language is settable', (t) => {
   const { home, project } = sandbox();
   t.after(() => { fs.rmSync(home, { recursive: true, force: true }); fs.rmSync(project, { recursive: true, force: true }); });
