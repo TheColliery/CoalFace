@@ -286,5 +286,9 @@ test('link-check.mjs: this room\'s actual tracked-and-shipped docs are clean, ex
   assert.ok(files.length > 0, 'the derived scope must not be empty, or this test proves nothing');
   const r = run(files);
   assert.equal(r.status, 0, `this room's own shipped docs must be link-clean, got:\n${r.stdout}${r.stderr}`);
-  assert.match(r.stdout, /^0 finding\(s\)/m);
+  // CWK-120 bounce-1 F3: the old regex had no file-count anchor, so a scope regression
+  // that silently narrowed `files` to nothing (or the CLI receiving them and scanning
+  // none) would still print "0 finding(s)" and pass. Anchor to the SAME scope the test
+  // itself derived above (`files.length`), matching the sibling tests at :270/:277.
+  assert.match(r.stdout, new RegExp(`^0 finding\\(s\\) across ${files.length} file\\(s\\)$`, 'm'));
 });
