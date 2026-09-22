@@ -4,7 +4,14 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
-## [0.11.0] - 2026-09-22
+## [Unreleased]
+
+release titles and bodies are now generated straight from this CHANGELOG entry, so they can never drift from what actually shipped.
+
+### Added
+- **The tag-push workflow (`claude-ai-zips.yml`) is now the sole GitHub Release creator** (CWK-124), pulled byte-identical from `TheColliery/.github`'s overlay template — 7 new lib/CLI scripts (`release-notes.mjs`, `verify-release-shape.mjs`, `decide-upload.mjs`, `prune-release-zips.mjs`, `lib/release-shape.mjs`, `lib/asset-upload-mode.mjs`, `lib/release-prune.mjs`) plus their 7 test files, registered on all three test rosters (`.githooks/pre-commit`, `pre-push`, `ci.yml` — one shared `TESTS` array). The workflow derives the Release title (`vX.Y.Z - <summary>`) and body straight from the top CHANGELOG entry, creates-or-edits the Release, re-reads it byte-exact against what it derived, and uploads ZIP assets once per tag (pruning older ones stays off by default). A maintainer no longer hand-posts a Release — this repo's own rails (the board #116 pre-release hyphen guard, board #118's combined ref-type check, board #119's quoted step names, the r31 tag-keyed `concurrency:` group) all carry over unchanged, verified against a real diff of the file it replaces.
+
+
 
 ### Added
 - **The canon `.coderabbit.yaml` (AR-46), byte-identical to `TheColliery/.github/templates/published-code/.coderabbit.yaml`.** No room-local variant.
