@@ -18,12 +18,38 @@ function lc(s) { return String(s == null ? '' : s).toLowerCase(); }
 // __proto__/constructor/prototype via the JSON.parse reviver so an untrusted PROJECT
 // config can't pollute the merged config's prototype through the Object.assign in
 // readCfg (OWASP prototype pollution; series-consistent with CoalBoard/CoalHearth).
+// UMB-174 (b): the return shape widened from a bare cfg to { cfg, reason } so a CALLER
+// can tell "parsed to {}" apart from "failed to parse" -- the reviver above is untouched
+// (never weakened for this). `reason` is 'malformed JSON' when JSON.parse threw, or null
+// on any other outcome, INCLUDING valid JSON that is not a plain object (`[1,2]`/`"x"`/
+// `3`): the flock's UNREADABLE string names only three reasons and "malformed JSON"
+// would be FALSE for that fourth shape, so it stays silently {} exactly as before this
+// change (a pending flock question, named in the coder's return, never resolved here).
 function parseJsonc(text) {
   try {
     const clean = String(text).replace(/"(?:\\.|[^"\\])*"|\/\/.*|\/\*[\s\S]*?\*\//g, (m) => (m[0] === '"' ? m : ''));
     const p = JSON.parse(clean, (k, v) => (k === '__proto__' || k === 'constructor' || k === 'prototype' ? undefined : v));
-    return p && typeof p === 'object' && !Array.isArray(p) ? p : {};
-  } catch { return {}; }
+    return { cfg: (p && typeof p === 'object' && !Array.isArray(p)) ? p : {}, reason: null };
+  } catch { return { cfg: {}, reason: 'malformed JSON' }; }
+}
+
+// UMB-174 (b): read + parse ONE candidate config file, returning { cfg, reason }. The
+// read and the parse are two separate failure sites -- a DIRECTORY or a permission
+// failure happens at fs.readFileSync, before parseJsonc ever sees any text, so they are
+// caught here and never reach parseJsonc's own catch (which only ever sees a genuine
+// parse failure). Branches on the fs error's CODE, never its message (node/runtime.md
+// §7: `error.message` is not a stable API). Any OTHER fs error (a race, an exotic code)
+// stays silent -- unchanged behaviour, never a fourth reason invented for it.
+function readConfigFile(file) {
+  let text;
+  try {
+    text = fs.readFileSync(file, 'utf8');
+  } catch (e) {
+    if (e && e.code === 'EISDIR') return { cfg: {}, reason: 'a directory' };
+    if (e && e.code === 'EACCES') return { cfg: {}, reason: 'unreadable' };
+    return { cfg: {}, reason: null };
+  }
+  return parseJsonc(text);
 }
 
 // realpath a dir to its PHYSICAL path, falling back to a lexical resolve if realpath
@@ -179,19 +205,32 @@ const SAFER_ENUM_DEFAULT = { coalfaceMode: 'auto', updateMode: 'ask' };
 // canonical path to migrate to; it deliberately does NOT claim the file was READ -- a
 // directory or a malformed file at a legacy path is a hit that parses to nothing, and
 // "still read" would then be false, INSPECT F3), one `IGNORED:` line per NON-candidate
-// `.coalface.json` the walk passed over. `probeStrays` false = the read-only shape
-// (readCfg): no probe, no notices, byte-identical to the pre-UMB-133 read cost.
+// `.coalface.json` the walk passed over, one `UNREADABLE:` line (UMB-174 (b)) per
+// candidate that EXISTS but could not be read as a config (malformed JSON / a directory
+// / unreadable) -- the SELECTION is unchanged (an unreadable candidate still wins the
+// walk and still contributes {}, exactly as before this change); only the silence goes.
+// `probeStrays` false = the read-only shape (readCfg): no probe, no notices, byte-
+// identical to the pre-UMB-133 read cost -- the UNREADABLE check below costs nothing
+// extra either (it reads the SAME caught error's own `.code`, no new stat).
 function loadCfg(ownAgentDir, probeStrays) {
   let globalCfg = {};
   let projectCfg = {};
   const notices = [];
   try {
     const f = path.join(os.homedir(), '.claude', '.coalface.json');
-    if (fs.existsSync(f)) globalCfg = parseJsonc(fs.readFileSync(f, 'utf8'));
+    if (fs.existsSync(f)) {
+      const r = readConfigFile(f);
+      globalCfg = r.cfg;
+      if (probeStrays && r.reason) notices.push(`UNREADABLE: ${f} exists but is not a readable config (${r.reason}); it was skipped — canonical = ${CANONICAL_PATH}`);
+    }
   } catch {}
   const hit = walkProject(ownAgentDir, probeStrays); // never throws (its own try/catch)
   try {
-    if (hit.file && fs.existsSync(hit.file)) projectCfg = parseJsonc(fs.readFileSync(hit.file, 'utf8'));
+    if (hit.file && fs.existsSync(hit.file)) {
+      const r = readConfigFile(hit.file);
+      projectCfg = r.cfg;
+      if (probeStrays && r.reason) notices.push(`UNREADABLE: ${hit.file} exists but is not a readable config (${r.reason}); it was skipped — canonical = ${CANONICAL_PATH}`);
+    }
   } catch {}
   if (hit.file && hit.legacy) notices.push(`LEGACY: ${hit.file} is a legacy config path; canonical = ${CANONICAL_PATH}`);
   for (const s of hit.strays) notices.push(`IGNORED: ${s} is not a config path; canonical = ${CANONICAL_PATH}`);

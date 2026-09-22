@@ -867,6 +867,9 @@ test('case 48: AG directive + lock combined carries exactly ONE [CoalFace] prefi
 const CANON = '.claude/coal/coalface.json';
 const ignoredLine = (p) => `IGNORED: ${p} is not a config path; canonical = ${CANON}`;
 const legacyLine = (p) => `LEGACY: ${p} is a legacy config path; canonical = ${CANON}`;
+// UMB-174 (b): the flock's ONE UNREADABLE wording, verbatim including the em dash (—,
+// U+2014) before "canonical" -- copied byte-for-byte from the order, never re-typed loose.
+const unreadableLine = (p, reason) => `UNREADABLE: ${p} exists but is not a readable config (${reason}); it was skipped — canonical = ${CANON}`;
 function putCfg(file, obj) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify(obj), 'utf8');
@@ -1075,6 +1078,128 @@ test('case 61: AG notice-only message (mode off + a stray) still emits, and the 
     const r2 = agRun(s, agEvent({ session_id: 'sess-61' }));
     assertGraceful(r2);
     assert.strictEqual(r2.stdout, '', 'second PreInvocation of the same session: silent (marker)');
+  } finally { clean(s.home); }
+});
+
+// ---------------------------------------------------------------------------
+// UMB-174 (b) -- a config that EXISTS at a candidate path but cannot be READ as a
+// config (malformed JSON / a directory / unreadable) is now REPORTED on the same
+// sanctioned SessionStart line the LEGACY/IGNORED notices already use. The WALK
+// SELECTION is unchanged in every case below: the unreadable candidate still wins
+// (existsSync sees it, it still contributes {}) -- only the silence goes.
+// ---------------------------------------------------------------------------
+
+test('case 62: UMB-174 (b) -- a MALFORMED config at the canonical project path is REPORTED once, and a well-formed fix at the SAME path produces no line (negative control)', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home);
+    const real = fs.realpathSync(cwd);
+    const rel = ['.claude', 'coal', 'coalface.json'];
+    const target = path.join(cwd, ...rel);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, '{ not json', 'utf8');
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.deepStrictEqual(linesStarting(r.stdout, 'UNREADABLE:'), [unreadableLine(path.join(real, ...rel), 'malformed JSON')], 'exactly one UNREADABLE line, exact shape');
+    assert.match(r.stdout, />= 4 units/, 'the malformed candidate contributes nothing -- selection unchanged, default floor stands');
+    assert.strictEqual((r.stdout.match(/\[CoalFace\]/g) || []).length, 1, 'exactly one [CoalFace] prefix even with a notice appended');
+    // Negative control (order's own instruction): fix the SAME file, no UNREADABLE line.
+    fs.writeFileSync(target, JSON.stringify({ autoFanoutFloor: 5 }), 'utf8');
+    const r2 = run(cwd, home);
+    assertGraceful(r2);
+    assert.deepStrictEqual(linesStarting(r2.stdout, 'UNREADABLE:'), [], 'a well-formed config at the same path produces no UNREADABLE line');
+    assert.match(r2.stdout, />= 5 units/, 'and is honoured once readable');
+  } finally { clean(home, cwd); }
+});
+
+test('case 63: UMB-174 (b) -- a DIRECTORY at the canonical project path is REPORTED (reason "a directory")', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home);
+    const real = fs.realpathSync(cwd);
+    const rel = ['.claude', 'coal', 'coalface.json'];
+    fs.mkdirSync(path.join(cwd, ...rel), { recursive: true }); // a DIRECTORY sits where the file should be
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.deepStrictEqual(linesStarting(r.stdout, 'UNREADABLE:'), [unreadableLine(path.join(real, ...rel), 'a directory')]);
+    assert.match(r.stdout, />= 4 units/, 'a directory candidate still wins the walk and still contributes {} -- selection unchanged, only the silence goes');
+    assert.deepStrictEqual(linesStarting(r.stdout, 'LEGACY:'), [], 'a directory at the CANONICAL path is not a legacy hit');
+  } finally { clean(home, cwd); }
+});
+
+// Capability-probed, never process.platform (node/runtime.md §4's case-folding discipline
+// applied to permission bits, same shape as CWK-122's mode:0600 test): write a throwaway
+// file, chmod it to 0, and try to read it BEFORE trusting that this volume/OS enforces
+// POSIX read permissions for the owning process. ONE skippable leg per test -- the probe
+// is the test's only conditional branch; the real assertion is unconditional once it passes.
+function canObserveEACCES(dir) {
+  const probe = path.join(dir, '.cf-eacces-probe');
+  try {
+    fs.writeFileSync(probe, 'x', 'utf8');
+    fs.chmodSync(probe, 0);
+    try {
+      fs.readFileSync(probe);
+      return false; // read succeeded despite chmod 0 -- this volume/OS does not enforce it (e.g. NTFS)
+    } catch (e) {
+      return e && e.code === 'EACCES';
+    }
+  } catch {
+    return false;
+  } finally {
+    try { fs.chmodSync(probe, 0o600); } catch {} // restore so cleanup can delete it
+    try { fs.rmSync(probe, { force: true }); } catch {}
+  }
+}
+
+test('case 64: UMB-174 (b) -- an UNREADABLE (EACCES) config at the canonical project path is REPORTED (reason "unreadable")', (t) => {
+  const { home, cwd } = sandbox();
+  try {
+    if (!canObserveEACCES(home)) {
+      t.skip('this volume/OS does not enforce POSIX read permissions for the owning process (e.g. NTFS chmod) -- cannot exercise EACCES');
+      return; // t.skip does not stop the body; return so the case is skipped, never a vacuous pass
+    }
+    muteUpdate(home);
+    const real = fs.realpathSync(cwd);
+    const rel = ['.claude', 'coal', 'coalface.json'];
+    const target = path.join(cwd, ...rel);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, JSON.stringify({ autoFanoutFloor: 5 }), 'utf8');
+    fs.chmodSync(target, 0);
+    try {
+      const r = run(cwd, home);
+      assertGraceful(r);
+      assert.deepStrictEqual(linesStarting(r.stdout, 'UNREADABLE:'), [unreadableLine(path.join(real, ...rel), 'unreadable')]);
+      assert.match(r.stdout, />= 4 units/, 'unreadable contributes nothing -- default floor stands');
+    } finally { fs.chmodSync(target, 0o600); } // restore so clean() can remove it
+  } finally { clean(home, cwd); }
+});
+
+test('case 65: UMB-174 (b) -- a MALFORMED GLOBAL config (~/.claude/.coalface.json) is REPORTED', () => {
+  const { home, cwd } = sandbox();
+  try {
+    const globalFile = path.join(home, '.claude', '.coalface.json');
+    fs.mkdirSync(path.dirname(globalFile), { recursive: true });
+    fs.writeFileSync(globalFile, 'not json at all', 'utf8');
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.deepStrictEqual(linesStarting(r.stdout, 'UNREADABLE:'), [unreadableLine(globalFile, 'malformed JSON')]);
+  } finally { clean(home, cwd); }
+});
+
+test('case 66: UMB-174 (b) -- AG adapter reports UNREADABLE too (it shares loadCfg)', () => {
+  const s = agSandbox();
+  try {
+    muteUpdate(s.home);
+    const real = fs.realpathSync(s.cwd);
+    const rel = ['.claude', 'coal', 'coalface.json'];
+    const target = path.join(s.cwd, ...rel);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, '{ still not json', 'utf8');
+    const r = agRun(s, agEvent({ session_id: 'sess-66' }));
+    assertGraceful(r);
+    const msg = JSON.parse(r.stdout.trim()).injectSteps[0].ephemeralMessage;
+    assert.deepStrictEqual(linesStarting(msg, 'UNREADABLE:'), [unreadableLine(path.join(real, ...rel), 'malformed JSON')]);
+    assert.strictEqual((msg.match(/\[CoalFace\]/g) || []).length, 1, 'still exactly one prefix');
   } finally { clean(s.home); }
 });
 
