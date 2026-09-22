@@ -18,6 +18,7 @@ import {
   classifyCheckIgnoreResult, applyCheckIgnoreProbe, PROBE_SUFFIX,
   collectSurfaces, DEFAULT_SURFACE_PLAN,
 } from './pointer-check.mjs';
+import { gitTestEnv } from './git-test-env.mjs';
 
 const OURS = new Set(['scripts', 'hooks', 'skills', 'commands', 'README.md', '.github']);
 const base = (over = {}) => ({
@@ -544,7 +545,10 @@ test('applyCheckIgnoreProbe: a bad verdict calls fail() and returns an empty Set
 // genuinely untracked surface, and never again forbids a legal future state.
 test('DEFAULT_SURFACE_PLAN: every declared row is TRACKED (the invariant, never a named instance)', () => {
   const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-  const tracked = new Set(execFileSync('git', ['ls-files'], { cwd: repo, encoding: 'utf8' }).trim().split('\n').filter(Boolean));
+  // r5 -- no explicit env used to be given here either; an ambient GIT_DIR from a
+  // linked-worktree hook would override `cwd: repo` and silently read the WRONG repo's
+  // tracked-file list (see git-test-env.mjs's own header for the full incident).
+  const tracked = new Set(execFileSync('git', ['ls-files'], { cwd: repo, encoding: 'utf8', env: gitTestEnv(path.dirname(repo)) }).trim().split('\n').filter(Boolean));
   for (const row of DEFAULT_SURFACE_PLAN) {
     if (row.dir) {
       // A dir row's OWN root is a directory, never itself a tracked FILE -- `git

@@ -18,6 +18,7 @@ const TESTS = [
   'scripts/lib/claude-ai-trim.test.mjs',
   'scripts/lib/config-keys.test.mjs',
   'scripts/lib/pointer-check.test.mjs',
+  'scripts/lib/git-test-env.test.mjs',
   'scripts/build-plugin.test.mjs',
   'scripts/verify.test.mjs',
   'scripts/build-claude-ai-zips.test.mjs',

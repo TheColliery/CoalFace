@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { gitTestEnv } from './lib/git-test-env.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -27,9 +28,12 @@ function runVerify(tmp) {
   // r34b FOLD R1 -- verify.mjs's own git spawns (check-ignore et al.) inherited no ceiling; a
   // tmpdir sitting under a real repository let its NAMED-SKIP-vs-real-repo tests read the wrong
   // premise. Pinned here so the child process's own git calls carry the ceiling by inheritance.
+  // r5 -- and never the ambient GIT_* family either (gitTestEnv, see that file's own header):
+  // a linked-worktree hook exports an ABSOLUTE GIT_DIR/GIT_INDEX_FILE that overrides both cwd
+  // and this ceiling, and this spawn's env is what verify.mjs's OWN child git spawns inherit.
   return spawnSync(process.execPath, [path.join(tmp, 'scripts', 'verify.mjs')], {
     encoding: 'utf8',
-    env: { ...process.env, GIT_CEILING_DIRECTORIES: path.dirname(tmp) },
+    env: gitTestEnv(path.dirname(tmp)),
   });
 }
 
@@ -108,7 +112,11 @@ function gitInit(tmp, { spawn = spawnSync } = {}) {
     encoding: 'utf8',
     // r34b bounce1 L2 — no fixture call can walk up past `tmp`'s own parent, structurally,
     // regardless of what `.git` does or does not exist inside `tmp` itself.
-    env: { ...process.env, GIT_CEILING_DIRECTORIES: path.dirname(tmp) },
+    // r5 -- AND no fixture call may inherit an ambient GIT_DIR/GIT_INDEX_FILE either: those
+    // override BOTH cwd and the ceiling above, which is exactly how this repo's own `.git`
+    // got flipped to `core.bare = true` on 2026-09-10 when a linked worktree's hook ran this
+    // very function. gitTestEnv() strips the whole GIT_* family before re-adding the ceiling.
+    env: gitTestEnv(path.dirname(tmp)),
   };
   const init = spawn('git', ['init', '-q', '.'], opts);
   assert.equal(init.status, 0, `fixture git init failed (exit ${init.status}): ${init.stderr || ''}`);
@@ -207,10 +215,13 @@ test('verify.mjs pointer-drift block FAILs LOUD when git check-ignore cannot run
     // r34b FOLD R1 -- pinned like every other fixture spawn: `tmp` has no ancestor .git of its
     // own concern here, but a `.git`-less `tmp` (the exists-assertion-stripped mutation) would
     // otherwise let this specific write land on whatever real repository os.tmpdir() sits under.
+    // r5 -- and stripped of the ambient GIT_* family too, for the same reason as gitInit()/
+    // runVerify() above: this exact write (`config core.bare true`) is the literal value the
+    // 2026-09-10 incident produced on THIS repo when an inherited GIT_DIR redirected it there.
     spawnSync('git', ['config', 'core.bare', 'true'], {
       cwd: tmp,
       encoding: 'utf8',
-      env: { ...process.env, GIT_CEILING_DIRECTORIES: path.dirname(tmp) },
+      env: gitTestEnv(path.dirname(tmp)),
     });
 
     const r = runVerify(tmp);
@@ -238,5 +249,57 @@ test('verify.mjs pointer-drift block NAMED SKIPs (never FAILs) when the tree has
       'without .git the pointer-drift block must print a NAMED SKIP, never silently skip and never FAIL');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+// r5 -- reproduces the REAL 2026-09-10 hazard safely, in a sandbox this test owns end to end.
+// `S` plays the role of "the real repository a linked worktree's hook exports GIT_DIR/
+// GIT_INDEX_FILE for" -- gitInit() must build fixture `F`'s own .git without ever touching S,
+// whatever an ambient GIT_DIR points at. Full incident:
+// TheColliery/scratchpad/dispatch/r5-coalface.return.md, "INCIDENT during leg (c0) set-up".
+test('gitInit(): a planted ambient GIT_DIR/GIT_INDEX_FILE (the linked-worktree shape) never reaches the fixture spawn', () => {
+  const sandboxParent = fs.mkdtempSync(path.join(os.tmpdir(), 'coalface-gitenv-sandbox-'));
+  const f = fs.mkdtempSync(path.join(os.tmpdir(), 'coalface-gitenv-fixture-'));
+  try {
+    const s = path.join(sandboxParent, 'S');
+    fs.mkdirSync(s);
+    // A real, independent repo -- built under the CURRENT env, before anything is planted.
+    gitInit(s);
+    const sConfigBefore = fs.readFileSync(path.join(s, '.git', 'config'), 'utf8');
+    assert.doesNotMatch(sConfigBefore, /bare\s*=\s*true/i, 'sandbox setup sanity: S must not start bare');
+
+    const savedGitDir = process.env.GIT_DIR;
+    const savedGitIndexFile = process.env.GIT_INDEX_FILE;
+    let caught = null;
+    try {
+      // The absolute values a linked worktree's own pre-commit/pre-push hook exports (the r5
+      // incident's real shape) -- planted ONLY here, scoped to S's own tmp tree, NEVER this
+      // repo or anywhere outside this test's own tmp (r5's own rail).
+      process.env.GIT_DIR = path.join(s, '.git');
+      process.env.GIT_INDEX_FILE = path.join(s, '.git', 'index');
+      try {
+        gitInit(f);
+      } catch (e) {
+        // gitInit()'s OWN r34 .git-exists rail can fire first, when init silently targets S
+        // instead of f -- itself a RED signal; caught here so the S-corruption assertions
+        // below still run either way, never masked by an uncaught exception.
+        caught = e;
+      }
+    } finally {
+      if (savedGitDir === undefined) delete process.env.GIT_DIR; else process.env.GIT_DIR = savedGitDir;
+      if (savedGitIndexFile === undefined) delete process.env.GIT_INDEX_FILE; else process.env.GIT_INDEX_FILE = savedGitIndexFile;
+    }
+
+    const sConfigAfter = fs.readFileSync(path.join(s, '.git', 'config'), 'utf8');
+    assert.equal(sConfigAfter, sConfigBefore,
+      'S — the planted GIT_DIR target — must be byte-identical after building an unrelated fixture' +
+      (caught ? ` (gitInit(f) also threw: ${caught.message})` : ''));
+    assert.doesNotMatch(sConfigAfter, /bare\s*=\s*true/i,
+      'S must never flip core.bare — the exact 2026-09-10 incident value, reproduced safely in a sandbox');
+    assert.ok(fs.existsSync(path.join(f, '.git')),
+      'the fixture must get its own independent .git regardless of what an ambient GIT_DIR points at');
+  } finally {
+    fs.rmSync(sandboxParent, { recursive: true, force: true });
+    fs.rmSync(f, { recursive: true, force: true });
   }
 });
