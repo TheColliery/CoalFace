@@ -59,7 +59,7 @@ CoalFace is **cross-agent** — the contract runs on any platform with concurren
 
 ## 🚀 Releasing (Maintainers)
 
-Bump version in `.claude-plugin/plugin.json` ➡️ finalize the `CHANGELOG.md` entry (a one-line summary before its first `### ` section, then Keep-a-Changelog sections) ➡️ ensure `verify.mjs` and `test.mjs` pass ➡️ commit ➡️ create a signed git tag (`vX.Y.Z`) ➡️ push `--follow-tags`. The tag-push workflow is the sole GitHub Release creator from here — it derives the title and body from that CHANGELOG entry (stable tags only; a beta tag ships as a prerelease or stays history-only). A maintainer's own job ends at the push: read the workflow run, then GET the Release it made and re-read the title/body against the entry.
+Bump version in `.claude-plugin/plugin.json` ➡️ finalize the `CHANGELOG.md` entry (a one-line summary before its first `### ` section, then Keep-a-Changelog sections) ➡️ ensure `verify.mjs` and `test.mjs` pass ➡️ commit ➡️ create a signed git tag (`vX.Y.Z`) ➡️ push `--follow-tags`. The tag-push workflow is the sole GitHub Release creator from here — it derives the title and body from that CHANGELOG entry (stable tags only; a beta tag stays history-only, the one launch-form pre-release Release is hand-cut per the org's [RELEASE-PATTERN](https://github.com/TheColliery/.github/blob/main/RELEASE-PATTERN.md)). A maintainer's own job ends at the push: read the workflow run, then GET the Release it made and re-read the title/body against the entry.
 
 ---
 
