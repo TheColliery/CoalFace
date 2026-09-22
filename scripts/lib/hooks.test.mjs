@@ -424,6 +424,43 @@ test('case 21: AG a pre-planted SYMLINK at the marker subdir -> fail-closed sile
   }
 });
 
+// CWK-122: the marker is created with { flag: 'wx', mode: 0o600 } (adopted from
+// CoalMine's coalmine-conductor.js, same shape). Mode bits are a VOLUME property, never
+// a platform one (node/runtime.md §4 -- "never key case-folding on process.platform",
+// the identical discipline applied here to POSIX permission bits: NTFS reports a fixed
+// mode regardless of what is requested, an exFAT/FAT32-formatted POSIX mount behaves the
+// same way, so `process.platform !== 'win32'` is wrong in both directions). Probe the
+// CAPABILITY directly -- write a throwaway file with mode 0o600 in the sandbox tmp and
+// read the mode back -- and skip VISIBLY (never a bare return) where the volume does not
+// honor it. ONE skippable leg per test: the capability probe is this test's only
+// skippable branch: the real assertion (the actual marker's mode) is unconditional once
+// the probe has passed.
+test('case 22a: AG marker file is created with mode 0600 on a volume that honors POSIX mode bits', (t) => {
+  const probeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-mode-probe-'));
+  const probeFile = path.join(probeDir, 'probe');
+  let modeSupported;
+  try {
+    fs.writeFileSync(probeFile, '', { mode: 0o600 });
+    modeSupported = (fs.statSync(probeFile).mode & 0o777) === 0o600;
+  } finally {
+    fs.rmSync(probeDir, { recursive: true, force: true });
+  }
+  if (!modeSupported) {
+    t.skip('this volume does not honor POSIX mode bits at write time (NTFS or similar) -- cannot exercise the 0600 marker');
+    return; // t.skip does not stop the body; return so the case is skipped, never a vacuous pass
+  }
+  const s = agSandbox();
+  try {
+    const r = agRun(s, agEvent({ session_id: 'sess-22a' }));
+    assertGraceful(r);
+    const markerDir = path.join(s.tmp, 'coalface');
+    const markerFile = fs.readdirSync(markerDir).find((f) => f.startsWith('ag-conductor-') && f.endsWith('.marker'));
+    assert.ok(markerFile, 'marker was written');
+    const mode = fs.statSync(path.join(markerDir, markerFile)).mode & 0o777;
+    assert.strictEqual(mode, 0o600, `marker mode must be 0600, got ${mode.toString(8)}`);
+  } finally { clean(s.home); }
+});
+
 // The CURRENT documented AG payload shape (re-derived 2026-07-23): common fields are
 // camelCase protojson — conversationId + workspacePaths[] + transcriptPath. No `cwd`,
 // no `session_id` (those stay covered above as defensive legacy fallbacks).

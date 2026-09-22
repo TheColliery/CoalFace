@@ -110,7 +110,12 @@ function main() {
   try {
     fs.mkdirSync(markerDir, { recursive: true, mode: 0o700 });
     if (fs.lstatSync(markerDir).isSymbolicLink()) return; // dir-symlink residual -> fail-closed (see above)
-    fs.writeFileSync(marker, '', { flag: 'wx' });
+    // CWK-122: mode: 0o600 (adopted from CoalMine's coalmine-conductor.js, same marker
+    // shape) restricts the marker to owner-read/write on a POSIX volume -- a no-op on
+    // Windows/NTFS, where every file reports the same broad mode regardless of what is
+    // requested. The markerDir itself already carries mode: 0o700 (line above); this
+    // closes the matching gap on the FILE inside it.
+    fs.writeFileSync(marker, '', { flag: 'wx', mode: 0o600 });
   } catch { return; } // EEXIST (already ran) OR any write failure -> fail-closed, no emit
 
   const { cfg, notices } = loadCfg('agents', true); // this adapter only ever runs under Antigravity; probeStrays=true (UMB-133)
