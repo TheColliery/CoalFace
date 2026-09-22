@@ -40,6 +40,21 @@ test('checkDist flags a stale file', () => {
   fs.rmSync(distRoot, { recursive: true, force: true });
 });
 
+// CWK-120 finding #4: a test file committed directly into plugin/ (never through
+// buildDist's own cpSync filter -- a stray manual edit or a bad merge) used to be
+// excluded from BOTH traversal directions, so checkDist saw nothing to compare it
+// against and reported clean. Planted only under distRoot (no source counterpart)
+// to isolate the exact shape a stray committed test file takes.
+test('checkDist flags a test file committed directly into plugin/ as forbidden, not silently excluded', () => {
+  const distRoot = mkTmp();
+  buildDist(distRoot);
+  fs.mkdirSync(path.join(distRoot, 'skills', 'coalface'), { recursive: true });
+  fs.writeFileSync(path.join(distRoot, 'skills', 'coalface', 'sneaky.test.js'), '// should never ship');
+  const drift = checkDist(distRoot);
+  assert.ok(drift.some((d) => d.includes('forbidden') && d.includes('sneaky.test.js')), `expected a forbidden-test entry, got: ${JSON.stringify(drift)}`);
+  fs.rmSync(distRoot, { recursive: true, force: true });
+});
+
 test('checkDist flags an orphan top-level entry', () => {
   const distRoot = mkTmp();
   buildDist(distRoot);

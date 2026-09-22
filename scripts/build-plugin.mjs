@@ -63,21 +63,31 @@ export function buildDist(distRoot = dist) {
 // top-level entry may exist that no DIST_ITEM accounts for. Returns [] when in sync.
 export function checkDist(distRoot = dist) {
   const out = [];
-  const filesUnder = (root, rel) => {
-    if (/\.test\.[cm]?js$/.test(rel)) return []; // tests are excluded from the dist (build filter) -> exclude here too, both directions, so sync holds
+  // CWK-120 finding #4: excluding *.test.* on BOTH traversals meant a test file
+  // committed directly into plugin/ (bypassing the build's own cpSync filter --
+  // a stray manual edit or a bad merge) was invisible to the orphan check, so
+  // checkDist would report clean while the packaging step (build-claude-ai-zips
+  // / the marketplace clone) still shipped it. Excluded on the SOURCE side only
+  // (tests never belong in the dist by design); reported as a FORBIDDEN finding
+  // on the distRoot side, ahead of the orphan check it would otherwise silently
+  // pass (a test file has no source counterpart, so it would read as an orphan
+  // -- the forbidden message names what it actually is).
+  const filesUnder = (root, rel, excludeTests) => {
+    if (excludeTests && /\.test\.[cm]?js$/.test(rel)) return [];
     const abs = path.join(root, rel);
     if (!fs.existsSync(abs)) return [];
-    if (fs.statSync(abs).isDirectory()) return fs.readdirSync(abs).flatMap((n) => filesUnder(root, path.join(rel, n)));
+    if (fs.statSync(abs).isDirectory()) return fs.readdirSync(abs).flatMap((n) => filesUnder(root, path.join(rel, n), excludeTests));
     return [rel];
   };
   for (const item of DIST_ITEMS) {
-    for (const rel of filesUnder(repo, item)) {
+    for (const rel of filesUnder(repo, item, true)) {
       const d = path.join(distRoot, rel);
       if (!fs.existsSync(d)) out.push(`missing in plugin/: ${rel}`);
       else if (!filesMatch(path.join(repo, rel), d)) out.push(`stale in plugin/: ${rel}`);
     }
-    for (const rel of filesUnder(distRoot, item)) {
-      if (!fs.existsSync(path.join(repo, rel))) out.push(`orphan in plugin/ (no source): ${rel}`);
+    for (const rel of filesUnder(distRoot, item, false)) {
+      if (/\.test\.[cm]?js$/.test(rel)) out.push(`forbidden test file in plugin/: ${rel}`);
+      else if (!fs.existsSync(path.join(repo, rel))) out.push(`orphan in plugin/ (no source): ${rel}`);
     }
   }
   const allowedTops = new Set(DIST_ITEMS.map((rel) => rel.split(path.sep)[0]));
