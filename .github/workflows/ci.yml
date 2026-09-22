@@ -4,7 +4,10 @@ on:
   push:
     branches: [main]
     paths-ignore:
-      # skip verify/test only for NON-shipped docs — a SHIPPED markdown artifact (skills/**/SKILL.md, commands/*.md) MUST run CI (verify checks dist-sync)
+      # skip verify/test only for NON-shipped docs — a SHIPPED markdown artifact (skills/**/SKILL.md, commands/*.md) MUST run CI (verify checks dist-sync).
+      # push is safe to skip here: nothing is waiting on a push-triggered `all-green` --
+      # no PR merge is gated on it (CWK-120 finding #1 -- pull_request below is the one
+      # that cannot carry this filter, see its own comment for why).
       - 'README.md'
       - 'CHANGELOG.md'
       - 'CONTRIBUTING.md'
@@ -12,17 +15,17 @@ on:
       - 'SECURITY.md'
       - 'LICENSE'
       - 'NOTICE'
+  # NO paths-ignore here (CWK-120 finding #1, CONFIRMED against this repo's OWN live
+  # ruleset `dependabot-auto-merge-gate`, active, targeting every PR into main, requiring
+  # the `all-green` context): GitHub's own docs are explicit -- "If a workflow is skipped
+  # due to path filtering... checks associated with that workflow will remain in a
+  # 'Pending' state. A pull request that requires those checks to be successful will be
+  # blocked from merging." A doc-only PR would trigger no `gate` job, so `all-green`
+  # would never post and the PR would sit blocked forever for anyone without bypass. The
+  # gate itself is cheap (no build step, no install) -- paying it on every PR is the
+  # correct trade against a permanently-stuck required check.
   pull_request:
     branches: [main]
-    paths-ignore:
-      # skip verify/test only for NON-shipped docs — a SHIPPED markdown artifact (skills/**/SKILL.md, commands/*.md) MUST run CI (verify checks dist-sync)
-      - 'README.md'
-      - 'CHANGELOG.md'
-      - 'CONTRIBUTING.md'
-      - 'PRIVACY.md'
-      - 'SECURITY.md'
-      - 'LICENSE'
-      - 'NOTICE'
 
 # cancel-in-progress: TRUE -- ci.yml only reads, tests and compares; it publishes nothing
 # and touches no external state, so a superseded run has nothing to leave half-done
