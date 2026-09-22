@@ -23,6 +23,15 @@ const TESTS = [
   'scripts/build-claude-ai-zips.test.mjs',
   'scripts/configure.test.mjs',
   'scripts/link-check.test.mjs',
+  // CWK-124: the sole-creator release workflow, adopted byte-identical from
+  // .github's templates/overlay-coal-skill/ (never a room-local variant).
+  'scripts/decide-upload.test.mjs',
+  'scripts/prune-release-zips.test.mjs',
+  'scripts/release-notes.test.mjs',
+  'scripts/verify-release-shape.test.mjs',
+  'scripts/lib/asset-upload-mode.test.mjs',
+  'scripts/lib/release-prune.test.mjs',
+  'scripts/lib/release-shape.test.mjs',
 ];
 
 // CWK-071: process.exit() forces the process to exit before pending stdout writes flush
