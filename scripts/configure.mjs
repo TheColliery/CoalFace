@@ -145,7 +145,20 @@ async function main() {
   if (rawConfig !== null) {
     try {
       hadComments = rawConfig.includes('//');
-      cfg = parseJsonc(rawConfig) || {};
+      const parsed = parseJsonc(rawConfig);
+      // CWK-120 ride-along (a), THE CONFIG-PARSE CLASS: `parsed || {}` alone lets a
+      // top-level array/string/number config body through unguarded -- `[] || {}` and
+      // `"x" || {}` and `42 || {}` are all truthy, so cfg would become the array/string/
+      // number itself. Every downstream `cfg[spec.key] = parsed.value` (below) then
+      // silently no-ops on it (arrays only keep index keys, primitives take none in
+      // non-strict mode), and JSON.stringify(cfg) writes back the ORIGINAL malformed
+      // body with every --flag the user passed dropped, exit 0, no error. Route the
+      // same non-object shape into the existing malformed-config path (backup + warn +
+      // rebuild from {}) instead of a silent, undetectable no-op.
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error(`config must be a JSON object, got ${Array.isArray(parsed) ? 'an array' : typeof parsed}`);
+      }
+      cfg = parsed;
     } catch (e) {
       // Fail loud (scripts-quality §1): a malformed config we silently overwrite is a
       // partial failure the user must notice — flag the non-zero exit even though the

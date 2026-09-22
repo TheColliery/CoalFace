@@ -160,6 +160,25 @@ test('a MALFORMED existing config is backed up (.bak, original bytes preserved) 
   assert.deepEqual(JSON.parse(fs.readFileSync(target, 'utf8')), { bandwidth: 30 });
 });
 
+// CWK-120 ride-along (a), THE CONFIG-PARSE CLASS: a config body that parses as VALID
+// JSON but is NOT an object (a top-level array here) used to pass `parsed || {}`
+// unguarded (an array is truthy) -- every subsequent `cfg[key] = value` silently no-op'd
+// on the array's non-index keys, and the write wrote the array straight back out with
+// every --flag dropped, exit 0, no warning. Routed into the SAME malformed-config path
+// as unparsable JSON: backed up, flagged non-zero, rebuilt from {}.
+test('a top-level ARRAY config (valid JSON, wrong shape) is treated as malformed, not silently ignored', (t) => {
+  const { home, project } = sandbox();
+  t.after(() => { fs.rmSync(home, { recursive: true, force: true }); fs.rmSync(project, { recursive: true, force: true }); });
+  fs.mkdirSync(path.join(project, '.claude', 'coal'), { recursive: true });
+  const target = path.join(project, '.claude', 'coal', 'coalface.json');
+  fs.writeFileSync(target, '[1, 2, 3]');
+  const r = run(['--bandwidth', '30'], { cwd: project, home });
+  assert.equal(r.status, 1, 'a recovered-but-flagged run is still a partial failure the user must notice');
+  assert.match(r.stderr, /existing config is malformed/);
+  assert.equal(fs.readFileSync(target + '.bak', 'utf8'), '[1, 2, 3]', 'the backup must preserve the ORIGINAL bytes untouched');
+  assert.deepEqual(JSON.parse(fs.readFileSync(target, 'utf8')), { bandwidth: 30 }, 'the write must rebuild from {} and apply the flag, never write the array back out');
+});
+
 test('a project config with inline comments (JSONC) parses, and the write warns that comments were stripped', (t) => {
   const { home, project } = sandbox();
   t.after(() => { fs.rmSync(home, { recursive: true, force: true }); fs.rmSync(project, { recursive: true, force: true }); });
