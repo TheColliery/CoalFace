@@ -4,7 +4,7 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [0.11.0] - 2026-09-22
 
 ### Added
 - **The canon `.coderabbit.yaml` (AR-46), byte-identical to `TheColliery/.github/templates/published-code/.coderabbit.yaml`.** No room-local variant.
@@ -13,7 +13,7 @@ All notable changes to CoalFace are documented here. Format follows
 
 ### Fixed
 - **`skills/coalface/references/workflow-engine.md`'s scattered-nulls retry filter matched any falsy result, not only `null` (CodeRabbit CWK-120 #6).** A completed worker that legitimately returns an empty string would be re-retried and its order duplicated. Now `results[i] === null` exactly, matching the guidance's own stated contract (`null` = dead worker only).
-- **`SKILL.md`'s below-`autoFanoutFloor` wording said "1-2-sub" while the default floor is 4 (CodeRabbit CWK-120 #7).** Units 1 through 3 all stay ad-hoc/solo below the default floor. Fixed at all **five** live sites, not only the two the finding cited (INSPECT F2): `SKILL.md`, `README.md`'s Activation prose and its `autoFanoutFloor` table row, the shipped `platform-configs/.coalface.json` template, and — the one that mattered most — the SessionStart directive string an agent actually reads (`hooks/coalface-conductor.js`, now built from the config's own floor value rather than a hardcoded number, so it can't drift again).
+- **`SKILL.md`'s below-`autoFanoutFloor` wording said "1-2-sub" while the default floor is 4 (CodeRabbit CWK-120 #7).** Units 1 through 3 all stay ad-hoc/solo below the default floor. Fixed at all **six** live sites, not only the two the finding cited (INSPECT F2): `SKILL.md`, `README.md`'s Activation prose and its `autoFanoutFloor` table row, the shipped `platform-configs/.coalface.json` template, `config-schema.mjs`'s `--help` text, and — the one that mattered most — the SessionStart directive string an agent actually reads (`hooks/coalface-conductor.js`, now built from the config's own floor value rather than a hardcoded number, so it can't drift again).
 - **`maxLocalWorkers` was worded as though it floored worker-wave WIDTH (`min(bandwidth-width, maxLocalWorkers)`), when the code only ever gates concurrent apply-time domain-gate runs at step 7 (CodeRabbit CWK-120 #8).** `SKILL.md`, `README.md`, and `references/admission-control.md` now state worker-wave width as `floor(platform width × bandwidth%)` alone, with `maxLocalWorkers` named as a separate, apply-time-only cap.
 - **`hooks/ag-conductor.js`'s once-per-session marker had no file mode, unlike CoalMine's matching marker (CWK-122).** Restricted to `0o600`, one-flock-one-color with CoalMine.
 - **`configure.mjs` accepted a non-object top-level config body** (`[]`/a string/a number) as a silent no-op, dropping every `--flag` the user passed with exit 0 (CWK-120 class item (a)). Now rejected through the existing malformed-JSON path (backup, warn, non-zero exit, rebuild from `{}`).
