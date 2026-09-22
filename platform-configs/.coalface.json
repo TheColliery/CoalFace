@@ -2,7 +2,7 @@
   // Fan-out discipline mode. auto (default) = the agent judges when a prompt warrants
   // fan-out; any fan-out of >= autoFanoutFloor units rides the /coalface contract
   // (scout -> partition -> anchor-edit orders -> QC -> single-writer apply -> receipt),
-  // while 1-2-sub ad-hoc spawns keep zero ceremony. on = scout EVERY prompt and fan out
+  // while 1-3-sub ad-hoc spawns keep zero ceremony. on = scout EVERY prompt and fan out
   // everything decomposable (opt-in; costs scouting on every prompt). off = CoalFace
   // fully out; your platform's native fan-out is untouched.
   "coalfaceMode": "auto",
