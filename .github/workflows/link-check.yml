@@ -65,10 +65,19 @@ jobs:
       # diagnostic did not fire. `|| true` on the substitution lets a matchless grep chain
       # produce an EMPTY `$files` instead of killing the step, so the guard below is the
       # one that actually explains the failure.
+      # CWK-120 finding #3: a bare `$files` expansion below this comment used to word-split
+      # AND glob-expand -- a tracked filename with a space or a glob char (*, ?, [) would
+      # arrive as multiple/substituted argv entries, so the intended file could go
+      # unscanned without the step ever failing loud about it. Built as a NUL-delimited
+      # array instead: `git ls-files -z` + `read -d ''` survive any byte a filename can
+      # legally hold, and `"${files[@]}"` passes each entry verbatim, un-split, un-globbed.
       - run: |
-          files=$(git ls-files '*.md' | grep -v '^plugin/' | grep -v '^scripts/fixtures/' || true)
-          if [ -z "$files" ]; then
+          files=()
+          while IFS= read -r -d '' file; do
+            [[ "$file" == plugin/* || "$file" == scripts/fixtures/* ]] || files+=("$file")
+          done < <(git ls-files -z '*.md')
+          if [ "${#files[@]}" -eq 0 ]; then
             echo "::error::link-check found NO markdown files to scan -- the scope filter is broken, not the tree"
             exit 1
           fi
-          node scripts/link-check.mjs $files || { echo "::error::link-check found broken internal links/anchors -- see FAIL lines above"; exit 1; }
+          node scripts/link-check.mjs "${files[@]}" || { echo "::error::link-check found broken internal links/anchors -- see FAIL lines above"; exit 1; }
