@@ -4,6 +4,26 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **The canon `.coderabbit.yaml` (AR-46), byte-identical to `TheColliery/.github/templates/published-code/.coderabbit.yaml`.** No room-local variant.
+- **CoalGob joins the README siblings list** (SWEEP-MARKS Event 4, mark 5) — `**[CoalGob](https://github.com/TheColliery/CoalGob)** (OS-trash delete guard, PUBLIC BETA v0.1.0-beta.1)`, engine + tests ship, no skill/hook surface yet. Two sites: the inline `siblings:` clause and the `## 🧭 Part of TheColliery` list.
+- **A GitBook publishing surface** — `.gitbook.yaml`, `SUMMARY.md` (the public deep set: `README.md`, `CHANGELOG.md`, `skills/coalface/SKILL.md`), and one `Docs:` line in `README.md` pointing at the not-yet-live space (`*(publishing soon)*`). These three files never enter the dist; they carry no bump on their own.
+
+### Fixed
+- **`skills/coalface/references/workflow-engine.md`'s scattered-nulls retry filter matched any falsy result, not only `null` (CodeRabbit CWK-120 #6).** A completed worker that legitimately returns an empty string would be re-retried and its order duplicated. Now `results[i] === null` exactly, matching the guidance's own stated contract (`null` = dead worker only).
+- **`SKILL.md`'s below-`autoFanoutFloor` wording said "1-2-sub" while the default floor is 4 (CodeRabbit CWK-120 #7).** Units 1 through 3 all stay ad-hoc/solo below the default floor; `SKILL.md` and `README.md` now say "1-3-sub" consistently.
+- **`maxLocalWorkers` was worded as though it floored worker-wave WIDTH (`min(bandwidth-width, maxLocalWorkers)`), when the code only ever gates concurrent apply-time domain-gate runs at step 7 (CodeRabbit CWK-120 #8).** `SKILL.md`, `README.md`, and `references/admission-control.md` now state worker-wave width as `floor(platform width × bandwidth%)` alone, with `maxLocalWorkers` named as a separate, apply-time-only cap.
+- **`hooks/ag-conductor.js`'s once-per-session marker had no file mode, unlike CoalMine's matching marker (CWK-122).** Restricted to `0o600`, one-flock-one-color with CoalMine.
+- **`configure.mjs` accepted a non-object top-level config body** (`[]`/a string/a number) as a silent no-op, dropping every `--flag` the user passed with exit 0 (CWK-120 class item (a)). Now rejected through the existing malformed-JSON path (backup, warn, non-zero exit, rebuild from `{}`).
+- **A documentation-only PR never created the required `all-green` check**, because `pull_request.paths-ignore` skipped `ci.yml`'s trigger entirely, leaving the PR permanently blocked by this repo's own branch ruleset (CodeRabbit CWK-120 #1). `paths-ignore` removed from the `pull_request` trigger; `push` keeps it.
+- **`admission-control.mjs`'s `release()` could over-admit past `capacity`** in a same-tick race between a slot handoff and a fresh `acquire()` (CodeRabbit CWK-120 #2), reproduced red-first. `release()` now transfers the still-counted slot to a queued waiter instead of decrementing before the wake.
+- **`link-check.yml`'s unquoted `$files` expansion word-split and glob-expanded** a Markdown filename containing a space or glob character (CodeRabbit CWK-120 #3). Now a NUL-delimited shell array.
+- **`build-plugin.mjs`'s `checkDist()` could not see a `*.test.[cm]js` file committed directly into `plugin/`** — excluded on both traversals, so a stray test file shipped invisibly (CodeRabbit CWK-120 #4). Now excluded only on the source side; a distRoot match is reported forbidden.
+- **`pointer-check.test.mjs` asserted an aggregate surface count that stayed true even when both directory rows walked empty** (CodeRabbit CWK-120 #5). Now asserts each directory row contributed at least one surface, by label prefix.
+- **`SECURITY.md`'s SkillSpector pin named a 2026-07-02 scan at scanner v2.3.9, two majors behind** (CWK-121). Re-pinned to the 2026-09-22 scan at v2.11.2 against the `v0.10.0` dist, stating partial static coverage (10 of 12 files) honestly.
+
 ## [0.10.0] - 2026-09-21
 
 ### Added

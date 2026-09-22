@@ -1,6 +1,6 @@
 # Admission control — the MACHINE bound (board #90)
 
-> Loaded on-demand from WAVES (step 4, P29). Three bounds now compose, each answering a different question: the WALLET bounds **dollars** (§ Wallet) · `bandwidth` bounds **speed** (AIMD, agent-process width) · this bound caps **the machine** — how many concurrent apply-time DOMAIN-GATE runs (main's own step-7 build/test, or a depth-1 nested conductor's own for its scope) may hold a CPU-bound slot at once. Effective width = `min(floor(platform width × bandwidth%), maxLocalWorkers)`.
+> Loaded on-demand from WAVES (step 4, P29). Three bounds now compose, each answering a different question: the WALLET bounds **dollars** (§ Wallet) · `bandwidth` bounds **speed** (AIMD, agent-process width) · this bound caps **the machine** — how many concurrent apply-time DOMAIN-GATE runs (main's own step-7 build/test, or a depth-1 nested conductor's own for its scope) may hold a CPU-bound slot at once. This is a SEPARATE cap from worker-wave width: worker-wave width = `floor(platform width × bandwidth%)` alone; `maxLocalWorkers` gates only step-7 domain-gate admission, never wave width.
 
 ## Why a third bound
 
