@@ -618,6 +618,15 @@ test('collectSurfaces: against the real tree, produces exactly the 8 declared ro
   // 6 single-file rows + whatever real files sit under references/ and commands/.
   const singleFileRows = DEFAULT_SURFACE_PLAN.filter((r) => !r.dir).length;
   assert.equal(singleFileRows, 6);
-  assert.ok(surfaces.length >= singleFileRows, 'a dir row must contribute at least the single-file rows worth of surfaces');
+  // CWK-120 finding #5: `surfaces.length >= singleFileRows` stays true even when BOTH
+  // dir rows walk empty (the 6 single-file rows alone already clear the bound), or when
+  // only one of the two narrows silently -- an aggregate count cannot tell "both dirs
+  // walked" from "one dir walked twice as much." Assert each dir row BY NAME instead.
+  for (const row of DEFAULT_SURFACE_PLAN.filter((r) => r.dir)) {
+    assert.ok(
+      surfaces.some((s) => s.label.startsWith(row.root + '/')),
+      `${row.root} is a dir row but contributed no surface -- the walk silently narrowed`,
+    );
+  }
   assert.ok(surfaces.every((s) => typeof s.label === 'string' && s.text !== undefined), JSON.stringify(surfaces));
 });
