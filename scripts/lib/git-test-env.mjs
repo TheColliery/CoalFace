@@ -3,9 +3,11 @@
 // GIT_DIR (the worktree's admin dir) and an ABSOLUTE GIT_INDEX_FILE -- both override `cwd` AND
 // any GIT_CEILING_DIRECTORIES a test tries to impose. Measured: `GIT_DIR=<abs> git init -q .` in
 // an EMPTY fixture dir creates NO fixture `.git` and flips the REAL enclosing repository's
-// `core.bare` to `true` -- it happened to this repo itself on 2026-09-10 (repaired by hand).
-// Full incident: TheColliery/scratchpad/dispatch/r5-coalface.return.md, "INCIDENT during leg
-// (c0) set-up".
+// `core.bare` to `true` -- it happened to THIS repo (CoalFace) at 2026-09-23 00:17:49 +07
+// (repaired by hand). NOT the umbrella's separate 2026-09-10 `core.bare` incident (a
+// different mechanism entirely -- a backtick in a double-quoted `node -e`; see
+// verify.test.mjs's own r34b comment for that one). Full incident:
+// TheColliery/scratchpad/dispatch/r5-coalface.return.md, "INCIDENT during leg (c0) set-up".
 //
 // Deleting the WHOLE `GIT_*` family, not a hand-maintained list, is the point -- a list rots;
 // the family is what git actually reads (GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE,

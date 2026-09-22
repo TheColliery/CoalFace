@@ -46,7 +46,10 @@ function readConfigFile(file) {
     text = fs.readFileSync(file, 'utf8');
   } catch (e) {
     if (e && e.code === 'EISDIR') return { cfg: {}, reason: 'a directory' };
-    if (e && e.code === 'EACCES') return { cfg: {}, reason: 'unreadable' };
+    // r5 bounce 1 / M1 -- Windows reports an ACL-denied read as EPERM, not EACCES (libuv;
+    // chmod cannot deny a read on NTFS, which is why the capability probe below falls
+    // back to an icacls-based one). Both are the same user-facing fact -- unreadable.
+    if (e && (e.code === 'EACCES' || e.code === 'EPERM')) return { cfg: {}, reason: 'unreadable' };
     return { cfg: {}, reason: null };
   }
   return parseJsonc(text);

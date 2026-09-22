@@ -1127,35 +1127,72 @@ test('case 63: UMB-174 (b) -- a DIRECTORY at the canonical project path is REPOR
   } finally { clean(home, cwd); }
 });
 
-// Capability-probed, never process.platform (node/runtime.md §4's case-folding discipline
-// applied to permission bits, same shape as CWK-122's mode:0600 test): write a throwaway
-// file, chmod it to 0, and try to read it BEFORE trusting that this volume/OS enforces
-// POSIX read permissions for the owning process. ONE skippable leg per test -- the probe
-// is the test's only conditional branch; the real assertion is unconditional once it passes.
-function canObserveEACCES(dir) {
+// r5 bounce 1 / M1 -- Windows denies a read via an ACL, not POSIX mode bits, and libuv
+// reports that denial as EPERM, not EACCES (see hooks/coalface-conductor.js's own
+// readConfigFile comment) -- chmod cannot deny a read on NTFS at all, so the chmod-only
+// probe below always read false there even though a real denial mechanism exists on the
+// same box. Capability-probed, never process.platform (node/runtime.md §4's case-folding
+// discipline applied to permission bits, same shape as CWK-122's mode:0600 test): try the
+// cheap, portable chmod-0 denial first; only when the read still succeeds does the probe
+// fall back to an icacls-based ACL denial, and only when the icacls binary exists on PATH.
+// Still ONE skippable leg per test -- canObserveUnreadable() is the test's only
+// conditional branch; the real assertion is unconditional once it passes.
+function denyViaChmod(probe) {
+  try {
+    fs.chmodSync(probe, 0);
+  } catch {
+    return false;
+  }
+  try {
+    fs.readFileSync(probe);
+    return false; // read succeeded despite chmod 0 -- this volume/OS does not enforce it (e.g. NTFS)
+  } catch (e) {
+    return !!(e && (e.code === 'EACCES' || e.code === 'EPERM'));
+  } finally {
+    try { fs.chmodSync(probe, 0o600); } catch {} // restore before trying icacls / cleanup
+  }
+}
+
+function denyViaIcacls(probe) {
+  const me = os.userInfo().username;
+  const deny = spawnSync('icacls', [probe, '/deny', `${me}:(R)`], { encoding: 'utf8' });
+  if (deny.error || deny.status !== 0) return false; // no icacls binary, or the deny itself failed
+  try {
+    fs.readFileSync(probe);
+    return false; // the deny did not actually block the owning process
+  } catch (e) {
+    return !!(e && (e.code === 'EACCES' || e.code === 'EPERM'));
+  }
+}
+
+// Returns which mechanism this volume/OS actually denies a read through -- 'chmod' |
+// 'icacls' | null (neither observed) -- so the test body denies the REAL target file the
+// SAME way the probe proved works here, rather than assuming chmod and silently reading
+// a "denied" file that was never actually denied (NTFS).
+function canObserveUnreadable(dir) {
   const probe = path.join(dir, '.cf-eacces-probe');
   try {
     fs.writeFileSync(probe, 'x', 'utf8');
-    fs.chmodSync(probe, 0);
-    try {
-      fs.readFileSync(probe);
-      return false; // read succeeded despite chmod 0 -- this volume/OS does not enforce it (e.g. NTFS)
-    } catch (e) {
-      return e && e.code === 'EACCES';
-    }
   } catch {
-    return false;
+    return null;
+  }
+  try {
+    if (denyViaChmod(probe)) return 'chmod';
+    if (denyViaIcacls(probe)) return 'icacls';
+    return null;
   } finally {
     try { fs.chmodSync(probe, 0o600); } catch {} // restore so cleanup can delete it
+    try { spawnSync('icacls', [probe, '/reset'], { encoding: 'utf8' }); } catch {} // always restore the ACL
     try { fs.rmSync(probe, { force: true }); } catch {}
   }
 }
 
-test('case 64: UMB-174 (b) -- an UNREADABLE (EACCES) config at the canonical project path is REPORTED (reason "unreadable")', (t) => {
+test('case 64: UMB-174 (b) -- an UNREADABLE config at the canonical project path is REPORTED (reason "unreadable"), EACCES or EPERM', (t) => {
   const { home, cwd } = sandbox();
   try {
-    if (!canObserveEACCES(home)) {
-      t.skip('this volume/OS does not enforce POSIX read permissions for the owning process (e.g. NTFS chmod) -- cannot exercise EACCES');
+    const mechanism = canObserveUnreadable(home);
+    if (!mechanism) {
+      t.skip('this volume/OS does not enforce a read denial for the owning process via chmod OR icacls -- cannot exercise EACCES/EPERM');
       return; // t.skip does not stop the body; return so the case is skipped, never a vacuous pass
     }
     muteUpdate(home);
@@ -1164,13 +1201,23 @@ test('case 64: UMB-174 (b) -- an UNREADABLE (EACCES) config at the canonical pro
     const target = path.join(cwd, ...rel);
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, JSON.stringify({ autoFanoutFloor: 5 }), 'utf8');
-    fs.chmodSync(target, 0);
+    if (mechanism === 'chmod') {
+      fs.chmodSync(target, 0);
+    } else {
+      const me = os.userInfo().username;
+      const deny = spawnSync('icacls', [target, '/deny', `${me}:(R)`], { encoding: 'utf8' });
+      assert.equal(deny.status, 0, `icacls deny failed: ${deny.stderr || deny.stdout}`);
+    }
     try {
       const r = run(cwd, home);
       assertGraceful(r);
       assert.deepStrictEqual(linesStarting(r.stdout, 'UNREADABLE:'), [unreadableLine(path.join(real, ...rel), 'unreadable')]);
       assert.match(r.stdout, />= 4 units/, 'unreadable contributes nothing -- default floor stands');
-    } finally { fs.chmodSync(target, 0o600); } // restore so clean() can remove it
+    } finally {
+      // restore so clean() can remove it -- always, whichever mechanism denied the read.
+      if (mechanism === 'chmod') { try { fs.chmodSync(target, 0o600); } catch {} }
+      else { try { spawnSync('icacls', [target, '/reset'], { encoding: 'utf8' }); } catch {} }
+    }
   } finally { clean(home, cwd); }
 });
 

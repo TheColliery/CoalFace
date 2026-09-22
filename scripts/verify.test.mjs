@@ -113,9 +113,10 @@ function gitInit(tmp, { spawn = spawnSync } = {}) {
     // r34b bounce1 L2 — no fixture call can walk up past `tmp`'s own parent, structurally,
     // regardless of what `.git` does or does not exist inside `tmp` itself.
     // r5 -- AND no fixture call may inherit an ambient GIT_DIR/GIT_INDEX_FILE either: those
-    // override BOTH cwd and the ceiling above, which is exactly how this repo's own `.git`
-    // got flipped to `core.bare = true` on 2026-09-10 when a linked worktree's hook ran this
-    // very function. gitTestEnv() strips the whole GIT_* family before re-adding the ceiling.
+    // override BOTH cwd and the ceiling above, which is exactly how THIS repo's own `.git`
+    // got flipped to `core.bare = true` at 2026-09-23 00:17:49 +07 when a linked worktree's
+    // hook ran this very function. gitTestEnv() strips the whole GIT_* family before
+    // re-adding the ceiling.
     env: gitTestEnv(path.dirname(tmp)),
   };
   const init = spawn('git', ['init', '-q', '.'], opts);
@@ -217,7 +218,8 @@ test('verify.mjs pointer-drift block FAILs LOUD when git check-ignore cannot run
     // otherwise let this specific write land on whatever real repository os.tmpdir() sits under.
     // r5 -- and stripped of the ambient GIT_* family too, for the same reason as gitInit()/
     // runVerify() above: this exact write (`config core.bare true`) is the literal value the
-    // 2026-09-10 incident produced on THIS repo when an inherited GIT_DIR redirected it there.
+    // 2026-09-23 00:17:49 +07 incident produced on THIS repo when an inherited GIT_DIR
+    // redirected it there.
     spawnSync('git', ['config', 'core.bare', 'true'], {
       cwd: tmp,
       encoding: 'utf8',
@@ -252,11 +254,13 @@ test('verify.mjs pointer-drift block NAMED SKIPs (never FAILs) when the tree has
   }
 });
 
-// r5 -- reproduces the REAL 2026-09-10 hazard safely, in a sandbox this test owns end to end.
-// `S` plays the role of "the real repository a linked worktree's hook exports GIT_DIR/
-// GIT_INDEX_FILE for" -- gitInit() must build fixture `F`'s own .git without ever touching S,
-// whatever an ambient GIT_DIR points at. Full incident:
-// TheColliery/scratchpad/dispatch/r5-coalface.return.md, "INCIDENT during leg (c0) set-up".
+// r5 -- reproduces the REAL 2026-09-23 00:17:49 +07 hazard safely, in a sandbox this test
+// owns end to end (this repo's own incident -- NOT the umbrella's separate 2026-09-10
+// `core.bare` incident cited above, a different mechanism entirely). `S` plays the role of
+// "the real repository a linked worktree's hook exports GIT_DIR/GIT_INDEX_FILE for" --
+// gitInit() must build fixture `F`'s own .git without ever touching S, whatever an ambient
+// GIT_DIR points at. Full incident: TheColliery/scratchpad/dispatch/r5-coalface.return.md,
+// "INCIDENT during leg (c0) set-up".
 test('gitInit(): a planted ambient GIT_DIR/GIT_INDEX_FILE (the linked-worktree shape) never reaches the fixture spawn', () => {
   const sandboxParent = fs.mkdtempSync(path.join(os.tmpdir(), 'coalface-gitenv-sandbox-'));
   const f = fs.mkdtempSync(path.join(os.tmpdir(), 'coalface-gitenv-fixture-'));
@@ -295,7 +299,7 @@ test('gitInit(): a planted ambient GIT_DIR/GIT_INDEX_FILE (the linked-worktree s
       'S — the planted GIT_DIR target — must be byte-identical after building an unrelated fixture' +
       (caught ? ` (gitInit(f) also threw: ${caught.message})` : ''));
     assert.doesNotMatch(sConfigAfter, /bare\s*=\s*true/i,
-      'S must never flip core.bare — the exact 2026-09-10 incident value, reproduced safely in a sandbox');
+      'S must never flip core.bare — the exact 2026-09-23 00:17:49 +07 incident value, reproduced safely in a sandbox');
     assert.ok(fs.existsSync(path.join(f, '.git')),
       'the fixture must get its own independent .git regardless of what an ambient GIT_DIR points at');
   } finally {
