@@ -8,13 +8,15 @@ on:
       - '**.md'
       - 'LICENSE'
       - 'NOTICE'
+  # NO paths-ignore here (CWK-120 bounce-1 F1: the ruleset `dependabot-auto-merge-gate`
+  # requires BOTH `all-green` (ci.yml) AND `analyze (javascript)` (this job) as status
+  # checks on every PR into main -- dropping this filter on ci.yml alone (finding #1)
+  # left the identical Pending-forever failure on this job's own half of the same gate.
+  # push keeps its filter: nothing is waiting on a push-triggered analyze() run, no PR
+  # merge is gated on a push event. Same option this room already took for ci.yml's
+  # pull_request trigger -- one flock, one colour, applied inside the room.
   pull_request:
     branches: [main]
-    paths-ignore:
-      # CodeQL analyzes js/ts + this room's GitHub Actions workflows (CWK-112) — NO markdown needs a security scan either way, so skip ALL docs (a doc-only commit doesn't run CodeQL). Shipped SKILL.md/commands consistency is ci.yml's job (verify dist-sync), not CodeQL's.
-      - '**.md'
-      - 'LICENSE'
-      - 'NOTICE'
   schedule:
     - cron: '0 6 * * 1'
 
