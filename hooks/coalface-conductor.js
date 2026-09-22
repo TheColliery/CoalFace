@@ -280,7 +280,7 @@ function updateDue(cfg) {
 function directiveFor(cfg) {
   const mode = modeOf(cfg);
   if (mode === 'auto') {
-    return `[CoalFace] Fan-out discipline (auto). Any fan-out of >= ${floorOf(cfg)} units rides the /coalface contract instead of ad-hoc spawning: scout the worksite -> deterministic partition -> workers return anchor-edit orders as text -> QC scope+spec at collection -> single-writer sequential apply behind a pre-swarm snapshot + domain gate -> receipt. Wallet: DOLLAR cost stays ~solo via cheap tiers (raw tokens run HIGHER — fan-out xN the per-sub baseline), not tokens. 1-2-sub ad-hoc spawns stay zero-ceremony; manual /coalface convenes it any time.`;
+    return `[CoalFace] Fan-out discipline (auto). Any fan-out of >= ${floorOf(cfg)} units rides the /coalface contract instead of ad-hoc spawning: scout the worksite -> deterministic partition -> workers return anchor-edit orders as text -> QC scope+spec at collection -> single-writer sequential apply behind a pre-swarm snapshot + domain gate -> receipt. Wallet: DOLLAR cost stays ~solo via cheap tiers (raw tokens run HIGHER — fan-out xN the per-sub baseline), not tokens. Below the floor, ad-hoc spawns stay zero-ceremony; manual /coalface convenes it any time.`;
   }
   if (mode === 'on') {
     return '[CoalFace] Fan-out discipline FORCED (on). Scout EVERY prompt for decomposable work and fan it out via the /coalface contract (scout -> partition -> anchor-edit orders -> QC -> single-writer apply behind a snapshot -> receipt); only non-decomposable work runs solo. Wallet: DOLLAR cost stays ~solo via cheap tiers (raw tokens run HIGHER — fan-out xN the per-sub baseline), not tokens.';
