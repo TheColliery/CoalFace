@@ -60,9 +60,13 @@ function readConfigFile(file) {
 // macOS's os.tmpdir() (and any symlinked HOME) is a symlink: process.cwd() returns the
 // realpath (/private/var/...) while os.homedir() returns the raw HOME env (/var/...), so
 // a lexical `dir === home` NEVER matches and the walk escapes above home (CoalHearth
-// beta.3 realpath-both-sides lesson). Resolve BOTH sides before comparing.
+// beta.3 realpath-both-sides lesson). Resolve BOTH sides before comparing, through `.native` (CWK-125):
+// plain realpathSync does NOT expand a Windows 8.3 short name, so a cwd and a USERPROFILE spelling one
+// directory two ways never compared equal and the walk escaped ABOVE home onto a foreign config
+// (node/runtime.md section 4 -- an identity compare, so both sides through one resolver; the allowlist
+// case in that section does not apply here). Exported so configure.mjs spells cwd the same way.
 function physical(p) {
-  try { return fs.realpathSync(p); } catch { return path.resolve(p); }
+  try { return fs.realpathSync.native(p); } catch { return path.resolve(p); }
 }
 
 // Namespace campaign #69+#39 (owner-designated shape 2026-08-08): per-project config now
@@ -224,7 +228,7 @@ function loadCfg(ownAgentDir, probeStrays) {
     if (fs.existsSync(f)) {
       const r = readConfigFile(f);
       globalCfg = r.cfg;
-      if (probeStrays && r.reason) notices.push(`UNREADABLE: ${f} exists but is not a readable config (${r.reason}); it was skipped — canonical = ${CANONICAL_PATH}`);
+      if (probeStrays && r.reason) notices.push(`UNREADABLE: ${f} exists but is not a readable config (${r.reason}); it was skipped — canonical = ${f}`); // CWK-135 (a): the GLOBAL tier names its OWN path (no project location to move to)
     }
   } catch {}
   const hit = walkProject(ownAgentDir, probeStrays); // never throws (its own try/catch)
@@ -391,7 +395,7 @@ function main() {
 // scripts/configure.mjs's WRITE path resolves through the SAME candidate-search-and-
 // stop-at-home walk this hook's own READ path already uses -- the identical bridge
 // pointer-check.mjs already crosses for AGENT_DIR_ORDER, not a second copy of the walk.
-module.exports = { readCfg, loadCfg, appendNotices, directiveFor, languageLock, AGENT_DIR_ORDER, findProjectCfg };
+module.exports = { readCfg, loadCfg, appendNotices, directiveFor, languageLock, AGENT_DIR_ORDER, findProjectCfg, physical };
 
 if (require.main === module) {
   try { main(); } catch { /* Phoenix #4: fail-silent, never crash the host */ }

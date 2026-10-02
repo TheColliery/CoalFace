@@ -206,3 +206,49 @@ test('a __proto__-poisoned existing config is parsed with the key dropped, never
   assert.deepEqual(written, { bandwidth: 15, autoFanoutFloor: 9 });
   assert.equal(Object.prototype.polluted, undefined, 'Object.prototype must be untouched by this process');
 });
+
+// ---- CWK-125 (R14 item b): configure.mjs's own cwd was the RAW process.cwd(), while findProjectCfg returns a
+// path built from physical(startDir) (the `.native` spelling). legacyPaths.includes(readPath) is a STRING compare,
+// so a cwd spelled as its Windows 8.3 alias (C:\Users\RUNNER~1\...) never matched, the legacy config was written
+// back IN PLACE and never migrated: a real CLI defect that needs an aliased cwd, which a dev box with a short
+// username never has (CoalBoard 5733c20 paid it as a CI red). Capability probe, never process.platform.
+function shortAlias(dir) {
+  try {
+    const r = spawnSync('cmd.exe', ['/d', '/c', 'for %I in ("' + dir + '") do @echo %~sI'], { encoding: 'utf8', windowsVerbatimArguments: true, timeout: 20000 });
+    const a = r.status === 0 ? String(r.stdout).trim() : '';
+    return a && a.toLowerCase() !== dir.toLowerCase() && fs.existsSync(a) ? a : null;
+  } catch { return null; }
+}
+test('configure CWK-125: cwd spelled as its 8.3 ALIAS -- a legacy root .coalface.json still MIGRATES (never rewritten in place)', (t) => {
+  const base = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'cf-cfg-125-')));
+  t.after(() => fs.rmSync(base, { recursive: true, force: true }));
+  const home = path.join(base, 'a-long-home-directory-name-cwk125');
+  const proj = path.join(home, 'a-long-project-directory-name');
+  fs.mkdirSync(proj, { recursive: true });
+  const legacy = path.join(proj, '.coalface.json');
+  fs.writeFileSync(legacy, JSON.stringify({ bandwidth: 10 }) + '\n');
+  const alias = shortAlias(proj);
+  if (!alias) { t.skip('this volume makes no 8.3 alias (capability probe)'); return; }
+  const r = run(['--autoFanoutFloor', '8'], { cwd: alias, home });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /Migrated the project config/, 'the legacy read must be recognised as legacy under an aliased cwd: ' + r.stdout);
+  assert.equal(fs.existsSync(legacy), false, 'the legacy file must be removed after the migration write');
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(proj, '.claude', 'coal', 'coalface.json'), 'utf8')), { bandwidth: 10, autoFanoutFloor: 8 });
+});
+test('configure CWK-125: HOME spelled as its 8.3 ALIAS -- the walk stops at home, a foreign config above it is neither read nor rewritten', (t) => {
+  const base = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'cf-cfg-125h-')));
+  t.after(() => fs.rmSync(base, { recursive: true, force: true }));
+  const home = path.join(base, 'a-long-home-directory-name-cwk125');
+  const proj = path.join(home, 'a-long-project-directory-name');
+  fs.mkdirSync(proj, { recursive: true });
+  fs.mkdirSync(path.join(base, '.claude'), { recursive: true });
+  const foreign = path.join(base, '.claude', '.coalface.json');
+  const before = JSON.stringify({ language: 'foreign' });
+  fs.writeFileSync(foreign, before);
+  const alias = shortAlias(home);
+  if (!alias) { t.skip('this volume makes no 8.3 alias (capability probe)'); return; }
+  const r = run(['--updateMode', 'remind'], { cwd: proj, home: alias });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(fs.readFileSync(foreign, 'utf8'), before, 'the foreign config above home must be left untouched');
+  assert.ok(fs.existsSync(path.join(proj, '.claude', 'coal', 'coalface.json')), 'the write must land at the project own-dir default');
+});

@@ -103,7 +103,7 @@ async function main() {
   // configure.mjs under Claude Code is the only supported entry today (same assumption
   // the hook's own `main()` makes at its one call site), so 'claude' is hardcoded here
   // exactly as it is there.
-  const { findProjectCfg, AGENT_DIR_ORDER } = await import(pathToFileURL(path.join(repo, 'hooks', 'coalface-conductor.js')).href);
+  const { findProjectCfg, AGENT_DIR_ORDER, physical } = await import(pathToFileURL(path.join(repo, 'hooks', 'coalface-conductor.js')).href);
 
   // --global targets ~/.claude/.coalface.json (readCfg's own hardcoded global home);
   // default targets the project config. The hook merges the two per key
@@ -113,7 +113,11 @@ async function main() {
   const isGlobal = globalIdx !== -1;
   if (isGlobal) args.splice(globalIdx, 1);
 
-  const cwd = process.cwd();
+  // The ONE spelling of cwd for this whole run (CWK-125): findProjectCfg returns paths built from physical(startDir)
+  // (the .native spelling) and legacyPaths.includes(readPath) below is a STRING compare, so a raw process.cwd()
+  // spelled as a Windows 8.3 alias (the runner profile path, RUNNER~1) never matched and a legacy config was written back IN
+  // PLACE, never migrated (CoalBoard 5733c20: a CI red on a runner whose username is long enough to alias).
+  const cwd = physical(process.cwd());
   const legacyPath = path.join(cwd, '.coalface.json');
   const globalPath = path.join(os.homedir(), '.claude', '.coalface.json');
   const foundProjectPath = isGlobal ? null : findProjectCfg('claude');

@@ -869,7 +869,9 @@ const ignoredLine = (p) => `IGNORED: ${p} is not a config path; canonical = ${CA
 const legacyLine = (p) => `LEGACY: ${p} is a legacy config path; canonical = ${CANON}`;
 // UMB-174 (b): the flock's ONE UNREADABLE wording, verbatim including the em dash (—,
 // U+2014) before "canonical" -- copied byte-for-byte from the order, never re-typed loose.
-const unreadableLine = (p, reason) => `UNREADABLE: ${p} exists but is not a readable config (${reason}); it was skipped — canonical = ${CANON}`;
+// CWK-135 (a): the PROJECT tier keeps the flock literal (CANON); the GLOBAL tier names the global file's OWN path as canonical
+// (a global config has no project location to move to), so the caller passes it as `canon`.
+const unreadableLine = (p, reason, canon = CANON) => `UNREADABLE: ${p} exists but is not a readable config (${reason}); it was skipped — canonical = ${canon}`;
 function putCfg(file, obj) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify(obj), 'utf8');
@@ -935,7 +937,7 @@ test('case 53: a legacy hit emits ONE migration line naming the canonical path; 
   const { home, cwd } = sandbox();
   try {
     muteUpdate(home);
-    const real = fs.realpathSync(cwd);
+    const real = fs.realpathSync.native(cwd);
     const nested = path.join(cwd, '.claude', '.coalface.json');
     putCfg(nested, { autoFanoutFloor: 6 });
     const r1 = run(cwd, home);
@@ -966,7 +968,7 @@ test('case 54: a .coalface.json at a NON-candidate path is REPORTED (exact line)
     const { home, cwd } = sandbox();
     try {
       muteUpdate(home);
-      const real = fs.realpathSync(cwd);
+      const real = fs.realpathSync.native(cwd);
       const stray = path.join(cwd, ...rel.split('/'));
       putCfg(stray, { autoFanoutFloor: 9 });
       const r = run(cwd, home);
@@ -996,7 +998,7 @@ test('case 56: a stray beside a winning canonical config is still REPORTED, and 
   const { home, cwd } = sandbox();
   try {
     muteUpdate(home);
-    const real = fs.realpathSync(cwd);
+    const real = fs.realpathSync.native(cwd);
     putCfg(path.join(cwd, '.claude', 'coal', 'coalface.json'), { autoFanoutFloor: 5 });
     putCfg(path.join(cwd, 'coalface.json'), { autoFanoutFloor: 9 });
     const r = run(cwd, home);
@@ -1011,7 +1013,7 @@ test('case 57: the probe is scoped to the levels the walk READS -- a stray above
   const { home, cwd } = sandbox();
   try {
     muteUpdate(home);
-    const real = fs.realpathSync(cwd);
+    const real = fs.realpathSync.native(cwd);
     const mid = path.join(cwd, 'mid');
     const deep = path.join(mid, 'deep');
     fs.mkdirSync(deep, { recursive: true });
@@ -1029,7 +1031,7 @@ test('case 58: a notice-only message (coalfaceMode:off + a stray) carries exactl
   const { home, cwd } = sandbox();
   try {
     writeGlobalCfg(home, { coalfaceMode: 'off', updateMode: 'off' });
-    const real = fs.realpathSync(cwd);
+    const real = fs.realpathSync.native(cwd);
     putCfg(path.join(cwd, 'coalface.json'), { autoFanoutFloor: 9 });
     const r = run(cwd, home);
     assertGraceful(r);
@@ -1052,7 +1054,7 @@ test('case 60: AG adapter reports too -- a nested-legacy hit is read + LEGACY-no
   const s = agSandbox();
   try {
     muteUpdate(s.home);
-    const real = fs.realpathSync(s.cwd);
+    const real = fs.realpathSync.native(s.cwd);
     putCfg(path.join(s.cwd, '.claude', '.coalface.json'), { autoFanoutFloor: 6 });
     putCfg(path.join(s.cwd, 'coalface.json'), { autoFanoutFloor: 9 });
     const r = agRun(s, agEvent({ session_id: 'sess-60' }));
@@ -1069,7 +1071,7 @@ test('case 61: AG notice-only message (mode off + a stray) still emits, and the 
   const s = agSandbox();
   try {
     writeGlobalCfg(s.home, { coalfaceMode: 'off', updateMode: 'off' });
-    const real = fs.realpathSync(s.cwd);
+    const real = fs.realpathSync.native(s.cwd);
     putCfg(path.join(s.cwd, 'coalface.json'), { autoFanoutFloor: 9 });
     const r1 = agRun(s, agEvent({ session_id: 'sess-61' }));
     assertGraceful(r1);
@@ -1093,7 +1095,7 @@ test('case 62: UMB-174 (b) -- a MALFORMED config at the canonical project path i
   const { home, cwd } = sandbox();
   try {
     muteUpdate(home);
-    const real = fs.realpathSync(cwd);
+    const real = fs.realpathSync.native(cwd);
     const rel = ['.claude', 'coal', 'coalface.json'];
     const target = path.join(cwd, ...rel);
     fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -1116,7 +1118,7 @@ test('case 63: UMB-174 (b) -- a DIRECTORY at the canonical project path is REPOR
   const { home, cwd } = sandbox();
   try {
     muteUpdate(home);
-    const real = fs.realpathSync(cwd);
+    const real = fs.realpathSync.native(cwd);
     const rel = ['.claude', 'coal', 'coalface.json'];
     fs.mkdirSync(path.join(cwd, ...rel), { recursive: true }); // a DIRECTORY sits where the file should be
     const r = run(cwd, home);
@@ -1196,7 +1198,7 @@ test('case 64: UMB-174 (b) -- an UNREADABLE config at the canonical project path
       return; // t.skip does not stop the body; return so the case is skipped, never a vacuous pass
     }
     muteUpdate(home);
-    const real = fs.realpathSync(cwd);
+    const real = fs.realpathSync.native(cwd);
     const rel = ['.claude', 'coal', 'coalface.json'];
     const target = path.join(cwd, ...rel);
     fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -1229,7 +1231,7 @@ test('case 65: UMB-174 (b) -- a MALFORMED GLOBAL config (~/.claude/.coalface.jso
     fs.writeFileSync(globalFile, 'not json at all', 'utf8');
     const r = run(cwd, home);
     assertGraceful(r);
-    assert.deepStrictEqual(linesStarting(r.stdout, 'UNREADABLE:'), [unreadableLine(globalFile, 'malformed JSON')]);
+    assert.deepStrictEqual(linesStarting(r.stdout, 'UNREADABLE:'), [unreadableLine(globalFile, 'malformed JSON', globalFile)]);
   } finally { clean(home, cwd); }
 });
 
@@ -1237,7 +1239,7 @@ test('case 66: UMB-174 (b) -- AG adapter reports UNREADABLE too (it shares loadC
   const s = agSandbox();
   try {
     muteUpdate(s.home);
-    const real = fs.realpathSync(s.cwd);
+    const real = fs.realpathSync.native(s.cwd);
     const rel = ['.claude', 'coal', 'coalface.json'];
     const target = path.join(s.cwd, ...rel);
     fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -1284,4 +1286,63 @@ test('write side: only configure.mjs writes a *coalface.json target (grep-proof)
       assert.ok(!writerHit.test(text), `${dir}/${f} writes a *.coalface.json -- update this test if a real writer was added (write-new-drop-old must then apply)`);
     }
   }
+});
+
+// ---------------------------------------------------------------------------
+// CWK-125 (R14 item b): physical() was PLAIN realpathSync feeding the stop-at-home compare. Plain does NOT
+// expand a Windows 8.3 short name, so a cwd and a USERPROFILE spelling ONE directory two ways never compared
+// equal and the upward walk ESCAPED above home onto a foreign config (node/runtime.md section 4: an IDENTITY
+// compare, so `.native` on BOTH sides). The alias is built through a CAPABILITY PROBE (ask the OS for it; null
+// where the volume makes none), never process.platform; one skippable leg per test. Exemplar: CoalBoard
+// e04496f + the 713b4e6 liveness anchor.
+// ---------------------------------------------------------------------------
+function shortAlias(dir) {
+  try {
+    const r = spawnSync('cmd.exe', ['/d', '/c', 'for %I in ("' + dir + '") do @echo %~sI'], { encoding: 'utf8', windowsVerbatimArguments: true, timeout: 20000 });
+    const a = r.status === 0 ? String(r.stdout).trim() : '';
+    return a && a.toLowerCase() !== dir.toLowerCase() && fs.existsSync(a) ? a : null;
+  } catch { return null; }
+}
+// base/.claude/.coalface.json = the FOREIGN config (nested legacy shape, floor 7, so a read changes the
+// directive AND names it); base/<long home>/<proj> = the project; the walk must stop at the long-named home.
+// LIVENESS ANCHOR (CoalBoard 713b4e6): NOTHING is written at or below home, so a candidate there cannot end the
+// walk BEFORE the stop-at-home compare. A contained walk prints the default floor (>= 4 units); an escaped one
+// reads the foreign floor 7 and prints a LEGACY: line naming the foreign file.
+function cwk125Layout() {
+  const base = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'cf-125-')));
+  const home = path.join(base, 'a-long-home-directory-name-cwk125');
+  const proj = path.join(home, 'a-long-project-directory-name');
+  fs.mkdirSync(proj, { recursive: true });
+  fs.mkdirSync(path.join(base, '.claude'), { recursive: true });
+  const foreign = path.join(base, '.claude', '.coalface.json');
+  fs.writeFileSync(foreign, JSON.stringify({ autoFanoutFloor: 7 }));
+  return { base, home, proj, foreign };
+}
+test('CWK-125 control: cwd and HOME spelled the SAME way -- the walk stops at home, the foreign config above it is not read', (t) => {
+  const { base, home, proj, foreign } = cwk125Layout();
+  t.after(() => clean(base));
+  const r = run(proj, home);
+  assertGraceful(r);
+  assert.match(r.stdout, />= 4 units/, 'liveness: the hook ran and the default floor stands');
+  assert.ok(!r.stdout.includes(foreign), 'a config above home is never read');
+});
+test('CWK-125: HOME spelled as its 8.3 ALIAS, cwd long -- the walk must STILL stop at home (no escape above it)', (t) => {
+  const { base, home, proj, foreign } = cwk125Layout();
+  t.after(() => clean(base));
+  const alias = shortAlias(home);
+  if (!alias) { t.skip('this volume makes no 8.3 alias (capability probe)'); return; }
+  const r = run(proj, alias);
+  assertGraceful(r);
+  assert.match(r.stdout, />= 4 units/, 'liveness: a contained walk keeps the default floor; an escaped one reads the foreign 7: ' + r.stdout);
+  assert.ok(!r.stdout.includes(foreign), 'the escaped file must not be read or named: ' + r.stdout);
+});
+test('CWK-125: cwd spelled as its 8.3 ALIAS, HOME long -- the walk must STILL stop at home (the mirror mismatch)', (t) => {
+  const { base, home, proj, foreign } = cwk125Layout();
+  t.after(() => clean(base));
+  const alias = shortAlias(proj);
+  if (!alias) { t.skip('this volume makes no 8.3 alias (capability probe)'); return; }
+  const r = run(alias, home);
+  assertGraceful(r);
+  assert.match(r.stdout, />= 4 units/, 'liveness: a contained walk keeps the default floor; an escaped one reads the foreign 7: ' + r.stdout);
+  assert.ok(!r.stdout.includes(foreign), 'the escaped file must not be read or named: ' + r.stdout);
 });
