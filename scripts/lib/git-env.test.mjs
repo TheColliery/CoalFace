@@ -39,20 +39,24 @@ test('L1: inside a partial commit a gitEnv() read sees only the commit (doc.md),
   g(['add', 'new.md']);
   fs.writeFileSync(path.join(repo, 'doc.md'), 'v2 cites new.md\n');
 
+  // STATIC probe source: nothing is spliced into it. Its inputs (lib URLs, repo, out file, root) are DATA in args.json
+  // beside it, read at run time. Both files live inside the sandbox .git, which no commit tracks.
   const out = path.join(root, 'seen.json');
-  const probe = path.join(root, 'probe.mjs');
+  const gitDir = path.join(repo, '.git');
   const libUrl = (f) => pathToFileURL(path.join(here, f)).href;
-  fs.writeFileSync(probe, [
+  fs.writeFileSync(path.join(gitDir, 'args.json'), JSON.stringify({ envLib: libUrl('git-env.mjs'), testEnvLib: libUrl('git-test-env.mjs'), repo, out, root }));
+  fs.writeFileSync(path.join(gitDir, 'probe.mjs'), [
     "import fs from 'node:fs';",
     "import { execFileSync } from 'node:child_process';",
-    `const { gitEnv } = await import(${JSON.stringify(libUrl('git-env.mjs'))});`,
-    `const { gitTestEnv } = await import(${JSON.stringify(libUrl('git-test-env.mjs'))});`,
-    `const ls = (env) => execFileSync(${GIT}, ['ls-files'], { cwd: ${JSON.stringify(repo)}, encoding: 'utf8', env }).trim().split('\\n').sort();`,
-    `fs.writeFileSync(${JSON.stringify(out)}, JSON.stringify({ idx: process.env.GIT_INDEX_FILE || null, kept: ls(gitEnv()), stripped: ls(gitTestEnv(${JSON.stringify(root)})) }));`,
+    "const a = JSON.parse(fs.readFileSync(new URL('./args.json', import.meta.url), 'utf8'));",
+    "const { gitEnv } = await import(a.envLib);",
+    "const { gitTestEnv } = await import(a.testEnvLib);",
+    "const ls = (env) => execFileSync(" + GIT + ", ['ls-files'], { cwd: a.repo, encoding: 'utf8', env }).trim().split('\\n').sort();",
+    "fs.writeFileSync(a.out, JSON.stringify({ idx: process.env.GIT_INDEX_FILE || null, kept: ls(gitEnv()), stripped: ls(gitTestEnv(a.root)) }));",
     '',
   ].join('\n'));
-  const hook = path.join(repo, '.git', 'hooks', 'pre-commit');
-  fs.writeFileSync(hook, `#!/bin/sh\nnode ${JSON.stringify(probe.replace(/\\/g, '/'))} || exit 1\n`);
+  const hook = path.join(gitDir, 'hooks', 'pre-commit');
+  fs.writeFileSync(hook, '#!/bin/sh\nnode "$(dirname "$0")/../probe.mjs" || exit 1\n');
   fs.chmodSync(hook, 0o755);
 
   g(['commit', '-q', '-m', 'partial', '--', 'doc.md']);

@@ -33,6 +33,8 @@ function rig(t) {
   const { NODE_TEST_CONTEXT, ...ambient } = process.env;
   const planted = {
     ...ambient,
+    CF_OUT: path.join(root, 'keys.json'),
+    CF_ELSEWHERE: elsewhere,
     NODE_OPTIONS: '--max-old-space-size=2048',
     GIT_DIR: path.join(sandbox, '.git'),
     GIT_INDEX_FILE: path.join(sandbox, '.git', 'index'),
@@ -50,7 +52,7 @@ test('H1: a planted GIT_DIR / GIT_INDEX_FILE is not visible inside the suite chi
   fs.writeFileSync(fx, [
     "import test from 'node:test';",
     "import fs from 'node:fs';",
-    `test('record GIT_* keys', () => { fs.writeFileSync(${JSON.stringify(out)}, JSON.stringify(Object.keys(process.env).filter((k) => /^GIT_/i.test(k)).sort())); });`,
+    "test('record GIT_* keys', () => { fs.writeFileSync(process.env.CF_OUT, JSON.stringify(Object.keys(process.env).filter((k) => /^GIT_/i.test(k)).sort())); });",
     '',
   ].join('\n'));
   const keys = (env) => {
@@ -75,7 +77,7 @@ test('H1: where a planted GIT_DIR flips a sandbox repo bare, the stripped suite 
   fs.writeFileSync(fx, [
     "import test from 'node:test';",
     "import { execFileSync } from 'node:child_process';",
-    `test('env-less git init', () => { execFileSync(${GIT}, ['init', '-q'], { cwd: ${JSON.stringify(elsewhere)}, stdio: 'ignore' }); });`,
+    "test('env-less git init', () => { execFileSync(" + GIT + ", ['init', '-q'], { cwd: process.env.CF_ELSEWHERE, stdio: 'ignore' }); });",
     '',
   ].join('\n'));
 
