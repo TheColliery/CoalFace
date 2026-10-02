@@ -107,29 +107,27 @@ test('verify.mjs negative path: an over-cap .claude-plugin/plugin.json descripti
 // that a failed init is never followed by a single `config`/`add`/`commit` spawn — without
 // needing a genuinely broken git binary.
 function gitInit(tmp, { spawn = spawnSync } = {}) {
-  const opts = {
-    cwd: tmp,
-    encoding: 'utf8',
-    // r34b bounce1 L2 — no fixture call can walk up past `tmp`'s own parent, structurally,
-    // regardless of what `.git` does or does not exist inside `tmp` itself.
-    // r5 -- AND no fixture call may inherit an ambient GIT_DIR/GIT_INDEX_FILE either: those
-    // override BOTH cwd and the ceiling above, which is exactly how THIS repo's own `.git`
-    // got flipped to `core.bare = true` at 2026-09-23 00:17:49 +07 when a linked worktree's
-    // hook ran this very function. gitTestEnv() strips the whole GIT_* family before
-    // re-adding the ceiling.
-    env: gitTestEnv(path.dirname(tmp)),
-  };
-  const init = spawn('git', ['init', '-q', '.'], opts);
+  // R14 / CWK-136: ONE spawn call, with its env: inline, so the git-spawn census (scripts/lib/git-env-census.mjs) can
+  // read the property it enforces (env from gitTestEnv() alone) at the call, rather than through a shared opts object.
+  // r34b bounce1 L2 — no fixture call can walk up past `tmp`'s own parent, structurally,
+  // regardless of what `.git` does or does not exist inside `tmp` itself.
+  // r5 -- AND no fixture call may inherit an ambient GIT_DIR/GIT_INDEX_FILE either: those
+  // override BOTH cwd and the ceiling above, which is exactly how THIS repo's own `.git`
+  // got flipped to `core.bare = true` at 2026-09-23 00:17:49 +07 when a linked worktree's
+  // hook ran this very function. gitTestEnv() strips the whole GIT_* family before
+  // re-adding the ceiling.
+  const run = (args) => spawn('git', args, { cwd: tmp, encoding: 'utf8', env: gitTestEnv(path.dirname(tmp)) });
+  const init = run(['init', '-q', '.']);
   assert.equal(init.status, 0, `fixture git init failed (exit ${init.status}): ${init.stderr || ''}`);
   assert.ok(fs.existsSync(path.join(tmp, '.git')),
     'fixture .git must exist before any git config runs against it -- a fixture whose init only ' +
     'LOOKS to have succeeded is one config write away from landing on the nearest real repository ' +
     'a directory walk-up finds (r34 ITEM A)');
   // Throwaway LOCAL identity — never touches the operator's own global git config.
-  spawn('git', ['-C', tmp, 'config', 'user.email', 'ci@coalface.invalid'], opts);
-  spawn('git', ['-C', tmp, 'config', 'user.name', 'coalface-verify-test'], opts);
-  spawn('git', ['-C', tmp, 'add', '-A'], opts);
-  spawn('git', ['-C', tmp, 'commit', '-q', '-m', 'fixture'], opts);
+  run(['-C', tmp, 'config', 'user.email', 'ci@coalface.invalid']);
+  run(['-C', tmp, 'config', 'user.name', 'coalface-verify-test']);
+  run(['-C', tmp, 'add', '-A']);
+  run(['-C', tmp, 'commit', '-q', '-m', 'fixture']);
 }
 
 test('gitInit(): a failed init FAILs LOUD before any git config/add/commit spawn -- the ordering, not just the failure', () => {
@@ -305,5 +303,28 @@ test('gitInit(): a planted ambient GIT_DIR/GIT_INDEX_FILE (the linked-worktree s
   } finally {
     fs.rmSync(sandboxParent, { recursive: true, force: true });
     fs.rmSync(f, { recursive: true, force: true });
+  }
+});
+
+// R14 CWK-136 -- the git-spawn census is WIRED into the gate, not only unit-tested. Red-first: plant a fixture source
+// file holding a git spawn whose env: spreads process.env (the pre-R5 shape that reopens the linked-worktree
+// GIT_DIR hazard) and verify.mjs must FAIL, naming the census and the planted file:line; the pristine copy PASSes.
+// The planted text is BUILT, never written as a literal call: this file is itself scanned by the census.
+test('verify.mjs git-spawn census: a planted git spawn with env: process.env FAILs the gate, naming file:line', () => {
+  const tmp = mkTmpRepoCopy();
+  try {
+    const clean = runVerify(tmp);
+    assert.equal(clean.status, 0, `pristine copy must PASS, got:\n${clean.stdout}${clean.stderr}`);
+    assert.match(clean.stdout, /ok {3}git spawn census: every one of \d+ git spawn\(s\)/);
+
+    const GIT = "'git'";
+    const planted = 'import { spawnSync } from ' + "'node:child_process'" + ';\nspawnSync(' + GIT + ", ['status'], { env: process.env });\n";
+    fs.writeFileSync(path.join(tmp, 'scripts', 'planted-spawn.mjs'), planted, 'utf8');
+    const red = runVerify(tmp);
+    assert.equal(red.status, 1, 'a git spawn taking env from process.env must FAIL the gate');
+    assert.match(red.stdout, /FAIL .*git spawn census: finding 1\/1: scripts\/planted-spawn\.mjs:2 spawnSync\('git', \.\.\.\) takes env from process\.env/);
+    assert.match(red.stdout, /VERIFY: FAIL/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
   }
 });

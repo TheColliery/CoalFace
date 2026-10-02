@@ -214,6 +214,9 @@ try {
   const { checkPointers, deriveIgnoredRoots, DEFAULT_SURFACE_PLAN, collectSurfaces, applyCheckIgnoreProbe, PROBE_SUFFIX } = await import(pathToFileURL(path.join(repo, 'scripts', 'lib', 'pointer-check.mjs')).href);
   const { AGENT_DIR_ORDER } = await import(pathToFileURL(path.join(repo, 'hooks', 'coalface-conductor.js')).href);
   const { execFileSync, spawnSync } = await import('node:child_process');
+  // CWK-133 / CWK-136: every git child here takes its env from gitTestEnv() alone (the census below enforces it).
+  // Dynamic, inside this block (node/runtime.md section 1): an absent lib is a named crash line, never a link-time crash.
+  const { gitTestEnv } = await import(pathToFileURL(path.join(repo, 'scripts', 'lib', 'git-test-env.mjs')).href);
 
   // GIT IS AN OPTIONAL ENHANCEMENT, NEVER A RUNTIME REQUIREMENT (no-external-assumption).
   // This gate's whole question is "reachable from a CLONE", which only git can answer, so
@@ -226,7 +229,7 @@ try {
   try {
     // stderr SWALLOWED, not inherited: without this, `fatal: not a git repository` prints
     // above the gate's own line and reads as a crash rather than a degrade.
-    trackedList = execFileSync('git', ['ls-files'], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim().split('\n').filter(Boolean);
+    trackedList = execFileSync('git', ['ls-files'], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], env: gitTestEnv(path.dirname(repo)) }).trim().split('\n').filter(Boolean);
   } catch (e) {
     // Keyed on e.code per node/runtime.md §7 (error.code is stable, error.message is not).
     gitWhy = e && e.code === 'ENOENT' ? 'git is not installed here' : 'this directory is not a git repository';
@@ -314,7 +317,7 @@ try {
         toProbe: roots,
         probeSuffix: PROBE_SUFFIX,
         fail: (msg) => { checkIgnoreFailed = true; fail(msg); },
-        runCheckIgnore: (input) => spawnSync('git', ['check-ignore', '--stdin'], { cwd: repo, encoding: 'utf8', input }),
+        runCheckIgnore: (input) => spawnSync('git', ['check-ignore', '--stdin'], { cwd: repo, encoding: 'utf8', input, env: gitTestEnv(path.dirname(repo)) }),
       })],
     });
 
@@ -354,6 +357,16 @@ try {
     if (!hardP.length) ok('every path this room points at resolves to a TRACKED file — sections and symbols are NOT checked, see scripts/lib/pointer-check.mjs');
   }
 } catch (e) { fail(`pointer drift check crashed: ${e.message}`); }
+
+// CWK-133 / CWK-136: the git-spawn census proves SAFETY, not presence. Every git child under scripts/ and hooks/ takes
+// its env from gitTestEnv() or gitEnv() ALONE (scripts/lib/git-env-census.mjs states the three refusals and what it
+// cannot see). Imported dynamically, inside this block (node/runtime.md section 1), so an absent lib is a named FAIL here.
+try {
+  const census = await import(pathToFileURL(path.join(repo, 'scripts', 'lib', 'git-env-census.mjs')).href);
+  const report = census.censusGitSpawns(census.collectSources(repo));
+  if (report.findings.length === 0) ok(`git spawn census: every one of ${report.spawns} git spawn(s) in ${report.files} source file(s) takes env from gitTestEnv()/gitEnv() alone`);
+  else report.findings.forEach((m, i) => fail(`git spawn census: finding ${i + 1}/${report.findings.length}: ${m}`));
+} catch (e) { fail(`git spawn census crashed or its module failed to load: ${e.message}`); }
 
 console.log(fails ? `\nVERIFY: FAIL (${fails})` : '\nVERIFY: PASS');
 // CWK-071: process.exit() forces the process to exit before pending stdout writes flush
