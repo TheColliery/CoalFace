@@ -6,7 +6,7 @@ All notable changes to CoalFace are documented here. Format follows
 
 ## [Unreleased]
 
-The claude.ai ZIP now holds the skill folder the way claude.ai documents it, so a ZIP downloaded from an earlier Release does not load as a skill and should be downloaded again, and the config walk now stops at home on Windows even when a folder is spelled in its short 8.3 form.
+The claude.ai ZIP now holds the skill folder the way claude.ai documents it (a ZIP from an earlier Release does not load as a skill: download it again), and the config walk now stops at home on Windows even when a folder is spelled in its short 8.3 form.
 
 ### Added
 - **A house secret scan runs before every commit and push** (CWK-174). `scripts/secret-gate.mjs` (scanner `scripts/lib/secret-scan.mjs`) is called first by `.githooks/pre-commit` and `.githooks/pre-push`: the commit scan covers the staged tree, and the push scan also covers the added lines of every pushed commit plus every pushed commit and annotated-tag message. It covers the generic kinds GitHub's free scan does not (a private key, a connection string, an HTTP authentication header), fails the hook when a scan cannot run, and never prints a hit's value. Both files and their two test files are byte-identical to the org canon. Maintainer machines only: CI does not run it.
@@ -20,7 +20,7 @@ The claude.ai ZIP now holds the skill folder the way claude.ai documents it, so 
 - **Every workflow job has a time limit, and checkouts that push nothing no longer persist a token** (CWK-154): `timeout-minutes` on every job (ci 15 and 5, codeql 20, coverage 15, link-check 10, markdownlint 10, scorecard 15, dependabot-auto-merge 10), `persist-credentials: false` on the checkouts of `ci`, `codeql`, `coverage`, `link-check` and `markdownlint`, `dependabot-auto-merge.yml` passes the pull-request URL through an environment variable, and the CoalBoard working folder joins `.gitignore`.
 - **The README's claude.ai sentences now state the install path as claude.ai documents it and no longer claim it works** (the badge reads "upload not yet confirmed"), and `skills/coalface/SKILL.md`'s title is now the bare product name `CoalFace` for the docs site.
 
-*Internal, not shipped: `scripts/lib/git-env-census.mjs` (+ its test) makes `verify.mjs` refuse a git spawn in this room whose environment is not built by the `GIT_*`-stripping helpers (CWK-136); `verify.mjs`'s own two reads now use that helper, so an inherited `GIT_INDEX_FILE` no longer reaches them. The two new secret-scan test files and the census join `scripts/test.mjs`.*
+*Internal, not shipped: `scripts/lib/git-env-census.mjs` (+ its test) makes `verify.mjs` refuse a git spawn in this room whose environment is not built by the `GIT_*`-stripping helpers (CWK-136); `verify.mjs`'s own two reads of the real repository use a sibling helper that drops every `GIT_*` key except `GIT_INDEX_FILE`, so inside a partial commit they read the index of the commit being made; `scripts/test.mjs` hands its test children no `GIT_*` keys, so a git hook running in a linked worktree cannot aim a test's `git init` at the real repository. The two new secret-scan test files and the census join `scripts/test.mjs`.*
 
 ## [0.12.0] - 2026-09-23
 
