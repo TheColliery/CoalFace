@@ -7,7 +7,7 @@
 // enclosing repository. A git spawn is refused when
 //   (a) it carries no `env:` key at all, or
 //   (b) its `env:` text mentions process.env AT ALL (a spread, a bare pass-through, a helper beside it), or
-//   (c) its `env:` is anything but gitEnv(...) ALONE: the whole expression is one call to it, or a bare
+//   (c) its `env:` is anything but gitTestEnv(...) or gitEnv(...) ALONE: the whole expression is one call to it, or a bare
 //       identifier declared `const NAME = gitEnv(...)` in the same file and not mutated afterwards. An
 //       expression that merely CONTAINS gitEnv( -- `base || gitEnv()`, Object.assign(gitEnv(), ...) -- is
 //       refused: the helper's presence is not the property, the absence of everything else is.
@@ -92,7 +92,7 @@ function safeIdentifier(name, text) {
   if (!decl || !isGitEnvCall(decl[1])) return false;
   const rest = text.replace(decl[0], '');
   const n = esc(name);
-  return !new RegExp(String.raw`delete\s+${n}\b|\b${n}\s*(?:\.|\[)[^=;\n]*=(?!=)|\b${n}\s*=(?!=)`).test(rest);
+  return !new RegExp(String.raw`delete\s+${n}\b|Object\s*\.\s*(?:assign|defineProperty|defineProperties)\(\s*${n}\b|\b${n}\s*(?:\.|\[)[^=;\n]*=(?!=)|\b${n}\s*=(?!=)`).test(rest);
 }
 
 // R14 / CWK-174 -- the house secret scan arrives as byte-equal copies of the published-code template (SERIES-CANON

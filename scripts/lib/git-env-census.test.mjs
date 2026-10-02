@@ -109,3 +109,12 @@ test('R14 CWK-136: gitTestEnv(...) alone passes exactly like gitEnv(...), and th
   assert.equal(refused(call('{ env: base || gitTestEnv(path.dirname(d)) }')).length, 1, 'an expression that merely contains it is refused');
   assert.equal(refused(call('{ env: { ...process.env, GIT_CEILING_DIRECTORIES: c } }')).length, 1, 'the pre-R5 shape (process.env spread plus a ceiling) is refused');
 });
+
+// R14 bounce 1 / L4: a call that MUTATES the declared env object is as bad as an assignment to it.
+test('R14 L4: Object.assign(env, ...) and Object.defineProperty(env, ...) on a declared helper env are refused', () => {
+  const use = call('{ env: E }');
+  assert.deepEqual(refused('const E = gitEnv();\n' + use), [], 'control: untouched passes');
+  assert.equal(refused('const E = gitEnv();\nObject.assign(E, process.env);\n' + use).length, 1, 'Object.assign');
+  assert.equal(refused('const E = gitTestEnv(d);\nObject.assign( E, extra);\n' + use).length, 1, 'Object.assign, spaced');
+  assert.equal(refused("const E = gitEnv();\nObject.defineProperty(E, 'GIT_DIR', { value: x });\n" + use).length, 1, 'Object.defineProperty');
+});
