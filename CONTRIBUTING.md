@@ -33,6 +33,7 @@ CI runs the same two gates (`verify` → `test`) on Linux/Windows/macOS — deli
 * **`scripts/lib/config-schema.mjs` is the single source of truth** for every `.coalface.json` key — `verify.mjs` validates the factory config against it, and the README key table mirrors it (update both together).
 * **Keep the conductor Phoenix-pure:** zero dependencies, fail-silent (wrap in try/catch, never a non-zero exit, no `process.exit()`), no network, no child processes, silent except the sanctioned SessionStart channel.
 * **Add tests:** every lib change gets a unit test; every conductor-behavior change gets a **hermetic spawn test** (spawn the real hook, sandbox TEMP + HOME). Register new test files in `scripts/test.mjs` — the runner fails loud on a listed-but-missing file AND on an on-disk orphan it doesn't list.
+* **The house secret scan runs first on every commit and push** (`scripts/secret-gate.mjs`, called by `.githooks/pre-commit` and `pre-push` before the `verify` → `test` pair). `pre-commit` scans the staged tree; `pre-push` also scans the added lines of every pushed commit plus every pushed commit and annotated-tag message. It fails the hook when a scan cannot run, and a hit never prints its value. A known public value is acknowledged by its fingerprint in `secret-scan.acks`, which must travel in the same push. The scanner (`scripts/lib/secret-scan.mjs`) and both test files (`scripts/secret-scan.test.mjs`, `scripts/secret-gate.test.mjs`) are byte-identical copies of the org canon: change them in `TheColliery/.github`, never here. CI does not run the gate itself, only the hooks do.
 * **Language & tone:** shipped source and docs stay in English.
 
 ---
@@ -59,7 +60,7 @@ CoalFace is **cross-agent** — the contract runs on any platform with concurren
 
 ## 🚀 Releasing (Maintainers)
 
-Bump version in `.claude-plugin/plugin.json` ➡️ add a `CHANGELOG.md` entry ➡️ ensure `verify.mjs` and `test.mjs` pass ➡️ commit ➡️ create a signed git tag (`vX.Y.Z`) ➡️ push ➡️ create a GitHub Release (stable tags only; a beta tag ships as a prerelease or stays history-only).
+Bump version in `.claude-plugin/plugin.json` ➡️ finalize the `CHANGELOG.md` entry (a one-line summary before its first `### ` section, then Keep-a-Changelog sections) ➡️ ensure `verify.mjs` and `test.mjs` pass ➡️ commit ➡️ create a signed git tag (`vX.Y.Z`) ➡️ push `--follow-tags`. The tag-push workflow is the sole GitHub Release creator from here — it derives the title and body from that CHANGELOG entry (stable tags only; a beta tag stays history-only, the one launch-form pre-release Release is hand-cut per the org's [RELEASE-PATTERN](https://github.com/TheColliery/.github/blob/main/RELEASE-PATTERN.md)). A maintainer's own job ends at the push: read the workflow run, then GET the Release it made and re-read the title/body against the entry.
 
 ---
 

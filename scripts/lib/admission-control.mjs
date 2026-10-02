@@ -65,15 +65,28 @@ export function createAdmissionGate(capacity) {
     get current() { return current; },
     get peak() { return peak; },
     get queued() { return queue.length; },
+    // The slot HANDOFF must keep `current` counted across the release()->waiter gap.
+    // resolve() only schedules the waiter's continuation as a microtask -- it does not
+    // run it synchronously -- so a naive decrement-then-resolve leaves a window, in the
+    // SAME tick, where a fresh acquire() sees room that is not really free: it increments
+    // on top of a slot that is still (about to be) occupied by the woken waiter. Fix:
+    // release() with a waiter present TRANSFERS the slot (does not decrement, does not
+    // let a same-tick acquire() increment either); release() with NO waiter is the only
+    // path that frees the slot. CodeRabbit finding #2 (CWK-120), reproduced red-first at
+    // scratchpad/cwk120/repro-race.mjs against the pre-fix code (peak 2 on capacity 1,
+    // gate.current stuck at 2 -- a permanent accounting leak, not just a transient spike).
     async acquire() {
-      if (current >= capacity) await new Promise((resolve) => queue.push(resolve));
-      current += 1;
+      if (current >= capacity) {
+        await new Promise((resolve) => queue.push(resolve)); // slot arrives already counted -- do not increment
+      } else {
+        current += 1;
+      }
       if (current > peak) peak = current;
     },
     release() {
-      current -= 1;
       const next = queue.shift();
-      if (next) next();
+      if (next) next(); // hand the still-counted slot straight to the waiter
+      else current -= 1; // no waiter -- the slot is genuinely free
     },
   };
 }

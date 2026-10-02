@@ -64,6 +64,22 @@ function assertGraceful(r) {
   assert.strictEqual(r.signal, null, 'hook must not be killed by a signal');
 }
 
+// UMB-133: a hit on a LEGACY project config (root `.coalface.json` or the nested
+// `.<agent>/.coalface.json`) now emits one `LEGACY:` migration line by design. The
+// clamp cases below deliberately keep their legacy-root fixtures (that is the shape a
+// cloned repo most plausibly carries), so their "the directive stayed silent" assertion
+// filters EXACTLY that one line and nothing else: any other byte -- a directive, a
+// nudge, an IGNORED line -- still fails them. The LEGACY line itself is pinned by
+// case 53, not re-proven here.
+function assertSilentBesidesLegacyNote(stdout, msg) {
+  const rest = stdout.split('\n').filter((l) => !/^(\[CoalFace\] )?LEGACY: /.test(l)).join('\n');
+  assert.strictEqual(rest, '', msg);
+}
+// The AG adapter wraps its message in one injectSteps/ephemeralMessage JSON line.
+function agMessage(r) {
+  return r.stdout.trim() ? JSON.parse(r.stdout.trim()).injectSteps[0].ephemeralMessage : '';
+}
+
 // ---------------------------------------------------------------------------
 // Directive per mode
 // ---------------------------------------------------------------------------
@@ -408,6 +424,43 @@ test('case 21: AG a pre-planted SYMLINK at the marker subdir -> fail-closed sile
   }
 });
 
+// CWK-122: the marker is created with { flag: 'wx', mode: 0o600 } (adopted from
+// CoalMine's coalmine-conductor.js, same shape). Mode bits are a VOLUME property, never
+// a platform one (node/runtime.md §4 -- "never key case-folding on process.platform",
+// the identical discipline applied here to POSIX permission bits: NTFS reports a fixed
+// mode regardless of what is requested, an exFAT/FAT32-formatted POSIX mount behaves the
+// same way, so `process.platform !== 'win32'` is wrong in both directions). Probe the
+// CAPABILITY directly -- write a throwaway file with mode 0o600 in the sandbox tmp and
+// read the mode back -- and skip VISIBLY (never a bare return) where the volume does not
+// honor it. ONE skippable leg per test: the capability probe is this test's only
+// skippable branch: the real assertion (the actual marker's mode) is unconditional once
+// the probe has passed.
+test('case 22a: AG marker file is created with mode 0600 on a volume that honors POSIX mode bits', (t) => {
+  const probeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-mode-probe-'));
+  const probeFile = path.join(probeDir, 'probe');
+  let modeSupported;
+  try {
+    fs.writeFileSync(probeFile, '', { mode: 0o600 });
+    modeSupported = (fs.statSync(probeFile).mode & 0o777) === 0o600;
+  } finally {
+    fs.rmSync(probeDir, { recursive: true, force: true });
+  }
+  if (!modeSupported) {
+    t.skip('this volume does not honor POSIX mode bits at write time (NTFS or similar) -- cannot exercise the 0600 marker');
+    return; // t.skip does not stop the body; return so the case is skipped, never a vacuous pass
+  }
+  const s = agSandbox();
+  try {
+    const r = agRun(s, agEvent({ session_id: 'sess-22a' }));
+    assertGraceful(r);
+    const markerDir = path.join(s.tmp, 'coalface');
+    const markerFile = fs.readdirSync(markerDir).find((f) => f.startsWith('ag-conductor-') && f.endsWith('.marker'));
+    assert.ok(markerFile, 'marker was written');
+    const mode = fs.statSync(path.join(markerDir, markerFile)).mode & 0o777;
+    assert.strictEqual(mode, 0o600, `marker mode must be 0600, got ${mode.toString(8)}`);
+  } finally { clean(s.home); }
+});
+
 // The CURRENT documented AG payload shape (re-derived 2026-07-23): common fields are
 // camelCase protojson — conversationId + workspacePaths[] + transcriptPath. No `cwd`,
 // no `session_id` (those stay covered above as defensive legacy fallbacks).
@@ -444,7 +497,7 @@ test('case 23: an untrusted project config cannot ESCALATE coalfaceMode past an 
     fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"coalfaceMode":"on"}', 'utf8'); // a cloned repo trying to force it back on
     const r = run(cwd, home);
     assertGraceful(r);
-    assert.strictEqual(r.stdout, '', 'global off must hold -> project cannot escalate to on');
+    assertSilentBesidesLegacyNote(r.stdout, 'global off must hold -> project cannot escalate to on');
   } finally { clean(home, cwd); }
 });
 
@@ -455,7 +508,7 @@ test('case 24: a project config MAY quieten coalfaceMode below an explicit globa
     fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"coalfaceMode":"off"}', 'utf8'); // legit per-project off-switch
     const r = run(cwd, home);
     assertGraceful(r);
-    assert.strictEqual(r.stdout, '', 'project may quieten global on -> off, silent');
+    assertSilentBesidesLegacyNote(r.stdout, 'project may quieten global on -> off, silent');
   } finally { clean(home, cwd); }
 });
 
@@ -478,7 +531,7 @@ test('case 26: an untrusted project config cannot ESCALATE updateMode past an ex
     fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"updateMode":"auto"}', 'utf8');
     const r = run(cwd, home);
     assertGraceful(r);
-    assert.strictEqual(r.stdout, '', 'global updateMode:off must hold -> project cannot escalate to auto (no self-update nudge)');
+    assertSilentBesidesLegacyNote(r.stdout, 'global updateMode:off must hold -> project cannot escalate to auto (no self-update nudge)');
   } finally { clean(home, cwd); }
 });
 
@@ -489,7 +542,7 @@ test('case 27: a project-only coalfaceMode QUIETER than the default (no global s
     fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"coalfaceMode":"off"}', 'utf8'); // quieter than the default -> not an escalation
     const r = run(cwd, home);
     assertGraceful(r);
-    assert.strictEqual(r.stdout, '', 'off is quieter than the implicit auto default -> project stays free to disable');
+    assertSilentBesidesLegacyNote(r.stdout, 'off is quieter than the implicit auto default -> project stays free to disable');
   } finally { clean(home, cwd); }
 });
 
@@ -500,7 +553,7 @@ test('case 28: an UPPERCASE project value cannot escalate coalfaceMode past a lo
     fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"coalfaceMode":"ON"}', 'utf8'); // mixed-case escalation attempt
     const r = run(cwd, home);
     assertGraceful(r);
-    assert.strictEqual(r.stdout, '', 'case-folded compare -> ON is still clamped to off, same as case 23');
+    assertSilentBesidesLegacyNote(r.stdout, 'case-folded compare -> ON is still clamped to off, same as case 23');
   } finally { clean(home, cwd); }
 });
 
@@ -533,7 +586,7 @@ test('case 30: a MALFORMED project value cannot escalate past an explicit global
     fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"coalfaceMode":"on "}', 'utf8'); // trailing space: fails the exact SAFER_ENUM lookup
     const r = run(cwd, home);
     assertGraceful(r);
-    assert.strictEqual(r.stdout, '', 'malformed project value rejected -> global off holds, silent (not passed through as a live coalfaceMode)');
+    assertSilentBesidesLegacyNote(r.stdout, 'malformed project value rejected -> global off holds, silent (not passed through as a live coalfaceMode)');
   } finally { clean(home, cwd); }
 });
 
@@ -554,7 +607,7 @@ test('case 31: a MALFORMED project updateMode cannot escalate past an explicit g
     fs.writeFileSync(path.join(cwd, '.coalface.json'), '{"updateMode":"auto "}', 'utf8'); // trailing space: fails the exact SAFER_ENUM lookup
     const r = run(cwd, home);
     assertGraceful(r);
-    assert.strictEqual(r.stdout, '', 'malformed project updateMode rejected -> global off floor holds -> no self-update nudge');
+    assertSilentBesidesLegacyNote(r.stdout, 'malformed project updateMode rejected -> global off floor holds -> no self-update nudge');
   } finally { clean(home, cwd); }
 });
 
@@ -570,7 +623,7 @@ test('case 32: AG inherits the fail-open close via the shared readCfg -> a malfo
     fs.writeFileSync(path.join(proj, '.coalface.json'), '{"coalfaceMode":"on "}', 'utf8'); // trailing space, mirrors case 30 on the AG path
     const r = agRun(s, agEvent({ session_id: 'sess-32', cwd: proj }));
     assertGraceful(r);
-    assert.strictEqual(r.stdout, '', 'clamp reached through readCfg on the AG adapter too -> global off holds, no injectSteps emitted');
+    assertSilentBesidesLegacyNote(agMessage(r), 'clamp reached through the shared loadCfg on the AG adapter too -> global off holds, no directive emitted (only the LEGACY note may ride the message)');
   } finally { clean(s.home); }
 });
 
@@ -678,7 +731,7 @@ test('case 39: nearest-wins holds ACROSS priority -- a closer legacy config beat
     fs.writeFileSync(path.join(child, '.coalface.json'), '{"coalfaceMode":"off"}', 'utf8'); // CLOSER, lower-priority (legacy) candidate
     const r = run(child, home); // cwd = child; own dir = claude (CC hook)
     assertGraceful(r);
-    assert.strictEqual(r.stdout, '', 'the closer legacy config (off) wins -- the farther own-dir config (on) at "mid" is never reached');
+    assertSilentBesidesLegacyNote(r.stdout, 'the closer legacy config (off) wins -- the farther own-dir config (on) at "mid" is never reached');
   } finally { clean(home, mid); }
 });
 
@@ -802,6 +855,403 @@ test('case 48: AG directive + lock combined carries exactly ONE [CoalFace] prefi
   } finally { clean(s.home); }
 });
 
+// ---------------------------------------------------------------------------
+// UMB-133 -- config-path unification (holes 1 + 2). The candidate walk honours BOTH
+// legacy shapes after the canonical three (nested `<dir>/.<agent>/.coalface.json`, then
+// root `<dir>/.coalface.json`), and a `.coalface.json` at a NON-candidate path is NAMED,
+// never silently walked past. Each case discriminates ONE mechanism: distinct
+// autoFanoutFloor values (5 canonical / 6 nested legacy / 7 root legacy) make the
+// winning file visible in the directive text, so a wrong winner cannot pass by accident.
+// ---------------------------------------------------------------------------
+
+const CANON = '.claude/coal/coalface.json';
+const ignoredLine = (p) => `IGNORED: ${p} is not a config path; canonical = ${CANON}`;
+const legacyLine = (p) => `LEGACY: ${p} is a legacy config path; canonical = ${CANON}`;
+// UMB-174 (b): the flock's ONE UNREADABLE wording, verbatim including the em dash (—,
+// U+2014) before "canonical" -- copied byte-for-byte from the order, never re-typed loose.
+// CWK-135 (a): the PROJECT tier keeps the flock literal (CANON); the GLOBAL tier names the global file's OWN path as canonical
+// (a global config has no project location to move to), so the caller passes it as `canon`.
+const unreadableLine = (p, reason, canon = CANON) => `UNREADABLE: ${p} exists but is not a readable config (${reason}); it was skipped — canonical = ${canon}`;
+function putCfg(file, obj) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(obj), 'utf8');
+}
+const linesStarting = (stdout, prefix) => stdout.split('\n').filter((l) => l.startsWith(prefix));
+
+test('case 49: a config at <dir>/.claude/.coalface.json (nested legacy) is FOUND', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home);
+    putCfg(path.join(cwd, '.claude', '.coalface.json'), { autoFanoutFloor: 6 });
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.match(r.stdout, />= 6 units/, 'the nested legacy config is honoured (floor 6), not skipped');
+  } finally { clean(home, cwd); }
+});
+
+test('case 50: a config at <dir>/.coalface.json (root legacy) is still FOUND', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home);
+    putCfg(path.join(cwd, '.coalface.json'), { autoFanoutFloor: 7 });
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.match(r.stdout, />= 7 units/, 'the root legacy shape keeps working');
+  } finally { clean(home, cwd); }
+});
+
+test('case 51: canonical WINS over both legacies, and the nested legacy beats the root one', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home);
+    putCfg(path.join(cwd, '.claude', 'coal', 'coalface.json'), { autoFanoutFloor: 5 });
+    putCfg(path.join(cwd, '.claude', '.coalface.json'), { autoFanoutFloor: 6 });
+    putCfg(path.join(cwd, '.coalface.json'), { autoFanoutFloor: 7 });
+    const r1 = run(cwd, home);
+    assertGraceful(r1);
+    assert.match(r1.stdout, />= 5 units/, 'canonical beats nested legacy AND root legacy');
+    fs.rmSync(path.join(cwd, '.claude', 'coal', 'coalface.json'));
+    const r2 = run(cwd, home);
+    assertGraceful(r2);
+    assert.match(r2.stdout, />= 6 units/, 'with canonical gone, the nested legacy beats the root legacy');
+    fs.rmSync(path.join(cwd, '.claude', '.coalface.json'));
+    const r3 = run(cwd, home);
+    assertGraceful(r3);
+    assert.match(r3.stdout, />= 7 units/, 'with only the root legacy left, it is read');
+  } finally { clean(home, cwd); }
+});
+
+test('case 52: canonical .agents beats a nested-legacy .claude (canonical tier outranks every legacy, whatever the agent dir)', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home);
+    putCfg(path.join(cwd, '.agents', 'coal', 'coalface.json'), { autoFanoutFloor: 5 });
+    putCfg(path.join(cwd, '.claude', '.coalface.json'), { autoFanoutFloor: 6 });
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.match(r.stdout, />= 5 units/, 'a canonical file in ANY agent dir outranks a legacy one in the own dir');
+  } finally { clean(home, cwd); }
+});
+
+test('case 53: a legacy hit emits ONE migration line naming the canonical path; a canonical hit emits none', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home);
+    const real = fs.realpathSync.native(cwd);
+    const nested = path.join(cwd, '.claude', '.coalface.json');
+    putCfg(nested, { autoFanoutFloor: 6 });
+    const r1 = run(cwd, home);
+    assertGraceful(r1);
+    assert.deepStrictEqual(linesStarting(r1.stdout, 'LEGACY:'), [legacyLine(path.join(real, '.claude', '.coalface.json'))], 'nested legacy: exactly one LEGACY line');
+    fs.rmSync(nested);
+    const root = path.join(cwd, '.coalface.json');
+    putCfg(root, { autoFanoutFloor: 7 });
+    const r2 = run(cwd, home);
+    assertGraceful(r2);
+    assert.deepStrictEqual(linesStarting(r2.stdout, 'LEGACY:'), [legacyLine(path.join(real, '.coalface.json'))], 'root legacy: exactly one LEGACY line');
+    fs.rmSync(root);
+    putCfg(path.join(cwd, '.claude', 'coal', 'coalface.json'), { autoFanoutFloor: 5 });
+    const r3 = run(cwd, home);
+    assertGraceful(r3);
+    assert.deepStrictEqual(linesStarting(r3.stdout, 'LEGACY:'), [], 'a canonical hit is not a legacy hit');
+  } finally { clean(home, cwd); }
+});
+
+const STRAY_SHAPES = [
+  'coalface.json',
+  '.claude/coalface.json', '.agents/coalface.json', '.gemini/coalface.json',
+  '.claude/coal/.coalface.json', '.agents/coal/.coalface.json', '.gemini/coal/.coalface.json',
+];
+
+test('case 54: a .coalface.json at a NON-candidate path is REPORTED (exact line) and never honoured -- every probed shape', () => {
+  for (const rel of STRAY_SHAPES) {
+    const { home, cwd } = sandbox();
+    try {
+      muteUpdate(home);
+      const real = fs.realpathSync.native(cwd);
+      const stray = path.join(cwd, ...rel.split('/'));
+      putCfg(stray, { autoFanoutFloor: 9 });
+      const r = run(cwd, home);
+      assertGraceful(r);
+      assert.deepStrictEqual(linesStarting(r.stdout, 'IGNORED:'), [ignoredLine(path.join(real, ...rel.split('/')))], `${rel}: named exactly once, exact shape`);
+      assert.match(r.stdout, />= 4 units/, `${rel}: a non-candidate is REPORTED, never read (floor stays default 4)`);
+      assert.deepStrictEqual(linesStarting(r.stdout, 'LEGACY:'), [], `${rel}: a stray is not a legacy hit`);
+    } finally { clean(home, cwd); }
+  }
+});
+
+test('case 55: no stray and no legacy file -> NO IGNORED/LEGACY line (Phoenix #13: silence on the happy path)', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home);
+    putCfg(path.join(cwd, '.claude', 'coal', 'coalface.json'), { autoFanoutFloor: 5 });
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.doesNotMatch(r.stdout, /IGNORED|LEGACY/);
+    const r0 = run(fs.mkdtempSync(path.join(home, 'cf-empty-')), home);
+    assertGraceful(r0);
+    assert.doesNotMatch(r0.stdout, /IGNORED|LEGACY/, 'no config at all is also silent');
+  } finally { clean(home, cwd); }
+});
+
+test('case 56: a stray beside a winning canonical config is still REPORTED, and no LEGACY line is emitted', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home);
+    const real = fs.realpathSync.native(cwd);
+    putCfg(path.join(cwd, '.claude', 'coal', 'coalface.json'), { autoFanoutFloor: 5 });
+    putCfg(path.join(cwd, 'coalface.json'), { autoFanoutFloor: 9 });
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.match(r.stdout, />= 5 units/);
+    assert.deepStrictEqual(linesStarting(r.stdout, 'IGNORED:'), [ignoredLine(path.join(real, 'coalface.json'))]);
+    assert.deepStrictEqual(linesStarting(r.stdout, 'LEGACY:'), []);
+  } finally { clean(home, cwd); }
+});
+
+test('case 57: the probe is scoped to the levels the walk READS -- a stray above the winning level is not probed, below it is', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home);
+    const real = fs.realpathSync.native(cwd);
+    const mid = path.join(cwd, 'mid');
+    const deep = path.join(mid, 'deep');
+    fs.mkdirSync(deep, { recursive: true });
+    putCfg(path.join(mid, '.claude', 'coal', 'coalface.json'), { autoFanoutFloor: 5 }); // winner one level ABOVE cwd=deep
+    putCfg(path.join(deep, 'coalface.json'), { autoFanoutFloor: 9 });                   // stray at a level the walk reached
+    putCfg(path.join(cwd, 'coalface.json'), { autoFanoutFloor: 9 });                    // stray ABOVE the winner: never visited
+    const r = run(deep, home);
+    assertGraceful(r);
+    assert.match(r.stdout, />= 5 units/);
+    assert.deepStrictEqual(linesStarting(r.stdout, 'IGNORED:'), [ignoredLine(path.join(real, 'mid', 'deep', 'coalface.json'))], 'only the stray at a visited level is named');
+  } finally { clean(home, cwd); }
+});
+
+test('case 58: a notice-only message (coalfaceMode:off + a stray) carries exactly ONE [CoalFace] prefix', () => {
+  const { home, cwd } = sandbox();
+  try {
+    writeGlobalCfg(home, { coalfaceMode: 'off', updateMode: 'off' });
+    const real = fs.realpathSync.native(cwd);
+    putCfg(path.join(cwd, 'coalface.json'), { autoFanoutFloor: 9 });
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.strictEqual(r.stdout, `[CoalFace] ${ignoredLine(path.join(real, 'coalface.json'))}`);
+  } finally { clean(home, cwd); }
+});
+
+test('case 59: the safer-value clamp is untouched by a nested-legacy hit (a cloned-repo legacy config cannot escalate)', () => {
+  const { home, cwd } = sandbox();
+  try {
+    writeGlobalCfg(home, { coalfaceMode: 'off', updateMode: 'off' });
+    putCfg(path.join(cwd, '.claude', '.coalface.json'), { coalfaceMode: 'on' });
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.doesNotMatch(r.stdout, /FORCED \(on\)|Fan-out discipline/, 'legacy nested project config must not out-loud an explicit global off');
+  } finally { clean(home, cwd); }
+});
+
+test('case 60: AG adapter reports too -- a nested-legacy hit is read + LEGACY-noted, a stray is IGNORED-noted, in the ONE ephemeralMessage', () => {
+  const s = agSandbox();
+  try {
+    muteUpdate(s.home);
+    const real = fs.realpathSync.native(s.cwd);
+    putCfg(path.join(s.cwd, '.claude', '.coalface.json'), { autoFanoutFloor: 6 });
+    putCfg(path.join(s.cwd, 'coalface.json'), { autoFanoutFloor: 9 });
+    const r = agRun(s, agEvent({ session_id: 'sess-60' }));
+    assertGraceful(r);
+    const msg = JSON.parse(r.stdout.trim()).injectSteps[0].ephemeralMessage;
+    assert.match(msg, />= 6 units/, 'AG walk honours the nested legacy too');
+    assert.deepStrictEqual(linesStarting(msg, 'LEGACY:'), [legacyLine(path.join(real, '.claude', '.coalface.json'))]);
+    assert.deepStrictEqual(linesStarting(msg, 'IGNORED:'), [ignoredLine(path.join(real, 'coalface.json'))]);
+    assert.strictEqual((msg.match(/\[CoalFace\]/g) || []).length, 1, 'still exactly one prefix');
+  } finally { clean(s.home); }
+});
+
+test('case 61: AG notice-only message (mode off + a stray) still emits, and the AG once-per-session marker still latches', () => {
+  const s = agSandbox();
+  try {
+    writeGlobalCfg(s.home, { coalfaceMode: 'off', updateMode: 'off' });
+    const real = fs.realpathSync.native(s.cwd);
+    putCfg(path.join(s.cwd, 'coalface.json'), { autoFanoutFloor: 9 });
+    const r1 = agRun(s, agEvent({ session_id: 'sess-61' }));
+    assertGraceful(r1);
+    const msg = JSON.parse(r1.stdout.trim()).injectSteps[0].ephemeralMessage;
+    assert.strictEqual(msg, `[CoalFace] ${ignoredLine(path.join(real, 'coalface.json'))}`);
+    const r2 = agRun(s, agEvent({ session_id: 'sess-61' }));
+    assertGraceful(r2);
+    assert.strictEqual(r2.stdout, '', 'second PreInvocation of the same session: silent (marker)');
+  } finally { clean(s.home); }
+});
+
+// ---------------------------------------------------------------------------
+// UMB-174 (b) -- a config that EXISTS at a candidate path but cannot be READ as a
+// config (malformed JSON / a directory / unreadable) is now REPORTED on the same
+// sanctioned SessionStart line the LEGACY/IGNORED notices already use. The WALK
+// SELECTION is unchanged in every case below: the unreadable candidate still wins
+// (existsSync sees it, it still contributes {}) -- only the silence goes.
+// ---------------------------------------------------------------------------
+
+test('case 62: UMB-174 (b) -- a MALFORMED config at the canonical project path is REPORTED once, and a well-formed fix at the SAME path produces no line (negative control)', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home);
+    const real = fs.realpathSync.native(cwd);
+    const rel = ['.claude', 'coal', 'coalface.json'];
+    const target = path.join(cwd, ...rel);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, '{ not json', 'utf8');
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.deepStrictEqual(linesStarting(r.stdout, 'UNREADABLE:'), [unreadableLine(path.join(real, ...rel), 'malformed JSON')], 'exactly one UNREADABLE line, exact shape');
+    assert.match(r.stdout, />= 4 units/, 'the malformed candidate contributes nothing -- selection unchanged, default floor stands');
+    assert.strictEqual((r.stdout.match(/\[CoalFace\]/g) || []).length, 1, 'exactly one [CoalFace] prefix even with a notice appended');
+    // Negative control (order's own instruction): fix the SAME file, no UNREADABLE line.
+    fs.writeFileSync(target, JSON.stringify({ autoFanoutFloor: 5 }), 'utf8');
+    const r2 = run(cwd, home);
+    assertGraceful(r2);
+    assert.deepStrictEqual(linesStarting(r2.stdout, 'UNREADABLE:'), [], 'a well-formed config at the same path produces no UNREADABLE line');
+    assert.match(r2.stdout, />= 5 units/, 'and is honoured once readable');
+  } finally { clean(home, cwd); }
+});
+
+test('case 63: UMB-174 (b) -- a DIRECTORY at the canonical project path is REPORTED (reason "a directory")', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home);
+    const real = fs.realpathSync.native(cwd);
+    const rel = ['.claude', 'coal', 'coalface.json'];
+    fs.mkdirSync(path.join(cwd, ...rel), { recursive: true }); // a DIRECTORY sits where the file should be
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.deepStrictEqual(linesStarting(r.stdout, 'UNREADABLE:'), [unreadableLine(path.join(real, ...rel), 'a directory')]);
+    assert.match(r.stdout, />= 4 units/, 'a directory candidate still wins the walk and still contributes {} -- selection unchanged, only the silence goes');
+    assert.deepStrictEqual(linesStarting(r.stdout, 'LEGACY:'), [], 'a directory at the CANONICAL path is not a legacy hit');
+  } finally { clean(home, cwd); }
+});
+
+// r5 bounce 1 / M1 -- Windows denies a read via an ACL, not POSIX mode bits, and libuv
+// reports that denial as EPERM, not EACCES (see hooks/coalface-conductor.js's own
+// readConfigFile comment) -- chmod cannot deny a read on NTFS at all, so the chmod-only
+// probe below always read false there even though a real denial mechanism exists on the
+// same box. Capability-probed, never process.platform (node/runtime.md §4's case-folding
+// discipline applied to permission bits, same shape as CWK-122's mode:0600 test): try the
+// cheap, portable chmod-0 denial first; only when the read still succeeds does the probe
+// fall back to an icacls-based ACL denial, and only when the icacls binary exists on PATH.
+// Still ONE skippable leg per test -- canObserveUnreadable() is the test's only
+// conditional branch; the real assertion is unconditional once it passes.
+function denyViaChmod(probe) {
+  try {
+    fs.chmodSync(probe, 0);
+  } catch {
+    return false;
+  }
+  try {
+    fs.readFileSync(probe);
+    return false; // read succeeded despite chmod 0 -- this volume/OS does not enforce it (e.g. NTFS)
+  } catch (e) {
+    return !!(e && (e.code === 'EACCES' || e.code === 'EPERM'));
+  } finally {
+    try { fs.chmodSync(probe, 0o600); } catch {} // restore before trying icacls / cleanup
+  }
+}
+
+function denyViaIcacls(probe) {
+  const me = os.userInfo().username;
+  const deny = spawnSync('icacls', [probe, '/deny', `${me}:(R)`], { encoding: 'utf8' });
+  if (deny.error || deny.status !== 0) return false; // no icacls binary, or the deny itself failed
+  try {
+    fs.readFileSync(probe);
+    return false; // the deny did not actually block the owning process
+  } catch (e) {
+    return !!(e && (e.code === 'EACCES' || e.code === 'EPERM'));
+  }
+}
+
+// Returns which mechanism this volume/OS actually denies a read through -- 'chmod' |
+// 'icacls' | null (neither observed) -- so the test body denies the REAL target file the
+// SAME way the probe proved works here, rather than assuming chmod and silently reading
+// a "denied" file that was never actually denied (NTFS).
+function canObserveUnreadable(dir) {
+  const probe = path.join(dir, '.cf-eacces-probe');
+  try {
+    fs.writeFileSync(probe, 'x', 'utf8');
+  } catch {
+    return null;
+  }
+  try {
+    if (denyViaChmod(probe)) return 'chmod';
+    if (denyViaIcacls(probe)) return 'icacls';
+    return null;
+  } finally {
+    try { fs.chmodSync(probe, 0o600); } catch {} // restore so cleanup can delete it
+    try { spawnSync('icacls', [probe, '/reset'], { encoding: 'utf8' }); } catch {} // always restore the ACL
+    try { fs.rmSync(probe, { force: true }); } catch {}
+  }
+}
+
+test('case 64: UMB-174 (b) -- an UNREADABLE config at the canonical project path is REPORTED (reason "unreadable"), EACCES or EPERM', (t) => {
+  const { home, cwd } = sandbox();
+  try {
+    const mechanism = canObserveUnreadable(home);
+    if (!mechanism) {
+      t.skip('this volume/OS does not enforce a read denial for the owning process via chmod OR icacls -- cannot exercise EACCES/EPERM');
+      return; // t.skip does not stop the body; return so the case is skipped, never a vacuous pass
+    }
+    muteUpdate(home);
+    const real = fs.realpathSync.native(cwd);
+    const rel = ['.claude', 'coal', 'coalface.json'];
+    const target = path.join(cwd, ...rel);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, JSON.stringify({ autoFanoutFloor: 5 }), 'utf8');
+    if (mechanism === 'chmod') {
+      fs.chmodSync(target, 0);
+    } else {
+      const me = os.userInfo().username;
+      const deny = spawnSync('icacls', [target, '/deny', `${me}:(R)`], { encoding: 'utf8' });
+      assert.equal(deny.status, 0, `icacls deny failed: ${deny.stderr || deny.stdout}`);
+    }
+    try {
+      const r = run(cwd, home);
+      assertGraceful(r);
+      assert.deepStrictEqual(linesStarting(r.stdout, 'UNREADABLE:'), [unreadableLine(path.join(real, ...rel), 'unreadable')]);
+      assert.match(r.stdout, />= 4 units/, 'unreadable contributes nothing -- default floor stands');
+    } finally {
+      // restore so clean() can remove it -- always, whichever mechanism denied the read.
+      if (mechanism === 'chmod') { try { fs.chmodSync(target, 0o600); } catch {} }
+      else { try { spawnSync('icacls', [target, '/reset'], { encoding: 'utf8' }); } catch {} }
+    }
+  } finally { clean(home, cwd); }
+});
+
+test('case 65: UMB-174 (b) -- a MALFORMED GLOBAL config (~/.claude/.coalface.json) is REPORTED', () => {
+  const { home, cwd } = sandbox();
+  try {
+    const globalFile = path.join(home, '.claude', '.coalface.json');
+    fs.mkdirSync(path.dirname(globalFile), { recursive: true });
+    fs.writeFileSync(globalFile, 'not json at all', 'utf8');
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.deepStrictEqual(linesStarting(r.stdout, 'UNREADABLE:'), [unreadableLine(globalFile, 'malformed JSON', globalFile)]);
+  } finally { clean(home, cwd); }
+});
+
+test('case 66: UMB-174 (b) -- AG adapter reports UNREADABLE too (it shares loadCfg)', () => {
+  const s = agSandbox();
+  try {
+    muteUpdate(s.home);
+    const real = fs.realpathSync.native(s.cwd);
+    const rel = ['.claude', 'coal', 'coalface.json'];
+    const target = path.join(s.cwd, ...rel);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, '{ still not json', 'utf8');
+    const r = agRun(s, agEvent({ session_id: 'sess-66' }));
+    assertGraceful(r);
+    const msg = JSON.parse(r.stdout.trim()).injectSteps[0].ephemeralMessage;
+    assert.deepStrictEqual(linesStarting(msg, 'UNREADABLE:'), [unreadableLine(path.join(real, ...rel), 'malformed JSON')]);
+    assert.strictEqual((msg.match(/\[CoalFace\]/g) || []).length, 1, 'still exactly one prefix');
+  } finally { clean(s.home); }
+});
+
 // Write side (namespace campaign checklist item 2), UPDATED (r31 UNIT 3, CWK-023):
 // this room now HAS a project-config writer -- `scripts/configure.mjs`. Its own
 // write-new-drop-old (move-on-CONFIG-WRITE-only) behaviour is proven behaviourally in
@@ -836,4 +1286,63 @@ test('write side: only configure.mjs writes a *coalface.json target (grep-proof)
       assert.ok(!writerHit.test(text), `${dir}/${f} writes a *.coalface.json -- update this test if a real writer was added (write-new-drop-old must then apply)`);
     }
   }
+});
+
+// ---------------------------------------------------------------------------
+// CWK-125 (R14 item b): physical() was PLAIN realpathSync feeding the stop-at-home compare. Plain does NOT
+// expand a Windows 8.3 short name, so a cwd and a USERPROFILE spelling ONE directory two ways never compared
+// equal and the upward walk ESCAPED above home onto a foreign config (node/runtime.md section 4: an IDENTITY
+// compare, so `.native` on BOTH sides). The alias is built through a CAPABILITY PROBE (ask the OS for it; null
+// where the volume makes none), never process.platform; one skippable leg per test. Exemplar: CoalBoard
+// e04496f + the 713b4e6 liveness anchor.
+// ---------------------------------------------------------------------------
+function shortAlias(dir) {
+  try {
+    const r = spawnSync('cmd.exe', ['/d', '/c', 'for %I in ("' + dir + '") do @echo %~sI'], { encoding: 'utf8', windowsVerbatimArguments: true, timeout: 20000 });
+    const a = r.status === 0 ? String(r.stdout).trim() : '';
+    return a && a.toLowerCase() !== dir.toLowerCase() && fs.existsSync(a) ? a : null;
+  } catch { return null; }
+}
+// base/.claude/.coalface.json = the FOREIGN config (nested legacy shape, floor 7, so a read changes the
+// directive AND names it); base/<long home>/<proj> = the project; the walk must stop at the long-named home.
+// LIVENESS ANCHOR (CoalBoard 713b4e6): NOTHING is written at or below home, so a candidate there cannot end the
+// walk BEFORE the stop-at-home compare. A contained walk prints the default floor (>= 4 units); an escaped one
+// reads the foreign floor 7 and prints a LEGACY: line naming the foreign file.
+function cwk125Layout() {
+  const base = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'cf-125-')));
+  const home = path.join(base, 'a-long-home-directory-name-cwk125');
+  const proj = path.join(home, 'a-long-project-directory-name');
+  fs.mkdirSync(proj, { recursive: true });
+  fs.mkdirSync(path.join(base, '.claude'), { recursive: true });
+  const foreign = path.join(base, '.claude', '.coalface.json');
+  fs.writeFileSync(foreign, JSON.stringify({ autoFanoutFloor: 7 }));
+  return { base, home, proj, foreign };
+}
+test('CWK-125 control: cwd and HOME spelled the SAME way -- the walk stops at home, the foreign config above it is not read', (t) => {
+  const { base, home, proj, foreign } = cwk125Layout();
+  t.after(() => clean(base));
+  const r = run(proj, home);
+  assertGraceful(r);
+  assert.match(r.stdout, />= 4 units/, 'liveness: the hook ran and the default floor stands');
+  assert.ok(!r.stdout.includes(foreign), 'a config above home is never read');
+});
+test('CWK-125: HOME spelled as its 8.3 ALIAS, cwd long -- the walk must STILL stop at home (no escape above it)', (t) => {
+  const { base, home, proj, foreign } = cwk125Layout();
+  t.after(() => clean(base));
+  const alias = shortAlias(home);
+  if (!alias) { t.skip('this volume makes no 8.3 alias (capability probe)'); return; }
+  const r = run(proj, alias);
+  assertGraceful(r);
+  assert.match(r.stdout, />= 4 units/, 'liveness: a contained walk keeps the default floor; an escaped one reads the foreign 7: ' + r.stdout);
+  assert.ok(!r.stdout.includes(foreign), 'the escaped file must not be read or named: ' + r.stdout);
+});
+test('CWK-125: cwd spelled as its 8.3 ALIAS, HOME long -- the walk must STILL stop at home (the mirror mismatch)', (t) => {
+  const { base, home, proj, foreign } = cwk125Layout();
+  t.after(() => clean(base));
+  const alias = shortAlias(proj);
+  if (!alias) { t.skip('this volume makes no 8.3 alias (capability probe)'); return; }
+  const r = run(alias, home);
+  assertGraceful(r);
+  assert.match(r.stdout, />= 4 units/, 'liveness: a contained walk keeps the default floor; an escaped one reads the foreign 7: ' + r.stdout);
+  assert.ok(!r.stdout.includes(foreign), 'the escaped file must not be read or named: ' + r.stdout);
 });

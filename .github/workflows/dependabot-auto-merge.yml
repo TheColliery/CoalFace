@@ -28,6 +28,7 @@ jobs:
   auto-merge:
     if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10 # sized from the measured run times of the last 25 runs (R14, 2026-10-02), roughly 5x the max (max 11 s)
     permissions:
       contents: write
       pull-requests: write
@@ -40,6 +41,9 @@ jobs:
       # Patch + minor auto-merge; a major bump waits for a human.
       - name: Enable auto-merge (patch/minor)
         if: ${{ steps.meta.outputs.update-type != 'version-update:semver-major' }}
-        run: gh pr merge --squash --auto "${{ github.event.pull_request.html_url }}"
+        run: gh pr merge --squash --auto "$PR_URL"
         env:
+          # The URL goes through an env variable, never interpolated into the script (GitHub's hardening
+          # guide: script injection). html_url is GitHub-generated, so this closes a shape, not a live hole.
+          PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -46,6 +46,34 @@ test('createAdmissionGate: rejects a non-positive-integer capacity', () => {
   assert.throws(() => createAdmissionGate(-1), RangeError);
 });
 
+// CodeRabbit finding #2 (CWK-120, id 4045252509): release() used to decrement `current`
+// BEFORE waking a queued waiter -- but resolve() only SCHEDULES the waiter's continuation
+// as a microtask, it does not run it synchronously. That opens a window, in the SAME
+// tick, where a fresh acquire() reads the decremented `current`, sees room, and admits
+// itself on top of a slot the woken waiter is about to occupy too -- an over-admit the
+// existing exhibit test above cannot reach (every one of its 13 workers calls acquire()
+// before the first release() fires, so no acquire ever lands AFTER a handoff). This test
+// forces exactly that ordering with explicit awaits, no timing tricks: acquire, queue a
+// second acquire, release, THEN fire a third acquire in the same tick as the release --
+// deterministic, not a race the runner might not schedule. Reproduced red-first against
+// the pre-fix gate at scratchpad/cwk120/repro-race.mjs (peak 2 on capacity 1, `current`
+// stuck at 2 forever -- a permanent accounting leak, not a one-off spike).
+test('createAdmissionGate: an acquire() fired in the SAME tick as a release() does not over-admit (the slot handoff)', async () => {
+  const gate = createAdmissionGate(1);
+  await gate.acquire(); // A holds the only slot -- current = 1
+  const bDone = gate.acquire(); // B queues (capacity already full)
+  gate.release(); // A releases -- must HAND OFF the still-counted slot to B, never free it here
+  const cDone = gate.acquire(); // C fires in the SAME tick as the release() above -- must ALSO queue
+  assert.strictEqual(gate.current, 1, 'the handed-off slot must still read occupied for a same-tick acquire');
+  await bDone;
+  assert.strictEqual(gate.current, 1, 'B now holds the transferred slot -- must not be incremented on top of it');
+  gate.release(); // B releases -- hands off to C
+  await cDone;
+  assert.strictEqual(gate.current, 1, 'C now holds the slot');
+  gate.release(); // C releases -- no waiter left, the slot is genuinely freed
+  assert.strictEqual(gate.current, 0, 'no waiters remain -- release() actually frees the slot');
+});
+
 // The exhibit shape (board #89): more lanes than the cap, none denied, none ever
 // concurrent past it. The test tracks concurrency with its OWN counter -- never the
 // gate's internal `peak` alone -- so a gate that under-counts its own admissions

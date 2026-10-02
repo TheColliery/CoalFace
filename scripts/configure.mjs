@@ -103,7 +103,7 @@ async function main() {
   // configure.mjs under Claude Code is the only supported entry today (same assumption
   // the hook's own `main()` makes at its one call site), so 'claude' is hardcoded here
   // exactly as it is there.
-  const { findProjectCfg, AGENT_DIR_ORDER } = await import(pathToFileURL(path.join(repo, 'hooks', 'coalface-conductor.js')).href);
+  const { findProjectCfg, AGENT_DIR_ORDER, physical } = await import(pathToFileURL(path.join(repo, 'hooks', 'coalface-conductor.js')).href);
 
   // --global targets ~/.claude/.coalface.json (readCfg's own hardcoded global home);
   // default targets the project config. The hook merges the two per key
@@ -113,20 +113,28 @@ async function main() {
   const isGlobal = globalIdx !== -1;
   if (isGlobal) args.splice(globalIdx, 1);
 
-  const cwd = process.cwd();
+  // The ONE spelling of cwd for this whole run (CWK-125): findProjectCfg returns paths built from physical(startDir)
+  // (the .native spelling) and legacyPaths.includes(readPath) below is a STRING compare, so a raw process.cwd()
+  // spelled as a Windows 8.3 alias (the runner profile path, RUNNER~1) never matched and a legacy config was written back IN
+  // PLACE, never migrated (CoalBoard 5733c20: a CI red on a runner whose username is long enough to alias).
+  const cwd = physical(process.cwd());
   const legacyPath = path.join(cwd, '.coalface.json');
   const globalPath = path.join(os.homedir(), '.claude', '.coalface.json');
   const foundProjectPath = isGlobal ? null : findProjectCfg('claude');
   const readPath = isGlobal ? globalPath : foundProjectPath;
-  // WRITE goes back to wherever the config was found, EXCEPT a config found at the
-  // LEGACY root dotfile migrates on this write — to the FIRST agent dir the project
+  // Both LEGACY shapes the hook reads at this level (UMB-133): the root dotfile and the
+  // nested `.<agent>/.coalface.json`. A config found at either migrates on this write.
+  const legacyPaths = [legacyPath, ...AGENT_DIR_ORDER.map((d) => path.join(cwd, '.' + d, '.coalface.json'))];
+  const readIsLegacy = !isGlobal && readPath !== null && legacyPaths.includes(readPath);
+  // WRITE goes back to wherever the config was found, EXCEPT a config found at a
+  // LEGACY shape (root dotfile or nested) migrates on this write — to the FIRST agent dir the project
   // ALREADY HAS on disk (never a bare .claude planted into a project that only uses
   // .agents/.gemini), falling back to .claude only when the project has none of the
   // three (move-on-CONFIG-WRITE-only, Phoenix #5 — a hook never performs this move on
   // a mere read; this is a CLI script the user/agent explicitly runs).
   const writePath = isGlobal
     ? globalPath
-    : (readPath === null || readPath === legacyPath) ? ownDirDefault(cwd, AGENT_DIR_ORDER) : readPath;
+    : (readPath === null || readIsLegacy) ? ownDirDefault(cwd, AGENT_DIR_ORDER) : readPath;
 
   let cfg = {};
   let hadComments = false;
@@ -141,7 +149,20 @@ async function main() {
   if (rawConfig !== null) {
     try {
       hadComments = rawConfig.includes('//');
-      cfg = parseJsonc(rawConfig) || {};
+      const parsed = parseJsonc(rawConfig);
+      // CWK-120 ride-along (a), THE CONFIG-PARSE CLASS: `parsed || {}` alone lets a
+      // top-level array/string/number config body through unguarded -- `[] || {}` and
+      // `"x" || {}` and `42 || {}` are all truthy, so cfg would become the array/string/
+      // number itself. Every downstream `cfg[spec.key] = parsed.value` (below) then
+      // silently no-ops on it (arrays only keep index keys, primitives take none in
+      // non-strict mode), and JSON.stringify(cfg) writes back the ORIGINAL malformed
+      // body with every --flag the user passed dropped, exit 0, no error. Route the
+      // same non-object shape into the existing malformed-config path (backup + warn +
+      // rebuild from {}) instead of a silent, undetectable no-op.
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error(`config must be a JSON object, got ${Array.isArray(parsed) ? 'an array' : typeof parsed}`);
+      }
+      cfg = parsed;
     } catch (e) {
       // Fail loud (scripts-quality §1): a malformed config we silently overwrite is a
       // partial failure the user must notice — flag the non-zero exit even though the
@@ -182,14 +203,14 @@ async function main() {
   try {
     fs.mkdirSync(path.dirname(writePath), { recursive: true });
     fs.writeFileSync(writePath, JSON.stringify(cfg, null, 2) + '\n', 'utf8');
-    // Move-on-CONFIG-WRITE-only (no-old-version-leftover): the legacy root file is
-    // removed only AFTER the new-home write above succeeded, and only when this write
+    // Move-on-CONFIG-WRITE-only (no-old-version-leftover): the legacy file (root or
+    // nested) is removed only AFTER the new-home write above succeeded, and only when this write
     // actually migrated it. Best-effort — a failed delete here still leaves a
     // correctly-written new config; the stray legacy file is simply not cleaned up
     // this run.
-    if (readPath === legacyPath && writePath !== legacyPath) {
-      try { fs.rmSync(legacyPath, { force: true }); } catch {}
-      console.log(`Migrated the project config from ${legacyPath} to ${writePath}.`);
+    if (readIsLegacy && writePath !== readPath) {
+      try { fs.rmSync(readPath, { force: true }); } catch {}
+      console.log(`Migrated the project config from ${readPath} to ${writePath}.`);
     }
     if (hadComments) {
       console.warn('Note: inline comments were stripped (this tool writes plain JSON). Every key stays documented in platform-configs/.coalface.json.');

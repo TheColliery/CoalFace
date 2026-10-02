@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { testChildEnv } from './lib/test-child-env.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -18,11 +19,30 @@ const TESTS = [
   'scripts/lib/claude-ai-trim.test.mjs',
   'scripts/lib/config-keys.test.mjs',
   'scripts/lib/pointer-check.test.mjs',
+  'scripts/lib/git-test-env.test.mjs',
+  // CWK-133 / CWK-136: the git-spawn census, wired into scripts/verify.mjs.
+  'scripts/lib/git-env-census.test.mjs',
+  // R14 b1 L1: gitEnv() keeps GIT_INDEX_FILE for the gate's two real-repo reads (partial-commit proof).
+  'scripts/lib/git-env.test.mjs',
+  // R14 b1 H1: the suite child never inherits a hook's GIT_* family (the pinned secret-scan.test.mjs runs git init env-less).
+  'scripts/lib/test-child-env.test.mjs',
+  // CWK-174: the house secret scan, adopted byte-identical from .github's templates/published-code/.
+  'scripts/secret-scan.test.mjs',
+  'scripts/secret-gate.test.mjs',
   'scripts/build-plugin.test.mjs',
   'scripts/verify.test.mjs',
   'scripts/build-claude-ai-zips.test.mjs',
   'scripts/configure.test.mjs',
   'scripts/link-check.test.mjs',
+  // CWK-124: the sole-creator release workflow, adopted byte-identical from
+  // .github's templates/overlay-coal-skill/ (never a room-local variant).
+  'scripts/decide-upload.test.mjs',
+  'scripts/prune-release-zips.test.mjs',
+  'scripts/release-notes.test.mjs',
+  'scripts/verify-release-shape.test.mjs',
+  'scripts/lib/asset-upload-mode.test.mjs',
+  'scripts/lib/release-prune.test.mjs',
+  'scripts/lib/release-shape.test.mjs',
 ];
 
 // CWK-071: process.exit() forces the process to exit before pending stdout writes flush
@@ -50,7 +70,7 @@ function main() {
     return;
   }
 
-  const r = spawnSync(process.execPath, ['--test', ...TESTS], { cwd: repo, stdio: 'inherit' });
+  const r = spawnSync(process.execPath, ['--test', ...TESTS], { cwd: repo, stdio: 'inherit', env: testChildEnv() });
   process.exitCode = r.status ?? 1;
 }
 
