@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { testChildEnv } from './lib/test-child-env.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -23,6 +24,8 @@ const TESTS = [
   'scripts/lib/git-env-census.test.mjs',
   // R14 b1 L1: gitEnv() keeps GIT_INDEX_FILE for the gate's two real-repo reads (partial-commit proof).
   'scripts/lib/git-env.test.mjs',
+  // R14 b1 H1: the suite child never inherits a hook's GIT_* family (the pinned secret-scan.test.mjs runs git init env-less).
+  'scripts/lib/test-child-env.test.mjs',
   // CWK-174: the house secret scan, adopted byte-identical from .github's templates/published-code/.
   'scripts/secret-scan.test.mjs',
   'scripts/secret-gate.test.mjs',
@@ -67,7 +70,7 @@ function main() {
     return;
   }
 
-  const r = spawnSync(process.execPath, ['--test', ...TESTS], { cwd: repo, stdio: 'inherit' });
+  const r = spawnSync(process.execPath, ['--test', ...TESTS], { cwd: repo, stdio: 'inherit', env: testChildEnv() });
   process.exitCode = r.status ?? 1;
 }
 
