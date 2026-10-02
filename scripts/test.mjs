@@ -21,6 +21,8 @@ const TESTS = [
   'scripts/lib/git-test-env.test.mjs',
   // CWK-133 / CWK-136: the git-spawn census, wired into scripts/verify.mjs.
   'scripts/lib/git-env-census.test.mjs',
+  // R14 b1 L1: gitEnv() keeps GIT_INDEX_FILE for the gate's two real-repo reads (partial-commit proof).
+  'scripts/lib/git-env.test.mjs',
   // CWK-174: the house secret scan, adopted byte-identical from .github's templates/published-code/.
   'scripts/secret-scan.test.mjs',
   'scripts/secret-gate.test.mjs',

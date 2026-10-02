@@ -214,9 +214,9 @@ try {
   const { checkPointers, deriveIgnoredRoots, DEFAULT_SURFACE_PLAN, collectSurfaces, applyCheckIgnoreProbe, PROBE_SUFFIX } = await import(pathToFileURL(path.join(repo, 'scripts', 'lib', 'pointer-check.mjs')).href);
   const { AGENT_DIR_ORDER } = await import(pathToFileURL(path.join(repo, 'hooks', 'coalface-conductor.js')).href);
   const { execFileSync, spawnSync } = await import('node:child_process');
-  // CWK-133 / CWK-136: every git child here takes its env from gitTestEnv() alone (the census below enforces it).
+  // CWK-133 / CWK-136: every git child here takes its env from gitEnv() alone (R14 b1 L1: GIT_INDEX_FILE stays inherited, so a partial commit is read as made) (the census below enforces it).
   // Dynamic, inside this block (node/runtime.md section 1): an absent lib is a named crash line, never a link-time crash.
-  const { gitTestEnv } = await import(pathToFileURL(path.join(repo, 'scripts', 'lib', 'git-test-env.mjs')).href);
+  const { gitEnv } = await import(pathToFileURL(path.join(repo, 'scripts', 'lib', 'git-env.mjs')).href);
 
   // GIT IS AN OPTIONAL ENHANCEMENT, NEVER A RUNTIME REQUIREMENT (no-external-assumption).
   // This gate's whole question is "reachable from a CLONE", which only git can answer, so
@@ -229,7 +229,7 @@ try {
   try {
     // stderr SWALLOWED, not inherited: without this, `fatal: not a git repository` prints
     // above the gate's own line and reads as a crash rather than a degrade.
-    trackedList = execFileSync('git', ['ls-files'], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], env: gitTestEnv(path.dirname(repo)) }).trim().split('\n').filter(Boolean);
+    trackedList = execFileSync('git', ['ls-files'], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], env: gitEnv() }).trim().split('\n').filter(Boolean);
   } catch (e) {
     // Keyed on e.code per node/runtime.md §7 (error.code is stable, error.message is not).
     gitWhy = e && e.code === 'ENOENT' ? 'git is not installed here' : 'this directory is not a git repository';
@@ -317,7 +317,7 @@ try {
         toProbe: roots,
         probeSuffix: PROBE_SUFFIX,
         fail: (msg) => { checkIgnoreFailed = true; fail(msg); },
-        runCheckIgnore: (input) => spawnSync('git', ['check-ignore', '--stdin'], { cwd: repo, encoding: 'utf8', input, env: gitTestEnv(path.dirname(repo)) }),
+        runCheckIgnore: (input) => spawnSync('git', ['check-ignore', '--stdin'], { cwd: repo, encoding: 'utf8', input, env: gitEnv() }),
       })],
     });
 
