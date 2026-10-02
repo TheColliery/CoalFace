@@ -19,6 +19,9 @@ const TESTS = [
   'scripts/lib/config-keys.test.mjs',
   'scripts/lib/pointer-check.test.mjs',
   'scripts/lib/git-test-env.test.mjs',
+  // CWK-174: the house secret scan, adopted byte-identical from .github's templates/published-code/.
+  'scripts/secret-scan.test.mjs',
+  'scripts/secret-gate.test.mjs',
   'scripts/build-plugin.test.mjs',
   'scripts/verify.test.mjs',
   'scripts/build-claude-ai-zips.test.mjs',
