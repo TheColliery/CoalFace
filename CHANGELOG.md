@@ -4,7 +4,7 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [0.13.0] - 2026-10-02
 
 The claude.ai ZIP now holds the skill folder the way claude.ai documents it (a ZIP from an earlier Release does not load as a skill: download it again), and the config walk now stops at home on Windows even when a folder is spelled in its short 8.3 form.
 
