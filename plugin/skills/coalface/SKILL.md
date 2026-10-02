@@ -15,7 +15,7 @@ description: >-
   Zero-dependency, offline by default, no API keys.
 ---
 
-# CoalFace — the fan-out discipline
+# CoalFace
 
 > **Honest frame:** ad-hoc fan-out makes the same promises with NO guarantee (unbounded cost, under-fanned speed, quality that can dip below solo); CoalFace enforces them by STRUCTURE instead — bounded ($, Wallet below) · full width (floor/width-bounded) · netted (QC + single-writer + snapshot). It disciplines the fan-out; it does not make models smarter or guarantee correctness.
 
