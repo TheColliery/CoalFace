@@ -103,12 +103,13 @@ export const PENDING_POINTERS = [
 // `dir: true` means `root` is a directory of `.md` files, walked recursively, whole
 // text. Its absence means `root` is one exact file. `historyOnly: true` marks a surface
 // `checkPointers` exempts from BOTH the ordinary resolve check and the
-// gitignored-root check (R18b; CHANGELOG.md -- published history is never fixed forward).
+// gitignored-root check (R18b; CHANGELOG.md -- published history is never fixed forward). `collectSurfaces` marks only the RELEASED
+// entries (from the second `## [` heading on) historyOnly; the top entry is an ordinary surface.
 export const DEFAULT_SURFACE_PLAN = [
   { root: 'README.md',
     why: 'the front door -- every install/config claim starts here' },
   { root: 'CHANGELOG.md', historyOnly: true,
-    why: 'published history is never fixed forward -- a path correct when the entry was written, or cited before its root was ignored (R18b), is not a defect now' },
+    why: 'released entries are published history, never fixed forward -- a path correct when the entry was written, or cited before its root was ignored (R18b), is not a defect now; the TOP entry is checked in full' },
   { root: 'SECURITY.md',
     why: 'the disclosure surface, and it cites internal paths (e.g. a hook line ref)' },
   { root: 'CONTRIBUTING.md',
@@ -122,6 +123,17 @@ export const DEFAULT_SURFACE_PLAN = [
   { root: 'commands', dir: true,
     why: 'command docs are ship-text a user reads' },
 ];
+
+// Index of the nth line starting with `## [` (a CHANGELOG entry heading), or -1.
+function nthHeading(text, n) {
+  const re = /^## \[/gm;
+  let m;
+  for (let i = 0; i < n; i++) {
+    m = re.exec(text);
+    if (!m) return -1;
+  }
+  return m.index;
+}
 
 // COLLECT -- plan-driven, DI'd fs so this module stays pure (it imports nothing today
 // and must not start). `io.join`/`io.walkMd`/`io.read`/`io.rel` are the SAME filesystem
@@ -138,7 +150,19 @@ export function collectSurfaces(repo, plan, io) {
         surfaces.push({ label: io.rel(f), text: io.read(f) });
       }
     } else {
-      const s = { label: row.root, text: io.read(io.join(repo, row.root)) };
+      const text = io.read(io.join(repo, row.root));
+      if (row.historyOnly && typeof text === 'string') {
+        // R18b: only RELEASED entries are history. Split at the SECOND `## [` heading: everything before it (the
+        // preamble and the TOP entry, `[Unreleased]` or the version being released, the text the next Release body
+        // is built from) is an ordinary surface; everything from it on is released history.
+        const second = nthHeading(text, 2);
+        // The top entry still skips the RESOLVE check (`historyResolve`): a Removed/Changed line legitimately names a file
+        // the release deleted (0.14.0 names the retired admission-control.mjs). It gets the gitignored-root check.
+        if (second === -1) surfaces.push({ label: row.root, text, historyResolve: true });
+        else surfaces.push({ label: row.root, text: text.slice(0, second), historyResolve: true }, { label: row.root, text: text.slice(second), historyOnly: true });
+        continue;
+      }
+      const s = { label: row.root, text };
       if (row.historyOnly) s.historyOnly = true;
       surfaces.push(s);
     }
@@ -419,8 +443,8 @@ export function checkPointers({
       // YET; it can never launder one that exists and is unreachable from a clone.
       if (ignoredRoots.has(first)) {
         cited.add(norm);
-        // R18b: published history is never fixed forward, so a historyOnly surface is exempt from this check too -- an
-        // entry written before the root was ignored cited it on a day it was an ordinary path.
+        // R18b: released history is never fixed forward, so a historyOnly surface (released CHANGELOG entries only) is
+        // exempt from this check too -- an entry written before the root was ignored cited it on a day it was ordinary.
         if (s.historyOnly) continue;
         checked++;
         findings.push({
@@ -448,7 +472,7 @@ export function checkPointers({
 
       // Published history is never fixed forward: a path correct when written is not a
       // defect now. Such a surface skips the gitignored-root check above and this one (R18b).
-      if (s.historyOnly) continue;
+      if (s.historyOnly || s.historyResolve) continue;
 
       checked++;
       const rel = base ? base + '/' + norm : norm;

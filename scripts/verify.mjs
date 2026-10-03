@@ -280,9 +280,10 @@ try {
     // CHANGELOG.md's own historyOnly ruling (BOUNCE 1) lives in the PLAN now, not here --
     // "published history is never fixed forward, so a path correct when the entry was
     // written is not a defect now" -- matching CoalMine's identical treatment. historyOnly
-    // SKIPS the non-resolving-citation check AND (R18b) the gitignored-root check: an entry
-    // written before `scratchpad/` was ignored cited it legitimately, and history is never
-    // fixed forward. A NON-history surface citing a gitignored path still FAILs.
+    // (RELEASED entries only, from the second `## [` heading on; the top entry is an ordinary
+    // surface) SKIPS the non-resolving-citation check AND (R18b) the gitignored-root check: a
+    // released entry written before `scratchpad/` was ignored cited it legitimately, and history
+    // is never fixed forward. Any other surface citing a gitignored path still FAILs.
     const surfaces = collected.filter((s) => tracked.has(s.label));
 
     // IGNORED ROOTS, PATTERN-BASED, EXISTENCE-INDEPENDENT (CWK-079) — mechanism, the

@@ -329,36 +329,51 @@ test('verify.mjs git-spawn census: a planted git spawn with env: process.env FAI
   }
 });
 
-// R18b item 5 -- a historyOnly surface (the published CHANGELOG) is exempt from the gitignored-root check as well as the
-// resolve check: published history is never fixed forward, and an entry written before `scratchpad/` was ignored cited it
-// on a day it was ordinary. A NON-history surface citing the same ignored path must still FAIL.
-function plantIgnoredScratchpadCitation(tmp, file) {
+// R18b item 5 -- only RELEASED CHANGELOG history is exempt from the gitignored-root pointer check: published history is never
+// fixed forward, and an entry written before `scratchpad/` was ignored cited it on a day it was ordinary. The TOP entry (the
+// text the next Release body is built from) is checked as an ordinary surface, and so is any non-history surface.
+const CITE = '\nSee `scratchpad/dispatch/old-return.md` for the detail.\n';
+function ignoreScratchpad(tmp) {
   fs.appendFileSync(path.join(tmp, '.gitignore'), '\nscratchpad/\n');
-  fs.appendFileSync(path.join(tmp, file), '\nSee `scratchpad/dispatch/old-return.md` for the detail.\n');
+}
+// a new top entry [Unreleased] inserted above the first released heading, carrying the citation
+function citeInTopEntry(tmp) {
+  const p = path.join(tmp, 'CHANGELOG.md');
+  const t = fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
+  const at = t.search(/^## \[/m);
+  fs.writeFileSync(p, t.slice(0, at) + '## [Unreleased]\n' + CITE + '\n' + t.slice(at));
+}
+// the citation appended to the LAST (oldest, released) entry
+function citeInReleasedEntry(tmp) {
+  fs.appendFileSync(path.join(tmp, 'CHANGELOG.md'), CITE);
 }
 
-test('verify.mjs: a historyOnly CHANGELOG citing a gitignored scratchpad path PASSES the pointer gate', () => {
+function verifyAfter(plant) {
   const tmp = mkTmpRepoCopy();
   try {
-    plantIgnoredScratchpadCitation(tmp, 'CHANGELOG.md');
+    ignoreScratchpad(tmp);
+    plant(tmp);
     gitInit(tmp);
-    const r = runVerify(tmp);
-    assert.equal(r.status, 0, `history is exempt, got:\n${r.stdout}${r.stderr}`);
-    assert.doesNotMatch(r.stdout, /FAIL CHANGELOG\.md cites/);
+    return runVerify(tmp);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
+}
+
+test('verify.mjs: a citation of a gitignored scratchpad path inside a RELEASED CHANGELOG entry PASSES the pointer gate', () => {
+  const r = verifyAfter(citeInReleasedEntry);
+  assert.equal(r.status, 0, `released history is exempt, got:\n${r.stdout}${r.stderr}`);
+  assert.doesNotMatch(r.stdout, /FAIL CHANGELOG\.md cites/);
+});
+
+test('verify.mjs: the same citation in a NEW [Unreleased] top entry FAILs (the next Release body is built from it)', () => {
+  const r = verifyAfter(citeInTopEntry);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stdout, /FAIL CHANGELOG\.md cites `scratchpad\/dispatch\/old-return\.md`, which lives under the gitignored `scratchpad`/);
 });
 
 test('verify.mjs: a NON-history surface (README) citing a gitignored scratchpad path still FAILs, naming it', () => {
-  const tmp = mkTmpRepoCopy();
-  try {
-    plantIgnoredScratchpadCitation(tmp, 'README.md');
-    gitInit(tmp);
-    const r = runVerify(tmp);
-    assert.notEqual(r.status, 0);
-    assert.match(r.stdout, /FAIL README\.md cites `scratchpad\/dispatch\/old-return\.md`, which lives under the gitignored `scratchpad`/);
-  } finally {
-    fs.rmSync(tmp, { recursive: true, force: true });
-  }
+  const r = verifyAfter((tmp) => fs.appendFileSync(path.join(tmp, 'README.md'), CITE));
+  assert.notEqual(r.status, 0);
+  assert.match(r.stdout, /FAIL README\.md cites `scratchpad\/dispatch\/old-return\.md`, which lives under the gitignored `scratchpad`/);
 });
