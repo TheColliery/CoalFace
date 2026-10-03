@@ -33,9 +33,10 @@ test('memory below the minimum reads WAIT; at the minimum reads BREATHE', () => 
 });
 
 test('an unmeasured CPU (null) never blocks on its own; neither does unmeasured memory', () => {
-  assert.equal(decide({ cpuBusyPct: null, cpuSource: 'unmeasured', memFreePct: 50 }).verdict, 'BREATHE');
-  assert.equal(decide({ cpuBusyPct: 5, cpuSource: 'host', memFreePct: null }).verdict, 'BREATHE');
-  const none = decide({ cpuBusyPct: null, cpuSource: 'unmeasured', memFreePct: null });
+  // running: 1 (held): with 0 the first unit is always admitted, so these calls could never fail
+  assert.equal(decide({ ...held, cpuBusyPct: null, cpuSource: 'unmeasured', memFreePct: 50 }).verdict, 'BREATHE');
+  assert.equal(decide({ ...held, cpuBusyPct: 5, cpuSource: 'host', memFreePct: null }).verdict, 'BREATHE');
+  const none = decide({ ...held, cpuBusyPct: null, cpuSource: 'unmeasured', memFreePct: null });
   assert.equal(none.verdict, 'BREATHE');
 });
 

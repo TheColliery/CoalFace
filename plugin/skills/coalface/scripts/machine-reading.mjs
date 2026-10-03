@@ -98,7 +98,8 @@ export function formatLine(r) {
 }
 
 const USAGE = `usage: machine-reading.mjs [--cpu-max N] [--mem-min N] [--running N] [--json]
-  Reads this machine's CPU and memory now. Prints BREATHE or WAIT. Exit 0 = BREATHE, 1 = WAIT, 64 = usage error.
+  Reads this machine's CPU and memory now. Prints BREATHE or WAIT. Exit 0 = BREATHE, 1 = WAIT, 64 = usage error,
+  2 = could not read the machine (treat as unmeasured: neither BREATHE nor WAIT).
   --cpu-max N   WAIT when CPU busy is at or above N percent (1-100, default ${DEFAULTS.cpuMaxPct})
   --mem-min N   WAIT when free memory is below N percent (0-99, default ${DEFAULTS.memMinPct})
   --running N   units you already hold (default 0); with 0 the first unit is admitted whatever the reading says
