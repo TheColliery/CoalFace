@@ -112,7 +112,7 @@ try {
 } catch (e) { fail(`factory config: ${e.message}`); }
 
 console.log('libs (import check):');
-for (const lib of ['config-schema.mjs', 'jsonc.mjs', 'admission-control.mjs', 'desc-cap.mjs', 'claude-ai-trim.mjs']) {
+for (const lib of ['config-schema.mjs', 'jsonc.mjs', 'desc-cap.mjs', 'claude-ai-trim.mjs']) {
   try { await import(pathToFileURL(path.join(repo, 'scripts', 'lib', lib)).href); ok(`${lib} imports`); }
   catch (e) { fail(`${lib}: ${e.message}`); }
 }

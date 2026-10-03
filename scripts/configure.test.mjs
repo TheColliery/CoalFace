@@ -39,7 +39,7 @@ test('--help lists every schema key and exits 0, no write attempted', (t) => {
   t.after(() => { fs.rmSync(home, { recursive: true, force: true }); fs.rmSync(project, { recursive: true, force: true }); });
   const r = run(['--help'], { cwd: project, home });
   assert.equal(r.status, 0, r.stderr);
-  for (const key of ['coalfaceMode', 'bandwidth', 'autoFanoutFloor', 'updateMode', 'updateCheckDays', 'maxLocalWorkers', 'language']) {
+  for (const key of ['coalfaceMode', 'bandwidth', 'autoFanoutFloor', 'updateMode', 'updateCheckDays', 'maxLocalWorkers', 'admitCpuBusyMaxPct', 'admitMemFreeMinPct', 'language']) {
     assert.match(r.stdout, new RegExp(`--${key}\\b`), `--help must list --${key}`);
   }
   assert.match(r.stdout, /--global\b/);

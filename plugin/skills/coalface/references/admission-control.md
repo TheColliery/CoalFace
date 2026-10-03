@@ -10,7 +10,7 @@ Board #89's exhibit: 10 lanes flew without a single file collision — the parti
 
 Claude Code's own admission control for agent processes: `min(16, cores-2)`, excess QUEUED, never denied. **What transfers:** the SHAPE — a bounded slot count derived from the live machine, plus a queue rather than a rejection. **What does not transfer:** the NUMBER. CC's agents are mostly network/API-bound — idle waiting on a response, not holding a core — so a flat ceiling regardless of core count is right for that variable set. A CoalFace worker is a spawn-tool-less Explore-class leaf (P1) — it never runs a build/test step, so CC's formula fits it fine. What CC's formula was never built to hold is CONDUCTOR concurrency: main's own step-7 domain-gate run (or a depth-1 nested conductor's own apply-time gate) genuinely burns CPU as a real child process, and more than one may run at once.
 
-## Derivation (`scripts/lib/admission-control.mjs`)
+## Derivation (the cores formula, RETIRED in R18; the DOCS station rewrites this file around the live reading)
 
 ```
 cap = max(1, min(CEILING, floor((cpuCount - RESERVE) / WORKER_CORE_WEIGHT)))
@@ -35,4 +35,4 @@ Compose with WAVES: each wave still sizes to `bandwidth`'s effective width for i
 
 ## Proof
 
-`scripts/lib/admission-control.test.mjs` simulates a fan-out above capacity with an independent counter (not the gate's own bookkeeping) and asserts peak concurrency never exceeds the cap and every worker completes — none denied. Red-first: the identical test body run against a naive no-op gate (unconditional admission, no queue) trips the over-admission assertion (`peak 13 exceeded capacity 5`), proving the assertion is sensitive to the defect it exists to catch before the real gate is trusted to pass it.
+The retired gate test simulated a fan-out above capacity with an independent counter (not the gate's own bookkeeping) and asserts peak concurrency never exceeds the cap and every worker completes — none denied. Red-first: the identical test body run against a naive no-op gate (unconditional admission, no queue) trips the over-admission assertion (`peak 13 exceeded capacity 5`), proving the assertion is sensitive to the defect it exists to catch before the real gate is trusted to pass it.
