@@ -328,3 +328,37 @@ test('verify.mjs git-spawn census: a planted git spawn with env: process.env FAI
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+// R18b item 5 -- a historyOnly surface (the published CHANGELOG) is exempt from the gitignored-root check as well as the
+// resolve check: published history is never fixed forward, and an entry written before `scratchpad/` was ignored cited it
+// on a day it was ordinary. A NON-history surface citing the same ignored path must still FAIL.
+function plantIgnoredScratchpadCitation(tmp, file) {
+  fs.appendFileSync(path.join(tmp, '.gitignore'), '\nscratchpad/\n');
+  fs.appendFileSync(path.join(tmp, file), '\nSee `scratchpad/dispatch/old-return.md` for the detail.\n');
+}
+
+test('verify.mjs: a historyOnly CHANGELOG citing a gitignored scratchpad path PASSES the pointer gate', () => {
+  const tmp = mkTmpRepoCopy();
+  try {
+    plantIgnoredScratchpadCitation(tmp, 'CHANGELOG.md');
+    gitInit(tmp);
+    const r = runVerify(tmp);
+    assert.equal(r.status, 0, `history is exempt, got:\n${r.stdout}${r.stderr}`);
+    assert.doesNotMatch(r.stdout, /FAIL CHANGELOG\.md cites/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('verify.mjs: a NON-history surface (README) citing a gitignored scratchpad path still FAILs, naming it', () => {
+  const tmp = mkTmpRepoCopy();
+  try {
+    plantIgnoredScratchpadCitation(tmp, 'README.md');
+    gitInit(tmp);
+    const r = runVerify(tmp);
+    assert.notEqual(r.status, 0);
+    assert.match(r.stdout, /FAIL README\.md cites `scratchpad\/dispatch\/old-return\.md`, which lives under the gitignored `scratchpad`/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});

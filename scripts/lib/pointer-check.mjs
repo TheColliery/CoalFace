@@ -102,13 +102,13 @@ export const PENDING_POINTERS = [
 //
 // `dir: true` means `root` is a directory of `.md` files, walked recursively, whole
 // text. Its absence means `root` is one exact file. `historyOnly: true` marks a surface
-// `checkPointers` binds to the gitignored-root case only, never the ordinary resolve
-// check (CHANGELOG.md -- published history is never fixed forward).
+// `checkPointers` exempts from BOTH the ordinary resolve check and the
+// gitignored-root check (R18b; CHANGELOG.md -- published history is never fixed forward).
 export const DEFAULT_SURFACE_PLAN = [
   { root: 'README.md',
     why: 'the front door -- every install/config claim starts here' },
   { root: 'CHANGELOG.md', historyOnly: true,
-    why: 'published history is never fixed forward -- a path correct when the entry was written is not a defect now, but a gitignored citation was never correct on any day' },
+    why: 'published history is never fixed forward -- a path correct when the entry was written, or cited before its root was ignored (R18b), is not a defect now' },
   { root: 'SECURITY.md',
     why: 'the disclosure surface, and it cites internal paths (e.g. a hook line ref)' },
   { root: 'CONTRIBUTING.md',
@@ -419,6 +419,9 @@ export function checkPointers({
       // YET; it can never launder one that exists and is unreachable from a clone.
       if (ignoredRoots.has(first)) {
         cited.add(norm);
+        // R18b: published history is never fixed forward, so a historyOnly surface is exempt from this check too -- an
+        // entry written before the root was ignored cited it on a day it was an ordinary path.
+        if (s.historyOnly) continue;
         checked++;
         findings.push({
           level: 'FAIL',
@@ -444,7 +447,7 @@ export function checkPointers({
       cited.add(norm);
 
       // Published history is never fixed forward: a path correct when written is not a
-      // defect now. Such a surface is checked for the gitignored case above and nothing else.
+      // defect now. Such a surface skips the gitignored-root check above and this one (R18b).
       if (s.historyOnly) continue;
 
       checked++;

@@ -126,13 +126,19 @@ test('a declaration CANNOT launder a gitignored path — the check runs before `
   assert.ok(fails(f).some((m) => /gitignored/.test(m)), fails(f).join(' | '));
 });
 
-test('a historyOnly surface is still checked for the gitignored case, and nothing else', () => {
+test('a historyOnly surface is exempt from the gitignored-root check AND the resolve check (R18b)', () => {
   const ignored = checkPointers(base({
     surfaces: [{ label: 'CHANGELOG.md', text: '`dist-claude-ai/x.zip`', historyOnly: true }],
     ourRoots: new Set([...OURS, 'dist-claude-ai']),
     ignoredRoots: new Set(['dist-claude-ai']),
   }));
-  assert.ok(fails(ignored).some((m) => /gitignored/.test(m)));
+  assert.deepEqual(fails(ignored), []); // an entry written before the root was ignored; history is never fixed forward
+  const live = checkPointers(base({
+    surfaces: [{ label: 'README.md', text: '`dist-claude-ai/x.zip`' }],
+    ourRoots: new Set([...OURS, 'dist-claude-ai']),
+    ignoredRoots: new Set(['dist-claude-ai']),
+  }));
+  assert.ok(fails(live).some((m) => /gitignored/.test(m))); // a non-history surface still FAILs
   const renamed = checkPointers(base({
     surfaces: [{ label: 'CHANGELOG.md', text: '`scripts/renamed-away.mjs`', historyOnly: true }],
     resolve: () => 'missing',
