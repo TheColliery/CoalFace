@@ -6,14 +6,14 @@ All notable changes to CoalFace are documented here. Format follows
 
 ## [Unreleased]
 
-CoalFace now checks your CPU and memory before heavy local runs
+The agent now reads your CPU and memory before heavy local runs
 
 ### Added
 - **A live machine reading, `skills/coalface/scripts/machine-reading.mjs`.** Before each apply-time domain-gate run and each wave of heavy local work, the agent runs it with your thresholds. It reads CPU busy % (of the container quota where cgroup v2 holds one, else of the host) and free memory now, and prints BREATHE (start) or WAIT (hold, read again). At least one unit always runs, and a reading your machine cannot give never blocks. It needs only `node`.
-- **Two keys, `admitCpuBusyMaxPct` (default `80`) and `admitMemFreeMinPct` (default `10`).** The defaults are ours, not a measurement of your machine. Both are settable from `scripts/configure.mjs`.
+- **Two keys, `admitCpuBusyMaxPct` (default `80`) and `admitMemFreeMinPct` (default `10`).** The defaults are ours, not a measurement of your machine. Both are settable from `scripts/configure.mjs`. A project config may only make admission stricter (lower CPU max, raise memory min); the agent takes the stricter of your global and the project value. This is a prose rule the agent follows, not a hook-enforced clamp.
 
 ### Changed
-- **`maxLocalWorkers` `0` now means no count of ours: the reading decides.** A positive number stays your own ceiling, honoured as given. The cores formula that derived a cap from your core count is retired.
+- **`maxLocalWorkers` `0` now means no count of ours: the reading decides.** A positive number is now your own ceiling, honoured as given (it was clamped to the core-derived cap). The cores formula that derived a cap from your core count is retired.
 - **The README, the admission reference and the factory config describe the reading** instead of the cores formula.
 
 *Internal, not shipped: `scripts/lib/admission-control.mjs` and its test are deleted (nothing used them); the probe has its own test, `scripts/machine-reading.test.mjs`.*

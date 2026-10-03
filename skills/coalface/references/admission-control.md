@@ -20,7 +20,13 @@ Board #89's exhibit: 10 lanes flew without a single file collision — the parti
 
 ## The thresholds are OURS
 
-`admitCpuBusyMaxPct` (WAIT at or above this busy percent, 1-100, default 80) and `admitMemFreeMinPct` (WAIT below this free percent, 0-99, default 10) are this room's own defaults, not a measurement of any machine: lower the first on a shared or slow box, raise the second on a box that swaps early. Both are speed knobs with a plain project-wins merge and no safer-value-wins clamp (hooks-safety.md §9, numeric-keys carve-out, same class as `bandwidth`); `validateValue`'s `min`/`max` in `scripts/lib/config-schema.mjs` bound them at read. `maxLocalWorkers` keeps its key: 0 = no count, the reading decides; a positive number is the user's own ceiling on concurrent domain-gate runs, honoured as given.
+`admitCpuBusyMaxPct` (WAIT at or above this busy percent, 1-100, default 80) and `admitMemFreeMinPct` (WAIT below this free percent, 0-99, default 10) are this room's own defaults, not a measurement of any machine: lower the first on a shared or slow box, raise the second on a box that swaps early. **A project config may only make admission STRICTER:** lower `admitCpuBusyMaxPct`, raise `admitMemFreeMinPct`, never the other way. The floor is the global value, or the schema default when there is no global; the agent takes the stricter of the global and project values. A cloned repo's file is not the machine's owner, and these two keys are the only bound between it and the user's machine. This is PROSE strength: no hook reads these keys (hooks-safety.md §9, THE CEILING), so it is a mitigation, never "clamped". The probe refuses an out-of-range value (exit 64); `configure.mjs` validates at write (`validateValue` in `scripts/lib/config-schema.mjs`), and nothing validates a hand-edited file at read. `maxLocalWorkers` stays plain project-wins: under the same reading a higher value only adds concurrency; 0 = no count, the reading decides; a positive number is the user's own ceiling on concurrent domain-gate runs, honoured as given.
+
+## Exit codes, and what the agent does
+
+- 0 BREATHE: start. 1 WAIT: hold, read again later.
+- 2 (could not read the machine): treat as unmeasured, run one unit at a time, never block.
+- 64 (a threshold value out of range, or a bad flag): fix the value; meanwhile one unit at a time.
 
 ## Retired: the cores formula
 

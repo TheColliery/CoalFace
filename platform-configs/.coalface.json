@@ -35,11 +35,13 @@
   "maxLocalWorkers": 0,
   // Live-reading admission: WAIT when the CPU is at or above this busy percent (1-100).
   // The default is ours, not a measurement of your machine; lower it on a shared or
-  // slow box. Passed to skills/coalface/scripts/machine-reading.mjs as --cpu-max.
+  // slow box. A project config may only LOWER it below your global value (stricter); the
+  // agent takes the stricter of the two. Passed to skills/coalface/scripts/machine-reading.mjs as --cpu-max.
   "admitCpuBusyMaxPct": 80,
   // Live-reading admission: WAIT when free memory is below this percent (0-99). The
   // default is ours, not a measurement of your machine; raise it on a box that swaps
-  // early. Passed to machine-reading.mjs as --mem-min.
+  // early. A project config may only RAISE it above your global value (stricter); the agent
+  // takes the stricter of the two. Passed to machine-reading.mjs as --mem-min.
   "admitMemFreeMinPct": 10,
   // Lock the reply language (auto, th, en, ja, zh, es). auto (default) follows the
   // conversation's language, EN fallback -- no extra work. A lock translates PROSE
