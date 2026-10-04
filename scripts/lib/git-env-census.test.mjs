@@ -99,7 +99,7 @@ test('R14 CWK-174: an exempt carrier passes ONLY while its content is exactly th
 test('R14 CWK-174: blobId matches git hash-object for a known blob, and the pins name only the two template tests', () => {
   assert.equal(blobId(''), 'e69de29bb2d1d6434b8b29ae775ad8c2e48c5391');
   assert.equal(blobId('hello' + String.fromCharCode(10)), 'ce013625030ba8dba906f756967f9e9ca394464a');
-  assert.deepEqual(Object.keys(EXEMPT_CARRIERS).sort(), ['scripts/secret-gate.test.mjs', 'scripts/secret-scan.test.mjs']);
+  assert.deepEqual(Object.keys(EXEMPT_CARRIERS).sort(), ['scripts/release-notes.mjs', 'scripts/secret-gate.test.mjs', 'scripts/secret-scan.test.mjs']);
 });
 
 test('R14 CWK-136: gitTestEnv(...) alone passes exactly like gitEnv(...), and the same refusals bind it', () => {

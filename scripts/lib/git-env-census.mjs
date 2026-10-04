@@ -105,6 +105,10 @@ function safeIdentifier(name, text) {
 export const EXEMPT_CARRIERS = {
   'scripts/secret-scan.test.mjs': 'a9cb7145e31139ec3c490dd7714df8fa7dc6cf86',
   'scripts/secret-gate.test.mjs': '3fcd3f0d020ea3b3f369feca01dc770d102ca5b3',
+  // R20: the canon release-notes.mjs (.github overlay-coal-skill at 6be9e78) gained a `--check` mode whose repoName() runs
+  // `git config --get remote.origin.url` with no env. It is a pre-tag read run by hand, never inside a hook, and the file is
+  // adopted byte-identical from the overlay, so it is pinned here the same way; the real fix is the overlay's (the .github deputy).
+  'scripts/release-notes.mjs': '16a9ea6f391ab69b6bb0d1462100c16108d14732',
 };
 
 // The git blob id of `text`, as `git hash-object` prints it for a file holding exactly these bytes.
