@@ -442,6 +442,7 @@ export function checkPointers({
   hasEntry = () => false,   // (relDir, name) => boolean
   resolve,                  // (relPath) => 'tracked' | 'untracked' | 'missing'
   pending = PENDING_POINTERS,
+  tagFileExists,            // (tag, path) => boolean; optional. Absent (no git) = the vX.Y.Z:path form is skipped, as before (05a L-2)
 } = {}) {
   const findings = [];
   if (typeof resolve !== 'function') {
@@ -473,6 +474,17 @@ export function checkPointers({
       const occSuffix = occ > 1 ? ` (${occ}× in this file)` : '';
       const first = tok.split('/')[0];
       const norm = normalise(tok);
+
+      // 05a L-2: a file the release DELETED is cited as `vX.Y.Z:path` (the convention). The scope test below skips that shape (its first
+      // segment is not a top-level directory), so a typo inside it would ship. When the caller can ask git, ask: the file must have
+      // existed at that tag. Released history is exempt, and with no tagFileExists (no git) the form stays skipped (no-external-assumption).
+      const tagForm = /^(v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?):(.+)$/.exec(norm);
+      if (tagForm) {
+        if (!s.historyOnly && typeof tagFileExists === 'function' && !tagFileExists(tagForm[1], tagForm[2])) {
+          findings.push({ level: 'FAIL', msg: `${s.label} cites \`${tok}\`, but that file did not exist at ${tagForm[1]} (git cat-file -e failed): check the path and the tag${occSuffix}` });
+        }
+        continue;
+      }
 
       // A GITIGNORED ROOT IS THE SHARP CASE, decided WITHOUT resolving and BEFORE `pending`
       // is consulted — deliberately. A declaration can excuse a path that does not exist
@@ -519,7 +531,7 @@ export function checkPointers({
         findings.push({ level: 'FAIL', msg: `${s.label} cites \`${tok}\`, which exists here but is UNTRACKED — a clone does not have it. Commit it, or cite the durable artefact.${occSuffix}` });
       } else {
         // A CHANGELOG line that names a file the release DELETED: the convention is stated here, where the author trips it.
-        const hint = s.label === 'CHANGELOG.md' ? '. If this names a file this release deleted: cite it with the tag it last lived in, `vX.Y.Z:path` (the gate does not resolve that form).' : '';
+        const hint = s.label === 'CHANGELOG.md' ? '. If this names a file this release deleted: cite it with the tag it last lived in, `vX.Y.Z:path` (the gate checks that form with git when it can).' : '';
         findings.push({ level: 'FAIL', msg: `${s.label} cites \`${tok}\`, which does not resolve in this repo${occSuffix}${hint}` });
       }
     }

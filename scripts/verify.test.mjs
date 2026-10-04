@@ -421,10 +421,10 @@ test('verify.mjs: a new [Unreleased] top entry citing a path that resolves to no
 });
 
 // THE CONVENTION for a Removed/Changed line that names a file the release deleted: cite it with the tag it last lived in,
-// `v0.14.0:scripts/lib/admission-control.mjs`. The gate reads that as a path into another revision (its first segment,
-// `v0.14.0:scripts`, is not a top-level directory of this tree), so it is neither resolved nor reported.
+// `v0.13.0:scripts/lib/admission-control.mjs`. The gate reads that as a path into another revision (its first segment,
+// `v0.13.0:scripts`, is not a top-level directory of this tree), so it is neither resolved nor reported.
 test('verify.mjs: a top entry naming a deleted file with the tag form (vX.Y.Z:path) PASSES; the bare path FAILs and the message states the convention', () => {
-  const ok = verifyAfter(topEntryWith('Removed `v0.14.0:scripts/lib/admission-control.mjs`, the cores formula.'));
+  const ok = verifyTagged('Removed `v0.0.1:scripts/verify.mjs`, the cores formula.');
   assert.equal(ok.status, 0, `the tag form is skipped, got:\n${ok.stdout}${ok.stderr}`);
   const bad = verifyAfter(topEntryWith('Removed `scripts/lib/admission-control.mjs`, the cores formula.'));
   assert.notEqual(bad.status, 0);
@@ -448,4 +448,27 @@ test('verify.mjs: an unclosed code fence in the CHANGELOG top entry FAILs naming
   });
   assert.notEqual(r.status, 0, `${r.stdout}${r.stderr}`);
   assert.match(r.stdout, /FAIL CHANGELOG\.md has an unclosed code fence opened at line \d+/);
+});
+
+// 05a L-2, through the real gate: the fixture repo is tagged v0.0.1 after its first commit, so `v0.0.1:scripts/verify.mjs`
+// existed at that tag and `v0.0.1:scripts/typo-nowhere.mjs` never did.
+function verifyTagged(line) {
+  const tmp = mkTmpRepoCopy();
+  try {
+    topEntryWith(line)(tmp);
+    gitInit(tmp);
+    const t = spawnSync('git', ['-c', 'tag.gpgsign=false', 'tag', 'v0.0.1'], { cwd: tmp, encoding: 'utf8', env: gitTestEnv(path.dirname(tmp)) });
+    assert.equal(t.status, 0, `fixture tag: ${t.stderr}`);
+    return runVerify(tmp);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+test('verify.mjs: a top-entry vX.Y.Z:path citation that existed at the tag PASSES; a typo inside the form FAILs naming the tag', () => {
+  const ok = verifyTagged('Removed `v0.0.1:scripts/verify.mjs`.');
+  assert.equal(ok.status, 0, `${ok.stdout}${ok.stderr}`);
+  const bad = verifyTagged('Removed `v0.0.1:scripts/typo-nowhere.mjs`.');
+  assert.notEqual(bad.status, 0);
+  assert.match(bad.stdout, /FAIL CHANGELOG\.md cites `v0\.0\.1:scripts\/typo-nowhere\.mjs`, but that file did not exist at v0\.0\.1/);
 });

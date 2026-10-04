@@ -333,6 +333,11 @@ try {
       hasEntry: (relDir, name) => { try { return fs.existsSync(path.join(repo, relDir, name)); } catch { return false; } },
       resolve: (p) => (tracked.has(p) || trackedDirs.has(p) ? 'tracked'
         : fs.existsSync(path.join(repo, p)) ? 'untracked' : 'missing'),
+      // 05a L-2: the vX.Y.Z:path form must name a file that existed at that tag. This block only runs under git (the no-.git
+      // NAMED SKIP is above), so the check needs no fallback of its own. gitEnv() keeps GIT_INDEX_FILE, a harmless read here.
+      tagFileExists: (tag, p) => {
+        try { execFileSync('git', ['cat-file', '-e', `${tag}:${p}`], { cwd: repo, stdio: 'ignore', timeout: 30000, env: gitEnv() }); return true; } catch { return false; }
+      },
     });
 
     // PRINT the derived enumeration, CITED and PROBED as separate numbers — each means

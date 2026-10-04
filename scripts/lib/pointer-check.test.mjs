@@ -690,3 +690,22 @@ test('the split and pointerCandidates agree on a tilde fence in the top entry (o
   assert.ok(top.text.includes('after') && released.historyOnly && released.text.startsWith('## [1.0.0]'));
   assert.deepEqual(pointerCandidates(top.text), []);
 });
+
+// 05a L-2 -- the vX.Y.Z:path form (a deleted file cited with the tag it last lived in) is CHECKED, not just skipped: a typo
+// inside the form must not ship. `tagFileExists(tag, path)` is injected (git cat-file -e through gitEnv() in verify.mjs).
+test('checkPointers: a vX.Y.Z:path citation in a non-history surface is checked; a typo FAILs saying the file did not exist at that tag', () => {
+  const tagFileExists = (tag, p) => p === 'scripts/lib/real.mjs' && tag === 'v0.14.0';
+  const r = checkPointers(base({
+    surfaces: [{ label: 'CHANGELOG.md', text: 'Removed `v0.14.0:scripts/lib/real.mjs` and `v0.14.0:scripts/lib/typo.mjs`.' }],
+    tagFileExists,
+  }));
+  assert.equal(fails(r).length, 1, fails(r).join(' | '));
+  assert.match(fails(r)[0], /CHANGELOG\.md cites `v0\.14\.0:scripts\/lib\/typo\.mjs`, but that file did not exist at v0\.14\.0/);
+});
+
+test('checkPointers: the tag form is not checked in a historyOnly surface, nor when no tagFileExists is supplied (no git: skipped)', () => {
+  const text = 'Removed `v0.14.0:scripts/lib/typo.mjs`.';
+  const never = () => false;
+  assert.deepEqual(fails(checkPointers(base({ surfaces: [{ label: 'CHANGELOG.md', text, historyOnly: true }], tagFileExists: never }))), []);
+  assert.deepEqual(fails(checkPointers(base({ surfaces: [{ label: 'CHANGELOG.md', text }] }))), []);
+});
