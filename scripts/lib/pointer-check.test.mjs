@@ -647,3 +647,18 @@ test('collectSurfaces: against the real tree, produces exactly the 8 declared ro
   }
   assert.ok(surfaces.every((s) => typeof s.label === 'string' && s.text !== undefined), JSON.stringify(surfaces));
 });
+
+test('collectSurfaces: a heading-shaped line inside a ``` or ~~~ fence does not move the CHANGELOG split (R19 N-1)', () => {
+  const io = { join: (...p) => p.join('/'), walkMd: () => [], rel: (p) => p };
+  const split = (lines) => collectSurfaces('REPO', [{ root: 'CHANGELOG.md', historyOnly: true, why: 'x' }], { ...io, read: () => lines.join('\n') });
+  for (const fence of ['```', '~~~', '````']) {
+    const lines = ['## [Unreleased]', fence, '## [9.9.9] - example', fence, 'after the fence', '## [1.0.0]', 'old', ''];
+    const [top, released] = split(lines);
+    assert.ok(top.text.includes('after the fence'), `top entry keeps the text below a ${fence} fence`);
+    assert.deepEqual([released.historyOnly, released.text.startsWith('## [1.0.0]')], [true, true]);
+  }
+  // a shorter fence does not close a longer one, a different char does not close it, and an unclosed fence swallows the rest
+  const [a] = split(['## [Unreleased]', '````', '```', '## [9.9.9]', '````', 'x', '## [1.0.0]', 'old']);
+  assert.ok(a.text.includes('x') && !a.text.includes('## [1.0.0]'));
+  assert.equal(split(['## [Unreleased]', '```', '## [1.0.0]', 'old']).length, 1);
+});

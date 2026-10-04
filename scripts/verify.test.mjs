@@ -377,3 +377,28 @@ test('verify.mjs: a NON-history surface (README) citing a gitignored scratchpad 
   assert.notEqual(r.status, 0);
   assert.match(r.stdout, /FAIL README\.md cites `scratchpad\/dispatch\/old-return\.md`, which lives under the gitignored `scratchpad`/);
 });
+
+// R19 N-1 -- a `## [` line inside a fenced code block of the top entry is NOT a heading: it must not move the split early
+// (case E: the citation below the fence is still in the top entry, so it must FAIL).
+function citeBelowFenceInTopEntry(fenceChar) {
+  return (tmp) => {
+    const fence = fenceChar.repeat(3);
+    const p = path.join(tmp, 'CHANGELOG.md');
+    const t = fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
+    const at = t.search(/^## \[/m);
+    const top = ['## [Unreleased]', '', 'Example of a heading:', fence, '## [9.9.9] - example', fence, CITE, ''].join('\n');
+    fs.writeFileSync(p, t.slice(0, at) + top + '\n' + t.slice(at));
+  };
+}
+
+test('verify.mjs: a citation below a ``` fence holding a heading-shaped line, inside the top entry, still FAILs', () => {
+  const r = verifyAfter(citeBelowFenceInTopEntry('`'));
+  assert.notEqual(r.status, 0, `${r.stdout}${r.stderr}`);
+  assert.match(r.stdout, /FAIL CHANGELOG\.md cites `scratchpad\/dispatch\/old-return\.md`, which lives under the gitignored `scratchpad`/);
+});
+
+test('verify.mjs: the same with a ~~~ fence still FAILs', () => {
+  const r = verifyAfter(citeBelowFenceInTopEntry('~'));
+  assert.notEqual(r.status, 0, `${r.stdout}${r.stderr}`);
+  assert.match(r.stdout, /FAIL CHANGELOG\.md cites `scratchpad\/dispatch\/old-return\.md`, which lives under the gitignored `scratchpad`/);
+});

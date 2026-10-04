@@ -104,12 +104,12 @@ export const PENDING_POINTERS = [
 // text. Its absence means `root` is one exact file. `historyOnly: true` marks a surface
 // `checkPointers` exempts from BOTH the ordinary resolve check and the
 // gitignored-root check (R18b; CHANGELOG.md -- published history is never fixed forward). `collectSurfaces` marks only the RELEASED
-// entries (from the second `## [` heading on) historyOnly; the top entry is an ordinary surface.
+// entries (from the second `## [` heading on) historyOnly; the top entry gets the gitignored-root check only (historyResolve skips its resolve check).
 export const DEFAULT_SURFACE_PLAN = [
   { root: 'README.md',
     why: 'the front door -- every install/config claim starts here' },
   { root: 'CHANGELOG.md', historyOnly: true,
-    why: 'released entries are published history, never fixed forward -- a path correct when the entry was written, or cited before its root was ignored (R18b), is not a defect now; the TOP entry is checked in full' },
+    why: 'released entries are published history, never fixed forward -- a path correct when the entry was written, or cited before its root was ignored (R18b), is not a defect now; the TOP entry is checked for the gitignored case' },
   { root: 'SECURITY.md',
     why: 'the disclosure surface, and it cites internal paths (e.g. a hook line ref)' },
   { root: 'CONTRIBUTING.md',
@@ -124,15 +124,22 @@ export const DEFAULT_SURFACE_PLAN = [
     why: 'command docs are ship-text a user reads' },
 ];
 
-// Index of the nth line starting with `## [` (a CHANGELOG entry heading), or -1.
+// Index of the nth line starting with `## [` (a CHANGELOG entry heading) that is not inside a code fence, or -1.
 function nthHeading(text, n) {
-  const re = /^## \[/gm;
-  let m;
-  for (let i = 0; i < n; i++) {
-    m = re.exec(text);
-    if (!m) return -1;
+  // Lines inside a fenced code block are never headings. CommonMark: a fence opens with 3+ backticks or tildes (up to 3
+  // spaces of indent) and closes with a fence of the same character at least as long, carrying nothing but spaces.
+  let fence = null;
+  let seen = 0;
+  let offset = 0;
+  for (const line of text.split('\n')) {
+    const f = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+    if (fence) {
+      if (f && f[1][0] === fence[0] && f[1].length >= fence.length && /^\s*$/.test(line.slice(f[0].length))) fence = null;
+    } else if (f) fence = f[1];
+    else if (line.startsWith('## [') && ++seen === n) return offset;
+    offset += line.length + 1;
   }
-  return m.index;
+  return -1;
 }
 
 // COLLECT -- plan-driven, DI'd fs so this module stays pure (it imports nothing today
