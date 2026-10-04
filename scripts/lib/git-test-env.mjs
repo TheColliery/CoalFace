@@ -30,5 +30,13 @@ export function gitTestEnv(ceilingDir) {
   env.GIT_CEILING_DIRECTORIES = ceilingDir;
   env.GIT_EDITOR = 'false';
   env.GIT_TERMINAL_PROMPT = '0';
+  // 05a F2: and never SIGN. The operator's global config can demand commit.gpgsign / tag.gpgsign; a fixture commit would
+  // then wait on a signer and use the operator's live key. The env-config form (git 2.31+) overrides the global for every
+  // call that inherits this env, so no call site has to remember `-c commit.gpgsign=false`.
+  env.GIT_CONFIG_COUNT = '2';
+  env.GIT_CONFIG_KEY_0 = 'commit.gpgsign';
+  env.GIT_CONFIG_VALUE_0 = 'false';
+  env.GIT_CONFIG_KEY_1 = 'tag.gpgsign';
+  env.GIT_CONFIG_VALUE_1 = 'false';
   return env;
 }

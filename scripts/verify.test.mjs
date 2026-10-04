@@ -116,7 +116,8 @@ function gitInit(tmp, { spawn = spawnSync } = {}) {
   // got flipped to `core.bare = true` at 2026-09-23 00:17:49 +07 when a linked worktree's
   // hook ran this very function. gitTestEnv() strips the whole GIT_* family before
   // re-adding the ceiling.
-  const run = (args) => spawn('git', args, { cwd: tmp, encoding: 'utf8', env: gitTestEnv(path.dirname(tmp)) });
+  // 05a F2: a finite clock (testing.md); a fixture git that stalls is killed, never waited on.
+  const run = (args) => spawn('git', args, { cwd: tmp, encoding: 'utf8', timeout: 60000, killSignal: 'SIGKILL', env: gitTestEnv(path.dirname(tmp)) });
   const init = run(['init', '-q', '.']);
   assert.equal(init.status, 0, `fixture git init failed (exit ${init.status}): ${init.stderr || ''}`);
   assert.ok(fs.existsSync(path.join(tmp, '.git')),
