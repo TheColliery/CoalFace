@@ -100,15 +100,20 @@ function safeIdentifier(name, text) {
 // breaking that parity. The two TEST files below spawn git with no cleaned environment (secret-scan.test.mjs) or with a
 // spread around gitEnv() (secret-gate.test.mjs). Each is exempt ONLY while its content is exactly the pinned blob: any
 // edit, or a template re-sync that changes it, makes the entry a finding again ("re-derive"), so the exemption cannot
-// widen or outlive its reason silently. The pin is a git blob id (git hash-object <file>) against
-// .github/templates/published-code/scripts/ at 05da36a. The real fix belongs to the template (the .github deputy).
+// widen or outlive its reason silently. The pin is a git blob id (git hash-object <file>) against the .github canon
+// (published-code/scripts for the scanner pair, overlay-coal-skill/scripts for the release pair). The real fix belongs to
+// the canon (the .github deputy).
+//
+// 05a: the overlay's release-notes.mjs and its test (.github c9b0550, UMB-443 ruling 2) now build their git env as an
+// EXPLICIT ALLOWLIST (PATH and the few keys git needs, plus GIT_CONFIG_NOSYSTEM / a sandbox HOME; the script reads
+// --local config only), which is stronger than gitEnv() but is not a shape this textual census recognises (it accepts the
+// two helpers by name). So the pins track the NEW blobs instead of dropping out: dropping a pin needs the census taught
+// that shape, a redesign this unit does not make (named in the return).
 export const EXEMPT_CARRIERS = {
   'scripts/secret-scan.test.mjs': 'a9cb7145e31139ec3c490dd7714df8fa7dc6cf86',
-  'scripts/secret-gate.test.mjs': '3fcd3f0d020ea3b3f369feca01dc770d102ca5b3',
-  // R20: the canon release-notes.mjs (.github overlay-coal-skill at 6be9e78) gained a `--check` mode whose repoName() runs
-  // `git config --get remote.origin.url` with no env. It is a pre-tag read run by hand, never inside a hook, and the file is
-  // adopted byte-identical from the overlay, so it is pinned here the same way; the real fix is the overlay's (the .github deputy).
-  'scripts/release-notes.mjs': '16a9ea6f391ab69b6bb0d1462100c16108d14732',
+  'scripts/secret-gate.test.mjs': 'f61a33e75a3a420e0de0116f45d2b1fd44936a50',
+  'scripts/release-notes.mjs': '674592e0ff25dbdc14a8a4e21e6a598953b90eaa',
+  'scripts/release-notes.test.mjs': 'a8f3ba69d6229b571ce89b4373362e93f074fb7b',
 };
 
 // The git blob id of `text`, as `git hash-object` prints it for a file holding exactly these bytes.
