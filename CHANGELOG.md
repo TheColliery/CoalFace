@@ -4,6 +4,18 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+The agent passes only plain integers to the CPU and memory probe
+
+### Fixed
+- **The agent now substitutes only plain integers into the machine-reading command line.** The shell parses that line before the probe does, so a value from a cloned repo's config that is not a plain integer is treated as a bad value (one unit at a time) and never put on the command line. A prose rule the agent follows, not a hook-enforced clamp.
+- **The README and the SKILL.md config section no longer say every numeric key clamps to its default on read.** Only `autoFanoutFloor` and `updateCheckDays` do (the hook); the two `admit…` keys are refused by the probe with exit 64. The SKILL.md key list now names all nine keys.
+- **The pointer gate's CHANGELOG split ignores heading-shaped lines inside code fences**, so a gitignored-path citation below a fenced example in the top entry is still caught (internal gate; no shipped change).
+
+### Changed
+- **Release titles keep a CamelCase first word's case** (`CoalFace ...` no longer becomes `coalFace ...`), by adopting the canon `release-shape.mjs` (internal release tooling; no shipped change).
+
 ## [0.14.0] - 2026-10-04
 
 The agent now reads your CPU and memory before heavy local runs
