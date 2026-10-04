@@ -9,7 +9,7 @@ All notable changes to CoalFace are documented here. Format follows
 The CPU and memory reading now says it admits the first unit
 
 ### Fixed
-- **The admission reference no longer says `--running 0` admits "whatever the reading says".** It admits the first unit regardless of the reading, which is what the probe does.
+- **The admission reference and the probe's usage line no longer say `--running 0` admits "whatever the reading says".** Both now say the first unit is admitted regardless of the reading, which is what the probe does.
 - **An unclosed code fence in the top CHANGELOG entry is now named by the pointer gate** (the fence and its line) instead of failing on released history (internal gate; no shipped change).
 
 ### Changed
