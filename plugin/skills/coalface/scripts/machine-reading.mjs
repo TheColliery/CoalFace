@@ -70,7 +70,7 @@ export function cgroupCpu({ cpuMax, statA, statB, elapsedMs }) {
 }
 
 // PURE decision over injected readings. null on an axis = unmeasured = never blocks. `running` = units the caller
-// already holds; with 0 the first unit is admitted whatever the reading says, so a queue can never stick.
+// already holds; with 0 the first unit is admitted regardless of the reading, so a queue can never stick.
 export function decide({ cpuBusyPct = null, cpuSource = 'unmeasured', memFreePct = null, running = 0, cpuMaxPct = DEFAULTS.cpuMaxPct, memMinPct = DEFAULTS.memMinPct } = {}) {
   const reasons = [];
   if (cpuBusyPct !== null && cpuBusyPct >= cpuMaxPct) reasons.push(`cpu ${cpuBusyPct}% at or above ${cpuMaxPct}%`);
@@ -102,7 +102,7 @@ const USAGE = `usage: machine-reading.mjs [--cpu-max N] [--mem-min N] [--running
   2 = could not read the machine (treat as unmeasured: neither BREATHE nor WAIT).
   --cpu-max N   WAIT when CPU busy is at or above N percent (1-100, default ${DEFAULTS.cpuMaxPct})
   --mem-min N   WAIT when free memory is below N percent (0-99, default ${DEFAULTS.memMinPct})
-  --running N   units you already hold (default 0); with 0 the first unit is admitted whatever the reading says
+  --running N   units you already hold (default 0); with 0 the first unit is admitted regardless of the reading
   --json        print the structured reading
   The defaults are ours, not a measurement of your machine. Example: node machine-reading.mjs --cpu-max 70
 `;
