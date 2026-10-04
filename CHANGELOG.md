@@ -4,6 +4,14 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- **The pointer gate reads code fences with one shared scanner** (tilde fences and indented fences included), and a `vX.Y.Z:path` citation in the top entry is checked with `git cat-file -e` against that tag (internal gate; no shipped change).
+
+### Changed
+- **The release canon is adopted by blob id** (`release-notes.mjs`, the shape tests, the secret-gate test, `.coderabbit.yaml`), with the git-spawn census pins re-pinned to the new blobs; fixture git no longer waits on an editor or a prompt (internal release tooling and tests; no shipped change).
+
 ## [0.14.2] - 2026-10-04
 
 The CPU and memory reading now says it admits the first unit
