@@ -185,9 +185,12 @@ export function collectSurfaces(repo, plan, io) {
         const { index: second, unclosedLine } = nthHeading(text, 2);
         // R20 (ONE FLOCK ONE COLOR with CoalMine 82a55cc): the top entry gets the FULL check, resolve and gitignored-root,
         // so a dead path in a new entry fails before it ships. A line naming a file the release DELETED cites it with the
-        // tag it last lived in (`vX.Y.Z:path`, the convention in the FAIL message), a shape the scope test skips.
-        // The split is fence-aware here and in CoalMine (f4f8eea, on its origin/main). REMAINING divergence: this room names an
-        // UNCLOSED fence (R20 L-3, `unclosedFence` below); CoalMine's gate fails closed on it without saying why.
+        // tag it last lived in (`vX.Y.Z:path`, the convention in the FAIL message). The scope test skips that shape and
+        // `tagFileExists` then checks it (a missing tag is a named SKIP, `tagExists`).
+        // The split is fence-aware here and in CoalMine (f4f8eea, on its origin/main). TWO REMAINING divergences from CoalMine's
+        // origin/main, both named (ONE FLOCK ONE COLOR (2)): (1) this room names an UNCLOSED fence (R20 L-3, `unclosedFence`
+        // below), where CoalMine's gate fails closed on it without saying why; (2) this room has the `vX.Y.Z:path` convention and
+        // its git check (`tagFileExists`, `tagExists`), which CoalMine lacks (0 hits for cat-file or tagFileExists there).
         if (second === -1) surfaces.push({ label: row.root, text, ...(unclosedLine ? { unclosedFence: unclosedLine } : {}) });
         else surfaces.push({ label: row.root, text: text.slice(0, second) }, { label: row.root, text: text.slice(second), historyOnly: true });
         continue;
