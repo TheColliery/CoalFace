@@ -104,16 +104,21 @@ function safeIdentifier(name, text) {
 // (published-code/scripts for the scanner pair, overlay-coal-skill/scripts for the release pair). The real fix belongs to
 // the canon (the .github deputy).
 //
-// 05a: the overlay's release-notes.mjs and its test (.github c9b0550, UMB-443 ruling 2) now build their git env as an
-// EXPLICIT ALLOWLIST (PATH and the few keys git needs, plus GIT_CONFIG_NOSYSTEM / a sandbox HOME; the script reads
-// --local config only), which is stronger than gitEnv() but is not a shape this textual census recognises (it accepts the
-// two helpers by name). So the pins track the NEW blobs instead of dropping out: dropping a pin needs the census taught
-// that shape, a redesign this unit does not make (named in the return).
+// 05a: the overlay's release-notes.mjs (.github c9b0550, UMB-443 ruling 2) builds its git env as an EXPLICIT ALLOWLIST (PATH
+// and the few keys git needs, plus GIT_CONFIG_NOSYSTEM; it reads --local config only), which is stronger than gitEnv() but
+// is not a shape this textual census recognises (it accepts the two helpers by name). So it is pinned at its new blob
+// (red-proven: without the pin the census names it); dropping the pin needs the census taught that shape, a redesign
+// this unit does not make.
+//
+// NAMED DIVERGENCE (05a F4, the chief's hold; CoalBoard ddffc82 is the shape): scripts/release-notes.test.mjs is HELD at
+// the previous canon blob d7e299c4 and is NOT the canon a8f3ba69. That canon test asserts the child env holds nothing but
+// what node needs; macOS injects __CF_USER_TEXT_ENCODING and the coverage leg injects NODE_V8_COVERAGE, so it went RED on
+// CoalBoard's macOS and Coverage legs (CI run 37224469491). The held test needs no pin (it passes the census as it did at
+// d1abc52). Lift the hold when the canon test is fixed and re-adopted.
 export const EXEMPT_CARRIERS = {
   'scripts/secret-scan.test.mjs': 'a9cb7145e31139ec3c490dd7714df8fa7dc6cf86',
   'scripts/secret-gate.test.mjs': 'f61a33e75a3a420e0de0116f45d2b1fd44936a50',
   'scripts/release-notes.mjs': '674592e0ff25dbdc14a8a4e21e6a598953b90eaa',
-  'scripts/release-notes.test.mjs': 'a8f3ba69d6229b571ce89b4373362e93f074fb7b',
 };
 
 // The git blob id of `text`, as `git hash-object` prints it for a file holding exactly these bytes.
