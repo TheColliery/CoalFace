@@ -17,11 +17,18 @@
 // `ceilingDir` is the one directory a fixture spawn is never allowed to walk up past (its own
 // parent) -- belt-and-suspenders on top of the GIT_* strip, matching the pattern every call
 // site in this repo already used before this fix (r34b FOLD R1).
+//
+// 05a: a fixture git must also never WAIT on a human. With a signing global config a bare `git tag`
+// becomes an annotated tag and git opens the system editor (Notepad on this box) on the owner's
+// screen; the spawn blocks until it is closed. GIT_EDITOR=false makes any git that wants an editor
+// fail at once, and GIT_TERMINAL_PROMPT=0 does the same for a credential prompt.
 export function gitTestEnv(ceilingDir) {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
     if (key.startsWith('GIT_')) delete env[key];
   }
   env.GIT_CEILING_DIRECTORIES = ceilingDir;
+  env.GIT_EDITOR = 'false';
+  env.GIT_TERMINAL_PROMPT = '0';
   return env;
 }

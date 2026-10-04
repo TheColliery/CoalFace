@@ -11,7 +11,7 @@ test('gitTestEnv: strips every GIT_-prefixed key, whatever the name', () => {
     process.env.GIT_SOME_FUTURE_KEY_NOBODY_HAS_WRITTEN_YET = 'x';
     const env = gitTestEnv('/ceiling');
     for (const key of Object.keys(env)) {
-      assert.ok(!key.startsWith('GIT_') || key === 'GIT_CEILING_DIRECTORIES',
+      assert.ok(!key.startsWith('GIT_') || ['GIT_CEILING_DIRECTORIES', 'GIT_EDITOR', 'GIT_TERMINAL_PROMPT'].includes(key),
         `${key} is a GIT_* key that survived the strip`);
     }
   } finally {
@@ -25,6 +25,21 @@ test('gitTestEnv: strips every GIT_-prefixed key, whatever the name', () => {
 test('gitTestEnv: sets GIT_CEILING_DIRECTORIES to the given ceiling, and only that', () => {
   const env = gitTestEnv('/tmp/some-parent');
   assert.equal(env.GIT_CEILING_DIRECTORIES, '/tmp/some-parent');
+});
+
+// A fixture git must never open a window or wait on a prompt: with a signing global config a bare `git tag` becomes an annotated
+// tag, git starts the system editor (Notepad on this box) and the spawn blocks until someone closes it. GIT_EDITOR=false makes any
+// git that wants an editor fail instead; GIT_TERMINAL_PROMPT=0 does the same for a credential prompt.
+test('gitTestEnv: a git that wants an editor or a prompt FAILS instead of waiting', () => {
+  const saved = { ...process.env };
+  try {
+    process.env.GIT_EDITOR = 'notepad';
+    const env = gitTestEnv('/ceiling');
+    assert.equal(env.GIT_EDITOR, 'false');
+    assert.equal(env.GIT_TERMINAL_PROMPT, '0');
+  } finally {
+    if (saved.GIT_EDITOR === undefined) delete process.env.GIT_EDITOR; else process.env.GIT_EDITOR = saved.GIT_EDITOR;
+  }
 });
 
 test('gitTestEnv: non-GIT_ keys pass through unchanged (a plain copy, not a wipe)', () => {
