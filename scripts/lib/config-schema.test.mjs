@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import { CONFIG_SCHEMA, validateValue, validateConfig } from './config-schema.mjs';
 
-test('schema ships exactly the 7 shipped keys, each with one-line help', () => {
+test('schema ships exactly the shipped keys, each with one-line help', () => {
   const keys = CONFIG_SCHEMA.map((s) => s.key).sort();
   assert.deepStrictEqual(keys, ['admitCpuBusyMaxPct', 'admitMemFreeMinPct', 'autoFanoutFloor', 'bandwidth', 'coalfaceMode', 'language', 'maxLocalWorkers', 'updateCheckDays', 'updateMode']);
   for (const s of CONFIG_SCHEMA) assert.ok(typeof s.help === 'string' && s.help.length > 0, `${s.key} has help`);
