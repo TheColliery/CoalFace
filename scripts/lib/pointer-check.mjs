@@ -500,7 +500,7 @@ export function checkPointers({
         findings.push({ level: 'FAIL', msg: `${s.label} cites \`${tok}\`, which exists here but is UNTRACKED — a clone does not have it. Commit it, or cite the durable artefact.${occSuffix}` });
       } else {
         // A CHANGELOG line that names a file the release DELETED: the convention is stated here, where the author trips it.
-        const hint = s.label === 'CHANGELOG.md' ? ' If this names a file this release deleted: cite it with the tag it last lived in, `vX.Y.Z:path` (the gate does not resolve that form).' : '';
+        const hint = s.label === 'CHANGELOG.md' ? '. If this names a file this release deleted: cite it with the tag it last lived in, `vX.Y.Z:path` (the gate does not resolve that form).' : '';
         findings.push({ level: 'FAIL', msg: `${s.label} cites \`${tok}\`, which does not resolve in this repo${occSuffix}${hint}` });
       }
     }

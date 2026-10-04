@@ -429,7 +429,7 @@ test('verify.mjs: a top entry naming a deleted file with the tag form (vX.Y.Z:pa
   const bad = verifyAfter(topEntryWith('Removed `scripts/lib/admission-control.mjs`, the cores formula.'));
   assert.notEqual(bad.status, 0);
   assert.match(bad.stdout, /FAIL CHANGELOG\.md cites `scripts\/lib\/admission-control\.mjs`, which does not resolve in this repo/);
-  assert.match(bad.stdout, /names a file this release deleted: cite it with the tag it last lived in, `vX\.Y\.Z:path`/);
+  assert.match(bad.stdout, /does not resolve in this repo[.] If this names a file this release deleted: cite it with the tag it last lived in, `vX\.Y\.Z:path`/);
 });
 
 test('verify.mjs: a released (second and later) entry naming a missing path still PASSES (history is never fixed forward)', () => {
