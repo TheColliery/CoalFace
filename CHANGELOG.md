@@ -4,7 +4,7 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [0.14.1] - 2026-10-04
 
 The agent passes only plain integers to the CPU and memory probe
 
