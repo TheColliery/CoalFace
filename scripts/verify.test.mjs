@@ -472,3 +472,32 @@ test('verify.mjs: a top-entry vX.Y.Z:path citation that existed at the tag PASSE
   assert.notEqual(bad.status, 0);
   assert.match(bad.stdout, /FAIL CHANGELOG\.md cites `v0\.0\.1:scripts\/typo-nowhere\.mjs`, but that file did not exist at v0\.0\.1/);
 });
+
+// 05a F1: CI checks out depth 1 with NO tags. A valid citation then cannot be answered, and the gate must say the TAG is
+// missing (a named SKIP, exit 0), never that the author's path did not exist. Four cases: tag absent, tag present + file
+// present, tag present + file absent (above), no .git (the pre-existing skip).
+test('verify.mjs: a vX.Y.Z:path citation in a clone WITHOUT that tag is a named SKIP, not a FAIL (05a F1)', () => {
+  const tmp = mkTmpRepoCopy();
+  try {
+    topEntryWith('Removed `v0.0.1:scripts/verify.mjs`.')(tmp);
+    gitInit(tmp); // a committed fixture with no tag at all: CI's shape
+    const r = runVerify(tmp);
+    assert.equal(r.status, 0, `${r.stdout}${r.stderr}`);
+    assert.match(r.stdout, /--\s+CHANGELOG\.md cites `v0\.0\.1:scripts\/verify\.mjs`; tag v0\.0\.1 is not in this clone, so the file was not checked \(git fetch --tags checks it\)/);
+    assert.ok(!/did not exist at v0\.0\.1/.test(r.stdout), 'the missing tag is not blamed on the file');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('verify.mjs: a vX.Y.Z:path citation with no .git at all stays skipped, exit 0 (05a F1, the no-git leg)', () => {
+  const tmp = mkTmpRepoCopy();
+  try {
+    topEntryWith('Removed `v0.0.1:scripts/verify.mjs`.')(tmp);
+    const r = runVerify(tmp); // no gitInit: no .git
+    assert.equal(r.status, 0, `${r.stdout}${r.stderr}`);
+    assert.ok(!/did not exist at v0\.0\.1/.test(r.stdout));
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});

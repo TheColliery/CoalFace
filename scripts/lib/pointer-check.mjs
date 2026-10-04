@@ -443,6 +443,7 @@ export function checkPointers({
   resolve,                  // (relPath) => 'tracked' | 'untracked' | 'missing'
   pending = PENDING_POINTERS,
   tagFileExists,            // (tag, path) => boolean; optional. Absent (no git) = the vX.Y.Z:path form is skipped, as before (05a L-2)
+  tagExists,                // (tag) => boolean; optional (05a F1). A clone without the tag (CI checks out depth 1, no tags) cannot answer tagFileExists: named SKIP, never a FAIL
 } = {}) {
   const findings = [];
   if (typeof resolve !== 'function') {
@@ -480,7 +481,10 @@ export function checkPointers({
       // existed at that tag. Released history is exempt, and with no tagFileExists (no git) the form stays skipped (no-external-assumption).
       const tagForm = /^(v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?):(.+)$/.exec(norm);
       if (tagForm) {
-        if (!s.historyOnly && typeof tagFileExists === 'function' && !tagFileExists(tagForm[1], tagForm[2])) {
+        if (!s.historyOnly && typeof tagFileExists === 'function' && typeof tagExists === 'function' && !tagExists(tagForm[1])) {
+          // 05a F1: the TAG is missing here, not the file. Say so, and count it nowhere as a pass: nothing was checked.
+          findings.push({ level: 'SKIP', msg: `${s.label} cites \`${tok}\`; tag ${tagForm[1]} is not in this clone, so the file was not checked (git fetch --tags checks it)${occSuffix}` });
+        } else if (!s.historyOnly && typeof tagFileExists === 'function' && !tagFileExists(tagForm[1], tagForm[2])) {
           findings.push({ level: 'FAIL', msg: `${s.label} cites \`${tok}\`, but that file did not exist at ${tagForm[1]} (git cat-file -e failed): check the path and the tag${occSuffix}` });
         }
         continue;

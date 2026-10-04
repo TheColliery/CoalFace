@@ -67,9 +67,9 @@ test('L1: inside a partial commit a gitEnv() read sees only the commit (doc.md),
   assert.equal(g(['show', '--name-only', '--format=', 'HEAD']).trim(), 'doc.md', 'the commit made holds only doc.md');
 });
 
-test('verify.mjs takes its three real-repo git reads through gitEnv(), never gitTestEnv() (the L1 ruling; 05a L-2 added the tag-file read)', () => {
+test('verify.mjs takes its four real-repo git reads through gitEnv(), never gitTestEnv() (the L1 ruling; 05a L-2 added the tag-file read)', () => {
   const src = fs.readFileSync(path.join(here, '..', 'verify.mjs'), 'utf8');
   assert.match(src, /git-env\.mjs/);
-  assert.equal((src.match(/env: gitEnv\(\)/g) || []).length, 3, 'all reads');
+  assert.equal((src.match(/env: gitEnv\(\)/g) || []).length, 4, 'all reads');
   assert.ok(!/env: gitTestEnv\(/.test(src), 'no fixture helper on a gate read');
 });

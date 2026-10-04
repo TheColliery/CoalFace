@@ -335,6 +335,11 @@ try {
         : fs.existsSync(path.join(repo, p)) ? 'untracked' : 'missing'),
       // 05a L-2: the vX.Y.Z:path form must name a file that existed at that tag. This block only runs under git (the no-.git
       // NAMED SKIP is above), so the check needs no fallback of its own. gitEnv() keeps GIT_INDEX_FILE, a harmless read here.
+      // 05a F1: CI checks out depth 1 with no tags, so a tag can be absent from the clone; the gate then names a SKIP instead of
+      // blaming the author's path. `rev-parse --verify` answers by exit status only.
+      tagExists: (tag) => {
+        try { execFileSync('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}`], { cwd: repo, stdio: 'ignore', timeout: 30000, env: gitEnv() }); return true; } catch { return false; }
+      },
       tagFileExists: (tag, p) => {
         try { execFileSync('git', ['cat-file', '-e', `${tag}:${p}`], { cwd: repo, stdio: 'ignore', timeout: 30000, env: gitEnv() }); return true; } catch { return false; }
       },
