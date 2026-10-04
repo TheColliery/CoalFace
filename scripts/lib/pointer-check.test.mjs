@@ -589,11 +589,11 @@ test('collectSurfaces: a single-file row reads one surface, label = root, histor
   };
   const surfaces = collectSurfaces('REPO', [{ root: 'CHANGELOG.md', historyOnly: true, why: 'x' }], io);
   // no second `## [` heading: nothing is released history yet, so the one surface is ordinary
-  assert.deepEqual(surfaces, [{ label: 'CHANGELOG.md', text: 'text', historyResolve: true }]);
+  assert.deepEqual(surfaces, [{ label: 'CHANGELOG.md', text: 'text' }]);
   const lines = ['pre', '## [Unreleased]', 'new', '## [1.0.0]', 'old', '## [0.9.0]', 'older', ''];
   const two = collectSurfaces('REPO', [{ root: 'CHANGELOG.md', historyOnly: true, why: 'x' }], { ...io, read: () => lines.join('\n') });
   assert.deepEqual(two, [
-    { label: 'CHANGELOG.md', text: lines.slice(0, 3).join('\n') + '\n', historyResolve: true },
+    { label: 'CHANGELOG.md', text: lines.slice(0, 3).join('\n') + '\n' },
     { label: 'CHANGELOG.md', text: lines.slice(3).join('\n'), historyOnly: true },
   ]);
 });

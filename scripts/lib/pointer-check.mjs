@@ -104,12 +104,12 @@ export const PENDING_POINTERS = [
 // text. Its absence means `root` is one exact file. `historyOnly: true` marks a surface
 // `checkPointers` exempts from BOTH the ordinary resolve check and the
 // gitignored-root check (R18b; CHANGELOG.md -- published history is never fixed forward). `collectSurfaces` marks only the RELEASED
-// entries (from the second `## [` heading on) historyOnly; the top entry gets the gitignored-root check only (historyResolve skips its resolve check).
+// entries (from the second `## [` heading on) historyOnly; the top entry gets the FULL check, resolve and gitignored-root (R20).
 export const DEFAULT_SURFACE_PLAN = [
   { root: 'README.md',
     why: 'the front door -- every install/config claim starts here' },
   { root: 'CHANGELOG.md', historyOnly: true,
-    why: 'released entries are published history, never fixed forward -- a path correct when the entry was written, or cited before its root was ignored (R18b), is not a defect now; the TOP entry is checked for the gitignored case' },
+    why: 'released entries are published history, never fixed forward -- a path correct when the entry was written, or cited before its root was ignored (R18b), is not a defect now; the TOP entry is checked in full (R20)' },
   { root: 'SECURITY.md',
     why: 'the disclosure surface, and it cites internal paths (e.g. a hook line ref)' },
   { root: 'CONTRIBUTING.md',
@@ -163,10 +163,12 @@ export function collectSurfaces(repo, plan, io) {
         // preamble and the TOP entry, `[Unreleased]` or the version being released, the text the next Release body
         // is built from) is an ordinary surface; everything from it on is released history.
         const second = nthHeading(text, 2);
-        // The top entry still skips the RESOLVE check (`historyResolve`): a Removed/Changed line legitimately names a file
-        // the release deleted (0.14.0 names the retired admission-control.mjs). It gets the gitignored-root check.
-        if (second === -1) surfaces.push({ label: row.root, text, historyResolve: true });
-        else surfaces.push({ label: row.root, text: text.slice(0, second), historyResolve: true }, { label: row.root, text: text.slice(second), historyOnly: true });
+        // R20 (ONE FLOCK ONE COLOR with CoalMine 82a55cc): the top entry gets the FULL check, resolve and gitignored-root,
+        // so a dead path in a new entry fails before it ships. A line naming a file the release DELETED cites it with the
+        // tag it last lived in (`vX.Y.Z:path`, the convention in the FAIL message), a shape the scope test skips.
+        // DIVERGENCE (this room ahead): the split is fence-aware (R19, `nthHeading`); CoalMine's counts every line.
+        if (second === -1) surfaces.push({ label: row.root, text });
+        else surfaces.push({ label: row.root, text: text.slice(0, second) }, { label: row.root, text: text.slice(second), historyOnly: true });
         continue;
       }
       const s = { label: row.root, text };
@@ -479,7 +481,7 @@ export function checkPointers({
 
       // Published history is never fixed forward: a path correct when written is not a
       // defect now. Such a surface skips the gitignored-root check above and this one (R18b).
-      if (s.historyOnly || s.historyResolve) continue;
+      if (s.historyOnly) continue;
 
       checked++;
       const rel = base ? base + '/' + norm : norm;
@@ -489,7 +491,9 @@ export function checkPointers({
       if (state === 'untracked') {
         findings.push({ level: 'FAIL', msg: `${s.label} cites \`${tok}\`, which exists here but is UNTRACKED — a clone does not have it. Commit it, or cite the durable artefact.${occSuffix}` });
       } else {
-        findings.push({ level: 'FAIL', msg: `${s.label} cites \`${tok}\`, which does not resolve in this repo${occSuffix}` });
+        // A CHANGELOG line that names a file the release DELETED: the convention is stated here, where the author trips it.
+        const hint = s.label === 'CHANGELOG.md' ? ' If this names a file this release deleted: cite it with the tag it last lived in, `vX.Y.Z:path` (the gate does not resolve that form).' : '';
+        findings.push({ level: 'FAIL', msg: `${s.label} cites \`${tok}\`, which does not resolve in this repo${occSuffix}${hint}` });
       }
     }
   }

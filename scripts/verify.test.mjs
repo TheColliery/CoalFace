@@ -402,3 +402,37 @@ test('verify.mjs: the same with a ~~~ fence still FAILs', () => {
   assert.notEqual(r.status, 0, `${r.stdout}${r.stderr}`);
   assert.match(r.stdout, /FAIL CHANGELOG\.md cites `scratchpad\/dispatch\/old-return\.md`, which lives under the gitignored `scratchpad`/);
 });
+
+// R20 (UMB-427 4 = a, ONE FLOCK ONE COLOR with CoalMine 82a55cc) -- the CHANGELOG top entry gets the FULL pointer check:
+// the resolve check as well as the gitignored-root check. A dead path in a new entry must fail before it ships.
+function topEntryWith(line) {
+  return (tmp) => {
+    const p = path.join(tmp, 'CHANGELOG.md');
+    const t = fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
+    const at = t.search(/^## \[/m);
+    fs.writeFileSync(p, t.slice(0, at) + '## [Unreleased]\n\n' + line + '\n\n' + t.slice(at));
+  };
+}
+
+test('verify.mjs: a new [Unreleased] top entry citing a path that resolves to nothing FAILs the pointer gate', () => {
+  const r = verifyAfter(topEntryWith('See `scripts/lib/nowhere.mjs` for the detail.'));
+  assert.notEqual(r.status, 0, `${r.stdout}${r.stderr}`);
+  assert.match(r.stdout, /FAIL CHANGELOG\.md cites `scripts\/lib\/nowhere\.mjs`, which does not resolve in this repo/);
+});
+
+// THE CONVENTION for a Removed/Changed line that names a file the release deleted: cite it with the tag it last lived in,
+// `v0.14.0:scripts/lib/admission-control.mjs`. The gate reads that as a path into another revision (its first segment,
+// `v0.14.0:scripts`, is not a top-level directory of this tree), so it is neither resolved nor reported.
+test('verify.mjs: a top entry naming a deleted file with the tag form (vX.Y.Z:path) PASSES; the bare path FAILs and the message states the convention', () => {
+  const ok = verifyAfter(topEntryWith('Removed `v0.14.0:scripts/lib/admission-control.mjs`, the cores formula.'));
+  assert.equal(ok.status, 0, `the tag form is skipped, got:\n${ok.stdout}${ok.stderr}`);
+  const bad = verifyAfter(topEntryWith('Removed `scripts/lib/admission-control.mjs`, the cores formula.'));
+  assert.notEqual(bad.status, 0);
+  assert.match(bad.stdout, /FAIL CHANGELOG\.md cites `scripts\/lib\/admission-control\.mjs`, which does not resolve in this repo/);
+  assert.match(bad.stdout, /names a file this release deleted: cite it with the tag it last lived in, `vX\.Y\.Z:path`/);
+});
+
+test('verify.mjs: a released (second and later) entry naming a missing path still PASSES (history is never fixed forward)', () => {
+  const r = verifyAfter((tmp) => fs.appendFileSync(path.join(tmp, 'CHANGELOG.md'), '\nSee `scripts/lib/nowhere.mjs`.\n'));
+  assert.equal(r.status, 0, `${r.stdout}${r.stderr}`);
+});
