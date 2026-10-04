@@ -124,22 +124,27 @@ export const DEFAULT_SURFACE_PLAN = [
     why: 'command docs are ship-text a user reads' },
 ];
 
-// Index of the nth line starting with `## [` (a CHANGELOG entry heading) that is not inside a code fence, or -1.
+// The nth line starting with `## [` (a CHANGELOG entry heading) that is not inside a code fence: { index, unclosedLine }.
+// index is -1 when there is no such heading; unclosedLine is the 1-based line where a fence was opened and never closed
+// (null otherwise). An unclosed fence hides every later heading, so the caller must say so, not just fail on the result.
 function nthHeading(text, n) {
   // Lines inside a fenced code block are never headings. CommonMark: a fence opens with 3+ backticks or tildes (up to 3
   // spaces of indent) and closes with a fence of the same character at least as long, carrying nothing but spaces.
   let fence = null;
+  let openedAt = null;
   let seen = 0;
   let offset = 0;
+  let lineNo = 0;
   for (const line of text.split('\n')) {
+    lineNo++;
     const f = /^ {0,3}(`{3,}|~{3,})/.exec(line);
     if (fence) {
       if (f && f[1][0] === fence[0] && f[1].length >= fence.length && /^\s*$/.test(line.slice(f[0].length))) fence = null;
-    } else if (f) fence = f[1];
-    else if (line.startsWith('## [') && ++seen === n) return offset;
+    } else if (f) { fence = f[1]; openedAt = lineNo; }
+    else if (line.startsWith('## [') && ++seen === n) return { index: offset, unclosedLine: null };
     offset += line.length + 1;
   }
-  return -1;
+  return { index: -1, unclosedLine: fence ? openedAt : null };
 }
 
 // COLLECT -- plan-driven, DI'd fs so this module stays pure (it imports nothing today
@@ -162,12 +167,12 @@ export function collectSurfaces(repo, plan, io) {
         // R18b: only RELEASED entries are history. Split at the SECOND `## [` heading: everything before it (the
         // preamble and the TOP entry, `[Unreleased]` or the version being released, the text the next Release body
         // is built from) is an ordinary surface; everything from it on is released history.
-        const second = nthHeading(text, 2);
+        const { index: second, unclosedLine } = nthHeading(text, 2);
         // R20 (ONE FLOCK ONE COLOR with CoalMine 82a55cc): the top entry gets the FULL check, resolve and gitignored-root,
         // so a dead path in a new entry fails before it ships. A line naming a file the release DELETED cites it with the
         // tag it last lived in (`vX.Y.Z:path`, the convention in the FAIL message), a shape the scope test skips.
         // DIVERGENCE (this room ahead): the split is fence-aware (R19, `nthHeading`); CoalMine's counts every line.
-        if (second === -1) surfaces.push({ label: row.root, text });
+        if (second === -1) surfaces.push({ label: row.root, text, ...(unclosedLine ? { unclosedFence: unclosedLine } : {}) });
         else surfaces.push({ label: row.root, text: text.slice(0, second) }, { label: row.root, text: text.slice(second), historyOnly: true });
         continue;
       }
@@ -429,6 +434,9 @@ export function checkPointers({
   let checked = 0;
 
   for (const s of surfaces) {
+    // R20 L-3: an unclosed fence hides every later heading, so the whole file would be read as the top entry and fail on
+    // released history with no word about the cause. Name the fence and where it opened.
+    if (s.unclosedFence) findings.push({ level: 'FAIL', msg: `${s.label} has an unclosed code fence opened at line ${s.unclosedFence}: every heading below it is hidden, so the whole file is checked as the top entry. Close the fence.` });
     if (typeof s.text !== 'string') {
       // NAME what could not be read. A caller that filters unreadable surfaces out first
       // hides its own scope gap — the silent narrowing this family of gates exists against.

@@ -436,3 +436,16 @@ test('verify.mjs: a released (second and later) entry naming a missing path stil
   const r = verifyAfter((tmp) => fs.appendFileSync(path.join(tmp, 'CHANGELOG.md'), '\nSee `scripts/lib/nowhere.mjs`.\n'));
   assert.equal(r.status, 0, `${r.stdout}${r.stderr}`);
 });
+
+// R20 L-3 -- an UNCLOSED fence in the top entry hides every later heading, so the whole file would be checked as the top
+// entry and fail on released history with no word about the fence. The gate now names the fence and where it opened.
+test('verify.mjs: an unclosed code fence in the CHANGELOG top entry FAILs naming the unclosed fence and its line', () => {
+  const r = verifyAfter((tmp) => {
+    const p = path.join(tmp, 'CHANGELOG.md');
+    const t = fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
+    const at = t.search(/^## \[/m);
+    fs.writeFileSync(p, t.slice(0, at) + '## [Unreleased]\n\nAn example that never closes:\n' + '`'.repeat(3) + '\nsome text\n\n' + t.slice(at));
+  });
+  assert.notEqual(r.status, 0, `${r.stdout}${r.stderr}`);
+  assert.match(r.stdout, /FAIL CHANGELOG\.md has an unclosed code fence opened at line \d+/);
+});
