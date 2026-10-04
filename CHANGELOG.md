@@ -4,6 +4,17 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+The CPU and memory reading now says it admits the first unit
+
+### Fixed
+- **The admission reference no longer says `--running 0` admits "whatever the reading says".** It admits the first unit regardless of the reading, which is what the probe does.
+- **An unclosed code fence in the top CHANGELOG entry is now named by the pointer gate** (the fence and its line) instead of failing on released history (internal gate; no shipped change).
+
+### Changed
+- **The pointer gate checks the CHANGELOG's top entry in full:** a path that resolves to nothing now fails, and a file the release deleted is cited as `vX.Y.Z:path` (internal gate, the same shape as CoalMine; no shipped change).
+
 ## [0.14.1] - 2026-10-04
 
 The agent passes only plain integers to the CPU and memory probe

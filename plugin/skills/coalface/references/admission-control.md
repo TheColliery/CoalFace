@@ -14,7 +14,7 @@ Board #89's exhibit: 10 lanes flew without a single file collision — the parti
 - **Memory:** free % from `process.availableMemory()` (it sees a container limit; `os.freemem()` when absent) over `process.constrainedMemory()` when that is above 0, else `os.totalmem()`.
 - **GPU:** not read (no portable API); printed `N/A`.
 - **Unmeasured never blocks.** An axis the machine cannot report (an empty CPU list, a container that hides its limit) reads as unmeasured and never holds a run on its own. Where `node` itself cannot run, the whole reading is unmeasured: run one unit at a time and never wait for it.
-- **At least one unit always runs.** `--running 0` admits whatever the reading says, so a queue never sticks. Pass the number of units you already hold for the second and later.
+- **At least one unit always runs.** `--running 0` admits the first unit regardless of the reading, so a queue never sticks. Pass the number of units you already hold for the second and later.
 - **WAIT queues, never denies.** A held run completes in full once the box breathes (P29, the same shape as P19's transient backoff).
 - **The platform's own cap stays.** A Workflow's own process cap is the vendor's and is not ours to lift.
 
