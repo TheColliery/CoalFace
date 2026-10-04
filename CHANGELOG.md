@@ -8,9 +8,10 @@ All notable changes to CoalFace are documented here. Format follows
 
 ### Fixed
 - **The pointer gate reads code fences with one shared scanner** (tilde fences and indented fences included), and a `vX.Y.Z:path` citation in the top entry is checked with `git cat-file -e` against that tag (internal gate; no shipped change).
+- **A `vX.Y.Z:path` citation in a clone without that tag is a named SKIP, not a FAIL** (internal gate; no shipped change).
 
 ### Changed
-- **The release canon is adopted by blob id** (`release-notes.mjs`, the shape tests, the secret-gate test, `.coderabbit.yaml`), with the git-spawn census pins re-pinned to the new blobs; fixture git no longer waits on an editor or a prompt (internal release tooling and tests; no shipped change).
+- **The release canon is adopted by blob id for four files** (`scripts/release-notes.mjs`, `scripts/verify-release-shape.test.mjs`, `scripts/secret-gate.test.mjs`, `.coderabbit.yaml`), with the git-spawn census pins re-pinned to the new blobs; `scripts/release-notes.test.mjs` is held at its previous blob because the canon's new version fails on macOS and under coverage. Fixture git no longer waits on an editor, a prompt or a signer, and never signs with the operator's key (internal release tooling and tests; no shipped change).
 
 ## [0.14.2] - 2026-10-04
 
