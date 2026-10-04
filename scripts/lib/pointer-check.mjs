@@ -124,27 +124,42 @@ export const DEFAULT_SURFACE_PLAN = [
     why: 'command docs are ship-text a user reads' },
 ];
 
-// The nth line starting with `## [` (a CHANGELOG entry heading) that is not inside a code fence: { index, unclosedLine }.
+// THE ONE FENCE SCANNER (05a t13): pointerCandidates and the CHANGELOG split both ask it what a fence is, so they cannot
+// disagree. CommonMark: a fence opens with 3+ backticks or tildes (up to 3 spaces of indent) and closes with a fence of the
+// same character at least as long, carrying nothing but spaces. Returns one kind per line: 0 = prose, 1 = inside a CLOSED
+// fence (the delimiters included), 2 = inside an UNCLOSED fence (it runs to the end of the text).
+export const FENCE = { PROSE: 0, CLOSED: 1, UNCLOSED: 2 };
+export function scanFences(lines) {
+  const kind = new Array(lines.length).fill(FENCE.PROSE);
+  let open = null; // { ch, len, at }
+  for (let i = 0; i < lines.length; i++) {
+    const f = /^ {0,3}(`{3,}|~{3,})/.exec(lines[i]);
+    if (open) {
+      kind[i] = FENCE.CLOSED;
+      if (f && f[1][0] === open.ch && f[1].length >= open.len && /^\s*$/.test(lines[i].slice(f[0].length))) open = null;
+    } else if (f) {
+      open = { ch: f[1][0], len: f[1].length, at: i };
+      kind[i] = FENCE.CLOSED;
+    }
+  }
+  if (open) for (let i = open.at; i < lines.length; i++) kind[i] = FENCE.UNCLOSED;
+  return kind;
+}
+
+// The nth line starting with `## [` (a CHANGELOG entry heading) that is not inside a fence: { index, unclosedLine }.
 // index is -1 when there is no such heading; unclosedLine is the 1-based line where a fence was opened and never closed
 // (null otherwise). An unclosed fence hides every later heading, so the caller must say so, not just fail on the result.
 function nthHeading(text, n) {
-  // Lines inside a fenced code block are never headings. CommonMark: a fence opens with 3+ backticks or tildes (up to 3
-  // spaces of indent) and closes with a fence of the same character at least as long, carrying nothing but spaces.
-  let fence = null;
-  let openedAt = null;
+  const lines = text.split('\n');
+  const kind = scanFences(lines);
   let seen = 0;
   let offset = 0;
-  let lineNo = 0;
-  for (const line of text.split('\n')) {
-    lineNo++;
-    const f = /^ {0,3}(`{3,}|~{3,})/.exec(line);
-    if (fence) {
-      if (f && f[1][0] === fence[0] && f[1].length >= fence.length && /^\s*$/.test(line.slice(f[0].length))) fence = null;
-    } else if (f) { fence = f[1]; openedAt = lineNo; }
-    else if (line.startsWith('## [') && ++seen === n) return { index: offset, unclosedLine: null };
-    offset += line.length + 1;
+  for (let i = 0; i < lines.length; i++) {
+    if (kind[i] === FENCE.PROSE && lines[i].startsWith('## [') && ++seen === n) return { index: offset, unclosedLine: null };
+    offset += lines[i].length + 1;
   }
-  return { index: -1, unclosedLine: fence ? openedAt : null };
+  const u = kind.indexOf(FENCE.UNCLOSED);
+  return { index: -1, unclosedLine: u === -1 ? null : u + 1 };
 }
 
 // COLLECT -- plan-driven, DI'd fs so this module stays pure (it imports nothing today
@@ -171,7 +186,8 @@ export function collectSurfaces(repo, plan, io) {
         // R20 (ONE FLOCK ONE COLOR with CoalMine 82a55cc): the top entry gets the FULL check, resolve and gitignored-root,
         // so a dead path in a new entry fails before it ships. A line naming a file the release DELETED cites it with the
         // tag it last lived in (`vX.Y.Z:path`, the convention in the FAIL message), a shape the scope test skips.
-        // DIVERGENCE (this room ahead): the split is fence-aware (R19, `nthHeading`); CoalMine's counts every line.
+        // The split is fence-aware here and in CoalMine (f4f8eea, on its origin/main). REMAINING divergence: this room names an
+        // UNCLOSED fence (R20 L-3, `unclosedFence` below); CoalMine's gate fails closed on it without saying why.
         if (second === -1) surfaces.push({ label: row.root, text, ...(unclosedLine ? { unclosedFence: unclosedLine } : {}) });
         else surfaces.push({ label: row.root, text: text.slice(0, second) }, { label: row.root, text: text.slice(second), historyOnly: true });
         continue;
@@ -390,8 +406,11 @@ export function deriveIgnoredRoots({ surfaces = [], agentHomes = new Set(), chec
 // rather than re-implementing it and getting different numbers.
 export function pointerCandidates(text) {
   const out = [];
-  // Fenced code blocks are EXAMPLES, not prose claims about this tree.
-  const prose = String(text).replace(/^```[\s\S]*?^```/gm, '');
+  // Fenced code blocks are EXAMPLES, not prose claims about this tree (the shared scanner: backtick or tilde, up to 3 spaces of
+  // indent). An UNCLOSED fence is kept: checking more is the safe direction, and the CHANGELOG gate names it.
+  const all = String(text).split('\n');
+  const kind = scanFences(all);
+  const prose = all.filter((_, i) => kind[i] !== FENCE.CLOSED).join('\n');
   for (const m of prose.matchAll(/`([^`\n]+)`/g)) {
     const tok = m[1];
     if (/\s/.test(tok)) continue;          // a command or a Markdown table row, not a pointer

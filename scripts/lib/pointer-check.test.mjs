@@ -662,3 +662,31 @@ test('collectSurfaces: a heading-shaped line inside a ``` or ~~~ fence does not 
   assert.ok(a.text.includes('x') && !a.text.includes('## [1.0.0]'));
   assert.equal(split(['## [Unreleased]', '```', '## [1.0.0]', 'old']).length, 1);
 });
+
+// 05a t13 -- ONE fence scanner serves pointerCandidates and the CHANGELOG split, so they cannot disagree about what a fence is.
+// CommonMark: a fence opens with 3+ backticks or tildes (up to 3 spaces of indent) and closes with the same character, at
+// least as long. Before, pointerCandidates stripped only column-0 backtick fences.
+test('pointerCandidates: a tilde-fenced and a 2-space-indented fenced example cite nothing', () => {
+  const tilde = ['Real: `scripts/real.mjs`', '~~~', 'run `scripts/in-tilde.mjs`', '~~~', 'after'].join('\n');
+  assert.deepEqual(pointerCandidates(tilde), ['scripts/real.mjs']);
+  const indented = ['Real: `scripts/real.mjs`', '  ```', '  see `scripts/in-indented.mjs`', '  ```', 'after'].join('\n');
+  assert.deepEqual(pointerCandidates(indented), ['scripts/real.mjs']);
+  // a shorter fence does not close a longer one; a different character does not close it
+  const longer = ['````', '```', '`scripts/inside-long.mjs`', '````', '`scripts/outside.mjs`'].join('\n');
+  assert.deepEqual(pointerCandidates(longer), ['scripts/outside.mjs']);
+  const mixed = ['```', '~~~', '`scripts/inside-mixed.mjs`', '```', '`scripts/outside2.mjs`'].join('\n');
+  assert.deepEqual(pointerCandidates(mixed), ['scripts/outside2.mjs']);
+});
+
+test('pointerCandidates: an UNCLOSED fence strips nothing (checking more, never less)', () => {
+  const open = ['`scripts/before.mjs`', '```', '`scripts/inside-open.mjs`'].join('\n');
+  assert.deepEqual(pointerCandidates(open), ['scripts/before.mjs', 'scripts/inside-open.mjs']);
+});
+
+test('the split and pointerCandidates agree on a tilde fence in the top entry (one scanner)', () => {
+  const lines = ['## [Unreleased]', '~~~', '## [9.9.9] - example', '`scripts/in-example.mjs`', '~~~', 'after', '## [1.0.0]', 'old', ''];
+  const io = { join: (...p) => p.join('/'), walkMd: () => [], rel: (p) => p, read: () => lines.join('\n') };
+  const [top, released] = collectSurfaces('REPO', [{ root: 'CHANGELOG.md', historyOnly: true, why: 'x' }], io);
+  assert.ok(top.text.includes('after') && released.historyOnly && released.text.startsWith('## [1.0.0]'));
+  assert.deepEqual(pointerCandidates(top.text), []);
+});
