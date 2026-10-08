@@ -101,7 +101,9 @@ function safeIdentifier(name, text) {
 // spread around gitEnv() (secret-gate.test.mjs). Each is exempt ONLY while its content is exactly the pinned blob: any
 // edit, or a template re-sync that changes it, makes the entry a finding again ("re-derive"), so the exemption cannot
 // widen or outlive its reason silently. The pin is a git blob id (git hash-object <file>) against the .github canon
-// (published-code/scripts for the scanner pair, overlay-coal-skill/scripts for the release pair). The real fix belongs to
+// (published-code/scripts for the gate test, overlay-coal-skill/scripts for the release pair; the scanner test's SOURCE is Bankfire since
+// LWK2-014, the template lags it). 08c re-pinned the scanner pair at 4433fb56 and a17ae233 (measured: with no pin the census still flags
+// both: cleanEnv at secret-scan.test.mjs:593, a gitEnv() spread at secret-gate.test.mjs:40). The real fix belongs to
 // the canon (the .github deputy).
 //
 // 05a: the overlay's release-notes.mjs (.github c9b0550, UMB-443 ruling 2) builds its git env as an EXPLICIT ALLOWLIST (PATH
@@ -114,8 +116,8 @@ function safeIdentifier(name, text) {
 // 06c099d fixed the child-key assertion, and the canon test (8cf7e5fd) is adopted. Its sandboxEnv() git env is the same
 // allowlist shape as release-notes.mjs, so it is pinned too (red-proven: without the pin the census names both spawns).
 export const EXEMPT_CARRIERS = {
-  'scripts/secret-scan.test.mjs': 'a9cb7145e31139ec3c490dd7714df8fa7dc6cf86',
-  'scripts/secret-gate.test.mjs': 'f61a33e75a3a420e0de0116f45d2b1fd44936a50',
+  'scripts/secret-scan.test.mjs': '4433fb56bc97d1facc3fb27804e1934c0577115f',
+  'scripts/secret-gate.test.mjs': 'a17ae233275c05c6d030f7aa7f0654002b310356',
   'scripts/release-notes.mjs': 'f8d998d8fe14a5972440043123398115d02fc50e',
   'scripts/release-notes.test.mjs': '8cf7e5fd58b89d051395efc53cc0a4f6c86848da',
 };
