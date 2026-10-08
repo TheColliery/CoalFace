@@ -374,7 +374,7 @@ try {
 try {
   const census = await import(pathToFileURL(path.join(repo, 'scripts', 'lib', 'git-env-census.mjs')).href);
   const report = census.censusGitSpawns(census.collectSources(repo));
-  if (report.findings.length === 0) ok(`git spawn census: every one of ${report.spawns} git spawn(s) in ${report.files} source file(s) takes env from gitTestEnv()/gitEnv() alone`);
+  if (report.findings.length === 0) ok(`git spawn census: every one of ${report.spawns} git spawn(s) in ${report.files} source file(s) takes env from gitTestEnv()/gitEnv() alone or a named-key allowlist${report.pinned ? ` (${report.pinned} of them in byte-equal org carriers pinned by blob)` : ''}`);
   else report.findings.forEach((m, i) => fail(`git spawn census: finding ${i + 1}/${report.findings.length}: ${m}`));
 } catch (e) { fail(`git spawn census crashed or its module failed to load: ${e.message}`); }
 

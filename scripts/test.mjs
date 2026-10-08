@@ -21,6 +21,8 @@ const TESTS = [
   'scripts/lib/git-test-env.test.mjs',
   // CWK-133 / CWK-136: the git-spawn census, wired into scripts/verify.mjs.
   'scripts/lib/git-env-census.test.mjs',
+  // 08d: the lexer the census reads source through (comments, strings, templates and regex bodies blanked).
+  'scripts/lib/js-skeleton.test.mjs',
   // R14 b1 L1: gitEnv() keeps GIT_INDEX_FILE for the gate's two real-repo reads (partial-commit proof).
   'scripts/lib/git-env.test.mjs',
   // R14 b1 H1: the suite child never inherits a hook's GIT_* family (the pinned secret-scan.test.mjs runs git init env-less).
