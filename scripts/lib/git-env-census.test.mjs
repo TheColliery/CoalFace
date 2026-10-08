@@ -223,7 +223,6 @@ for (const [id, rel] of Object.entries(P_FILES)) {
 }
 
 // ---- 08d: the trusted names (F42) and the lexer ------------------------------------------------------------------------------------------
-const trusted = (extra = {}) => ({ ...TRUSTED_DEFINERS, ...extra });
 test('08d F42: the trusted definers are pinned to the blobs they hold, and a changed definer is its own finding', () => {
   for (const [rel, d] of Object.entries(TRUSTED_DEFINERS)) {
     const text = fs.readFileSync(path.join(here, '..', '..', rel), 'utf8');
