@@ -76,7 +76,7 @@ function plantedRun(mutate, timeoutMs = 2000) {
 
 // With force-exit this holds on Node 22 and 24: a passing test whose file holds a handle ends the run at once (it proves the flag, not the clock).
 test('test-spawn: a handle-holding test file ends the run before the deadline (force-exit) and a passing test reports success', async () => {
-  const r = await plantedRun();
+  const r = await plantedRun(null, 600000); // the per-test clock is injected far above the run deadline, so only --test-force-exit can end this run early
   assert.ok(r.ms < 14000, 'ended before the deadline: ' + r.ms);
   assert.equal(r.status, 0);
 });
