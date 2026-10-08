@@ -110,15 +110,14 @@ function safeIdentifier(name, text) {
 // (red-proven: without the pin the census names it); dropping the pin needs the census taught that shape, a redesign
 // this unit does not make.
 //
-// NAMED DIVERGENCE (05a F4, the chief's hold; CoalBoard ddffc82 is the shape): scripts/release-notes.test.mjs is HELD at
-// the previous canon blob d7e299c4 and is NOT the canon a8f3ba69. That canon test asserts the child env holds nothing but
-// what node needs; macOS injects __CF_USER_TEXT_ENCODING and the coverage leg injects NODE_V8_COVERAGE, so it went RED on
-// CoalBoard's macOS and Coverage legs (CI run 37224469491). The held test needs no pin (it passes the census as it did at
-// d1abc52). Lift the hold when the canon test is fixed and re-adopted.
+// 08b: the 05a hold on scripts/release-notes.test.mjs (canon a8f3ba69 failed on macOS and under coverage) is LIFTED: .github
+// 06c099d fixed the child-key assertion, and the canon test (8cf7e5fd) is adopted. Its sandboxEnv() git env is the same
+// allowlist shape as release-notes.mjs, so it is pinned too (red-proven: without the pin the census names both spawns).
 export const EXEMPT_CARRIERS = {
   'scripts/secret-scan.test.mjs': 'a9cb7145e31139ec3c490dd7714df8fa7dc6cf86',
   'scripts/secret-gate.test.mjs': 'f61a33e75a3a420e0de0116f45d2b1fd44936a50',
-  'scripts/release-notes.mjs': '674592e0ff25dbdc14a8a4e21e6a598953b90eaa',
+  'scripts/release-notes.mjs': 'f8d998d8fe14a5972440043123398115d02fc50e',
+  'scripts/release-notes.test.mjs': '8cf7e5fd58b89d051395efc53cc0a4f6c86848da',
 };
 
 // The git blob id of `text`, as `git hash-object` prints it for a file holding exactly these bytes.
