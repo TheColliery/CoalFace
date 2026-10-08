@@ -222,6 +222,17 @@ for (const [id, rel] of Object.entries(P_FILES)) {
   });
 }
 
+// The loops above assert nothing about WHICH vectors exist, so a deleted vector line or an emptied VECTORS would shrink the list with the
+// suite still green (08d INSPECT M2). This test names the ids the witness list requires.
+test('witness list: the vector ids cover F1-F42, R1, R2 and P3-P6, and P1-P2 are read from P_FILES', () => {
+  const have = new Set(VECTORS.map((v) => v.id.split(' ')[0]));
+  const want = [];
+  for (let n = 1; n <= 42; n++) want.push('F' + n);
+  want.push('R1', 'R2', 'P3', 'P4', 'P5', 'P6');
+  assert.deepEqual(want.filter((id) => !have.has(id)), [], 'witness vector ids missing from VECTORS');
+  assert.deepEqual(Object.keys(P_FILES).sort(), ['P1', 'P2']);
+});
+
 // ---- 08d: the trusted names (F42) and the lexer ------------------------------------------------------------------------------------------
 test('08d F42: the trusted definers are pinned to the blobs they hold, and a changed definer is its own finding', () => {
   for (const [rel, d] of Object.entries(TRUSTED_DEFINERS)) {
