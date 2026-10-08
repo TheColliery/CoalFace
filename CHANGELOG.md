@@ -11,7 +11,9 @@ All notable changes to CoalFace are documented here. Format follows
 - **A `vX.Y.Z:path` citation in a clone without that tag is a named SKIP, not a FAIL** (internal gate; no shipped change).
 
 ### Changed
-- **The release canon is adopted by blob id for four files** (`scripts/release-notes.mjs`, `scripts/verify-release-shape.test.mjs`, `scripts/secret-gate.test.mjs`, `.coderabbit.yaml`), with the git-spawn census pins re-pinned to the new blobs; `scripts/release-notes.test.mjs` is held at its previous blob because the canon's new version fails on macOS and under coverage. Fixture git no longer waits on an editor, a prompt or a signer, and never signs with the operator's key (internal release tooling and tests; no shipped change).
+- **The release canon is adopted by blob id for four files** (`scripts/release-notes.mjs`, `scripts/verify-release-shape.test.mjs`, `scripts/secret-gate.test.mjs`, `.coderabbit.yaml`), with the git-spawn census pins re-pinned to the new blobs. Fixture git no longer waits on an editor, a prompt or a signer, and never signs with the operator's key (internal release tooling and tests; no shipped change).
+- **The release canon is re-adopted at `.github` `690c2de`, and the hold on `scripts/release-notes.test.mjs` is lifted.** Adopted at the canon blob, with the census pins re-pinned: `scripts/release-notes.test.mjs` (`8cf7e5fd`), `scripts/release-notes.mjs` (`f8d998d8`), `scripts/lib/release-shape.mjs` (`bfb29332`), `scripts/lib/release-shape.test.mjs` (`771a7e60`) and `.coderabbit.yaml` (`0d5a8860`). The canon test now accepts the child env keys macOS and a coverage run add (internal release tooling and tests; no shipped change).
+- **The test runner heap-caps, serialises and time-limits its `node --test` child:** `--max-old-space-size=2048` in the child's `NODE_OPTIONS`, `--test-concurrency=1` and `--test-timeout=240000` on the argv, from the new `scripts/lib/test-spawn.mjs`. The timeout is just over twice the slowest test file measured serially on 2026-10-08 (`scripts/verify.test.mjs`, 82.1 s) (internal gate; no shipped change).
 
 ## [0.14.2] - 2026-10-04
 
