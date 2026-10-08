@@ -226,30 +226,20 @@ function allowlistEnv(expr, text) {
 
 // R14 / CWK-174 -- the house secret scan arrives as byte-equal copies of the published-code template (SERIES-CANON
 // "Secret scan": a parity check measures it), so this room cannot route their git spawns through gitEnv() without
-// breaking that parity. The two TEST files below spawn git with no cleaned environment (secret-scan.test.mjs) or with a
-// spread around gitEnv() (secret-gate.test.mjs). Each is exempt ONLY while its content is exactly the pinned blob: any
-// edit, or a template re-sync that changes it, makes the entry a finding again ("re-derive"), so the exemption cannot
-// widen or outlive its reason silently. The pin is a git blob id (git hash-object <file>) against the .github canon
-// (published-code/scripts for the gate test, overlay-coal-skill/scripts for the release pair; the scanner test's SOURCE is Bankfire since
-// LWK2-014, the template lags it). 08c re-pinned the scanner pair at 4433fb56 and a17ae233 (measured: with no pin the census still flags
-// both: cleanEnv at secret-scan.test.mjs:593, a gitEnv() spread at secret-gate.test.mjs:40). The real fix belongs to
-// the canon (the .github deputy).
+// breaking that parity. One carrier is still exempt, ONLY while its content is exactly the pinned blob: any edit, or a
+// template re-sync that changes it, makes the entry a finding again ("re-derive"), so the exemption cannot widen or outlive its
+// reason silently. The pin is a git blob id (git hash-object <file>) against the .github canon (published-code/scripts).
 //
-// 05a: the overlay's release-notes.mjs (.github c9b0550, UMB-443 ruling 2) builds its git env as an EXPLICIT ALLOWLIST (PATH
-// and the few keys git needs, plus GIT_CONFIG_NOSYSTEM; it reads --local config only), which is stronger than gitEnv() but
-// is not a shape this textual census recognises (it accepts the two helpers by name). So it is pinned at its new blob
-// (red-proven: without the pin the census names it); dropping the pin needs the census taught that shape, a redesign
-// this unit does not make.
-//
-// 08b + 08c: the 05a hold on scripts/release-notes.test.mjs (canon a8f3ba69 failed on macOS and under coverage) is LIFTED: .github
-// 06c099d fixed the child-key assertion, and the canon test (8cf7e5fd) is adopted. scripts/release-notes.mjs needs NO pin any more:
-// the census learned the ALLOWLIST env shape (allowlistReason, below), so its named-key env passes by shape. The canon TEST keeps its
-// pin on purpose: its sandboxEnv() redirects HOME/USERPROFILE/TEMP but sets no GIT_CONFIG_NOSYSTEM and spreads a conditional object and
-// its `extra` parameter, so it is NOT an allowlist by this rule (red-proven: without the pin the census names both spawns).
+// 08d measured every pin by dropping it and reading the census (the canon .github d31a091, Bankfire 6dd3c8e8):
+//   - scripts/secret-gate.test.mjs (71452210): STAYS, moved from a17ae233. Without the pin the census names line 40,
+//     execFileSync('git', ...) env ({ ...gitEnv(), ...extra }): a spread around gitEnv() is not gitEnv() alone and not an allowlist.
+//   - scripts/secret-scan.test.mjs (Bankfire d0db994d, "hand the decoy call the sandbox env"): OUT. Its decoy git call now takes a
+//     named-key env, so the census reads it with no pin.
+//   - scripts/release-notes.test.mjs (7e779ef8, .github ab7bdde: sandboxEnv is one literal of named keys with GIT_CONFIG_NOSYSTEM): OUT.
+//   - scripts/verify-release-shape.test.mjs (fa8a730d): never pinned, and passes with none.
+//   - scripts/release-notes.mjs: OUT since 08c (the allowlist shape, allowlistReason below).
 export const EXEMPT_CARRIERS = {
-  'scripts/secret-scan.test.mjs': '4433fb56bc97d1facc3fb27804e1934c0577115f',
-  'scripts/secret-gate.test.mjs': 'a17ae233275c05c6d030f7aa7f0654002b310356',
-  'scripts/release-notes.test.mjs': '8cf7e5fd58b89d051395efc53cc0a4f6c86848da',
+  'scripts/secret-gate.test.mjs': '71452210d6a6f793895bc502557fce7e1f3e890c',
 };
 
 // The git blob id of `text`, as `git hash-object` prints it for a file holding exactly these bytes.

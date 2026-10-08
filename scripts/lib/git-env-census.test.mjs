@@ -98,10 +98,10 @@ test('R14 CWK-174: an exempt carrier passes ONLY while its content is exactly th
   assert.equal(censusGitSpawns(files(text, 'scripts/other.mjs'), exempt).findings.length, 1, 'the exemption names a path, nothing else');
 });
 
-test('R14 CWK-174: blobId matches git hash-object for a known blob, and the pins name only the canon carriers (the scanner pair, the secret-gate test and the release-notes test)', () => {
+test('R14 CWK-174: blobId matches git hash-object for a known blob, and the one pin left names the secret-gate test (08d measured every other pin out)', () => {
   assert.equal(blobId(''), 'e69de29bb2d1d6434b8b29ae775ad8c2e48c5391');
   assert.equal(blobId('hello' + String.fromCharCode(10)), 'ce013625030ba8dba906f756967f9e9ca394464a');
-  assert.deepEqual(Object.keys(EXEMPT_CARRIERS).sort(), ['scripts/release-notes.test.mjs', 'scripts/secret-gate.test.mjs', 'scripts/secret-scan.test.mjs']);
+  assert.deepEqual(Object.keys(EXEMPT_CARRIERS), ['scripts/secret-gate.test.mjs']);
 });
 
 test('R14 CWK-136: gitTestEnv(...) alone passes exactly like gitEnv(...), and the same refusals bind it', () => {
@@ -176,13 +176,14 @@ test('08c: an allowlist env mutated afterwards, or built with an unknown spread 
   assert.equal(refused(LIST + 'const mkEnv = (dir, extra) => ({ ' + FILTERED + ', ...extra, ' + NOSYS + ' });\n' + call('{ env: mkEnv(d) }')).length, 1, 'a helper spreading its parameter');
 });
 
-test("08c: the canon release-notes.mjs passes with NO pin; its test's sandboxEnv has no GIT_CONFIG_NOSYSTEM, so it keeps its pin", () => {
+test("08d: the canon release-notes.mjs and (at 7e779ef8) release-notes.test.mjs pass with NO pin; sandboxEnv is one literal of named keys with GIT_CONFIG_NOSYSTEM", () => {
   const read = (rel) => ({ rel, text: fs.readFileSync(path.join(here, '..', '..', rel), 'utf8') });
   const notes = censusGitSpawns([read('scripts/release-notes.mjs')], {});
   assert.deepEqual(notes.findings, []);
   assert.ok(notes.spawns >= 1);
   const tst = censusGitSpawns([read('scripts/release-notes.test.mjs')], {});
-  assert.ok(tst.findings.length >= 1 && /sandboxEnv/.test(tst.findings[0]), tst.findings.join(' | '));
+  assert.deepEqual(tst.findings, []);
+  assert.ok(tst.spawns >= 1);
 });
 
 test('08c: with the release-notes.mjs pin gone the census walks that file (the spawn count rose), every source is still visited, and nothing is refused', () => {
