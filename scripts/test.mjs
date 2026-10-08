@@ -4,9 +4,8 @@
 // on-disk-but-unlisted). Mirrors CoalTipple/CoalHearth's scripts/test.mjs.
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { testSpawnPlan } from './lib/test-spawn.mjs';
+import { testSpawnPlan, runPlan } from './lib/test-spawn.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -50,8 +49,8 @@ const TESTS = [
 // CWK-071: process.exit() forces the process to exit before pending stdout writes flush
 // (node/runtime.md §7) -- set process.exitCode and let the process exit naturally instead.
 // Wrapped in main() so an early-exit path is a plain `return`, keeping this a flat script
-// (no async needed: spawnSync below is already synchronous).
-function main() {
+// (async since 08b: runPlan awaits the child so it can enforce the whole-run deadline).
+async function main() {
   const missing = TESTS.filter((t) => !fs.existsSync(path.join(repo, t)));
   if (missing.length) {
     console.error(`test runner: ${missing.length} listed test file(s) MISSING — ${missing.join(', ')}`);
@@ -74,8 +73,7 @@ function main() {
 
   // CWK-199's class: heap cap in the child ENV, files serial, a finite clock; the plan also strips the GIT_* family (testChildEnv).
   const plan = testSpawnPlan(TESTS, process.env);
-  const r = spawnSync(process.execPath, plan.args, { cwd: repo, stdio: 'inherit', env: plan.env });
-  process.exitCode = r.status ?? 1;
+  process.exitCode = await runPlan(plan, { cwd: repo });
 }
 
-main();
+main().catch((e) => { console.error(`test runner crashed: ${e.message}`); process.exitCode = 1; });

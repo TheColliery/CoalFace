@@ -100,7 +100,9 @@ test('H1: where a planted GIT_DIR flips a sandbox repo bare, the stripped suite 
 test('scripts/test.mjs hands its node --test child the plan env (testChildEnv inside), never the bare ambient env', () => {
   const src = fs.readFileSync(path.join(here, '..', 'test.mjs'), 'utf8');
   assert.match(src, /testSpawnPlan\(TESTS, process\.env\)/);
-  assert.match(src, /env: plan\.env/);
+  assert.match(src, /await runPlan\(plan, /);
   assert.ok(!/env: process\.env/.test(src));
-  assert.match(fs.readFileSync(path.join(here, 'test-spawn.mjs'), 'utf8'), /testChildEnv\(baseEnv\)/);
+  const lib = fs.readFileSync(path.join(here, 'test-spawn.mjs'), 'utf8');
+  assert.match(lib, /testChildEnv\(baseEnv\)/);
+  assert.match(lib, /spawn\(process\.execPath, plan\.args, \{[^}]*env: plan\.env/);
 });

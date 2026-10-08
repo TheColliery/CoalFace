@@ -4,13 +4,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { testSpawnPlan, HEAP_FLAG, TEST_TIMEOUT_MS } from './test-spawn.mjs';
+import os from 'node:os';
+import { testSpawnPlan, runPlan, HEAP_FLAG, TEST_TIMEOUT_MS, RUN_DEADLINE_MS } from './test-spawn.mjs';
 
 const ROOM = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 test('test-spawn: the argv runs the files serially under a finite per-test clock, after --test and before the file list', () => {
   const { args } = testSpawnPlan(['a.test.mjs', 'b.test.mjs'], {});
-  assert.deepEqual(args, ['--test', '--test-concurrency=1', `--test-timeout=${TEST_TIMEOUT_MS}`, 'a.test.mjs', 'b.test.mjs']);
+  assert.deepEqual(args, ['--test', '--test-concurrency=1', `--test-timeout=${TEST_TIMEOUT_MS}`, '--test-force-exit', 'a.test.mjs', 'b.test.mjs']);
 });
 
 test('test-spawn: the deadline is finite and above twice the slowest measured file (82.1 s, 2026-10-08)', () => {
@@ -48,5 +49,39 @@ test('test-spawn: concurrency never rides NODE_OPTIONS (Node 24.19 refuses it th
 test('test-spawn: scripts/test.mjs spawns its child with the plan argv and env (the wiring, not just the builder)', () => {
   const src = fs.readFileSync(path.join(ROOM, 'scripts', 'test.mjs'), 'utf8');
   assert.match(src, /testSpawnPlan\(TESTS, process\.env\)/);
-  assert.match(src, /spawnSync\(process\.execPath, plan\.args, \{[^}]*env: plan\.env/);
+  assert.match(src, /await runPlan\(plan, \{ cwd: repo \}\)/);
+});
+
+test('test-spawn: the whole-run deadline is finite and about 4x the suite wall (154 s, 2026-10-08)', () => {
+  assert.ok(Number.isInteger(RUN_DEADLINE_MS) && RUN_DEADLINE_MS >= 2 * 154000 && RUN_DEADLINE_MS <= 1800000, String(RUN_DEADLINE_MS));
+});
+
+// 08b b1 (the reviewer's witness): a file holding a handle open outlives --test-timeout and the run never ends. The file is
+// planted under os.tmpdir(); the per-test clock and the run deadline are injected short, and runPlan itself kills the run
+// at the deadline, so this test cannot hang the suite.
+function plantedRun(mutate) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-hang-'));
+  const file = path.join(dir, 'hang.test.mjs');
+  fs.writeFileSync(file, "import test from 'node:test';\ntest('holds a handle', () => { setInterval(() => {}, 1000); });\n");
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT; // a run nested in node --test would inherit the outer runner's context
+  const plan = testSpawnPlan([file], env, { timeoutMs: 2000 });
+  if (mutate) mutate(plan);
+  const started = Date.now();
+  return runPlan(plan, { cwd: dir, deadlineMs: 15000, stdio: 'ignore' }).then((status) => {
+    fs.rmSync(dir, { recursive: true, force: true });
+    return { status, ms: Date.now() - started };
+  });
+}
+
+test('test-spawn: a handle-holding test file ends the run before the deadline (force-exit) and a passing test reports success', async () => {
+  const r = await plantedRun();
+  assert.ok(r.ms < 14000, 'ended before the deadline: ' + r.ms);
+  assert.equal(r.status, 0);
+});
+
+test('test-spawn: WITHOUT --test-force-exit the same file hangs to the deadline, which kills the run and fails it (the deadline is real)', async () => {
+  const r = await plantedRun((plan) => { plan.args = plan.args.filter((a) => a !== '--test-force-exit'); });
+  assert.ok(r.ms >= 14000, 'ran to the deadline: ' + r.ms);
+  assert.equal(r.status, 1);
 });
