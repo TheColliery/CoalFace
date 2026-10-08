@@ -57,15 +57,15 @@ test('test-spawn: the whole-run deadline is finite and about 4x the suite wall (
 });
 
 // 08b b1 (the reviewer's witness): a file holding a handle open outlives --test-timeout and the run never ends. The file is
-// planted under os.tmpdir(); the per-test clock and the run deadline are injected short, and runPlan itself kills the run
+// planted under os.tmpdir(); the run deadline is injected short, and runPlan itself kills the run
 // at the deadline, so this test cannot hang the suite.
-function plantedRun(mutate) {
+function plantedRun(mutate, timeoutMs = 2000) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-hang-'));
   const file = path.join(dir, 'hang.test.mjs');
   fs.writeFileSync(file, "import test from 'node:test';\ntest('holds a handle', () => { setInterval(() => {}, 1000); });\n");
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT; // a run nested in node --test would inherit the outer runner's context
-  const plan = testSpawnPlan([file], env, { timeoutMs: 2000 });
+  const plan = testSpawnPlan([file], env, { timeoutMs });
   if (mutate) mutate(plan);
   const started = Date.now();
   return runPlan(plan, { cwd: dir, deadlineMs: 15000, stdio: 'ignore' }).then((status) => {
@@ -74,14 +74,17 @@ function plantedRun(mutate) {
   });
 }
 
+// With force-exit this holds on Node 22 and 24: a passing test whose file holds a handle ends the run at once (it proves the flag, not the clock).
 test('test-spawn: a handle-holding test file ends the run before the deadline (force-exit) and a passing test reports success', async () => {
   const r = await plantedRun();
   assert.ok(r.ms < 14000, 'ended before the deadline: ' + r.ms);
   assert.equal(r.status, 0);
 });
 
+// The per-test clock is injected LONGER (600 s) than the 15 s run deadline, so the deadline must fire first whatever the timeout's scope
+// (Node 22 applies --test-timeout per FILE and would end a 2 s clock early; Node 24 per test). Zone rule, ninth amendment.
 test('test-spawn: WITHOUT --test-force-exit the same file hangs to the deadline, which kills the run and fails it (the deadline is real)', async () => {
-  const r = await plantedRun((plan) => { plan.args = plan.args.filter((a) => a !== '--test-force-exit'); });
+  const r = await plantedRun((plan) => { plan.args = plan.args.filter((a) => a !== '--test-force-exit'); }, 600000);
   assert.ok(r.ms >= 14000, 'ran to the deadline: ' + r.ms);
   assert.equal(r.status, 1);
 });
