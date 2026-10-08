@@ -95,8 +95,12 @@ test('H1: where a planted GIT_DIR flips a sandbox repo bare, the stripped suite 
   assert.ok(fs.existsSync(path.join(sandbox, '.git')));
 });
 
-test('scripts/test.mjs hands its node --test child testChildEnv(), never the bare ambient env', () => {
+// 08b: the runner reaches testChildEnv() through testSpawnPlan() (lib/test-spawn.mjs), which strips the GIT_* family and adds
+// the heap cap; the runner must spawn with that plan's env and never the bare ambient env.
+test('scripts/test.mjs hands its node --test child the plan env (testChildEnv inside), never the bare ambient env', () => {
   const src = fs.readFileSync(path.join(here, '..', 'test.mjs'), 'utf8');
-  assert.match(src, /testChildEnv\(\)/);
-  assert.match(src, /env: testChildEnv\(\)/);
+  assert.match(src, /testSpawnPlan\(TESTS, process\.env\)/);
+  assert.match(src, /env: plan\.env/);
+  assert.ok(!/env: process\.env/.test(src));
+  assert.match(fs.readFileSync(path.join(here, 'test-spawn.mjs'), 'utf8'), /testChildEnv\(baseEnv\)/);
 });

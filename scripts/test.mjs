@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { testChildEnv } from './lib/test-child-env.mjs';
+import { testSpawnPlan } from './lib/test-spawn.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -26,6 +26,8 @@ const TESTS = [
   'scripts/lib/git-env.test.mjs',
   // R14 b1 H1: the suite child never inherits a hook's GIT_* family (the pinned secret-scan.test.mjs runs git init env-less).
   'scripts/lib/test-child-env.test.mjs',
+  // 08b CWK-199's class: the runner's heap cap, serial files and finite clock.
+  'scripts/lib/test-spawn.test.mjs',
   // CWK-174: the house secret scan, adopted byte-identical from .github's templates/published-code/.
   'scripts/secret-scan.test.mjs',
   'scripts/secret-gate.test.mjs',
@@ -70,7 +72,9 @@ function main() {
     return;
   }
 
-  const r = spawnSync(process.execPath, ['--test', ...TESTS], { cwd: repo, stdio: 'inherit', env: testChildEnv() });
+  // CWK-199's class: heap cap in the child ENV, files serial, a finite clock; the plan also strips the GIT_* family (testChildEnv).
+  const plan = testSpawnPlan(TESTS, process.env);
+  const r = spawnSync(process.execPath, plan.args, { cwd: repo, stdio: 'inherit', env: plan.env });
   process.exitCode = r.status ?? 1;
 }
 
