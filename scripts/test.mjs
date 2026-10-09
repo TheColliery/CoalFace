@@ -13,7 +13,7 @@
 // suite took 154 s. 240000 ms per test is just over twice the slowest file (on Node 22 that clock is per FILE); one file may take 300000 ms of wall clock (3.6x the slowest);
 // the whole run ends at 600000 ms (about 4x the serial suite). A run that needs more is a defect to fix, not a number to raise.
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
