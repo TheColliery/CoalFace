@@ -487,7 +487,7 @@ function exprReason(c, a0, b0, at) {
 //   - scripts/release-notes.test.mjs (7e779ef8), scripts/verify-release-shape.test.mjs (fa8a730d), scripts/release-notes.mjs (f8d998d8):
 //     NO pin; each reads clean by shape (sandboxEnv / the env const are named-key literals with GIT_CONFIG_NOSYSTEM).
 export const EXEMPT_CARRIERS = {
-  'scripts/secret-gate.test.mjs': '71452210d6a6f793895bc502557fce7e1f3e890c',
+  'scripts/secret-gate.test.mjs': '2f066650926ac6b8bc161bdcf069fd741a241a24',
   'scripts/secret-scan.test.mjs': 'd0db994df855ccd647f3ded878a6867bb198e196',
 };
 
