@@ -261,8 +261,8 @@ test('verify.mjs pointer-drift block NAMED SKIPs (never FAILs) when the tree has
 // `core.bare` incident cited above, a different mechanism entirely). `S` plays the role of
 // "the real repository a linked worktree's hook exports GIT_DIR/GIT_INDEX_FILE for" --
 // gitInit() must build fixture `F`'s own .git without ever touching S, whatever an ambient
-// GIT_DIR points at. Full incident: TheColliery/scratchpad/dispatch/r5-coalface.return.md,
-// "INCIDENT during leg (c0) set-up".
+// GIT_DIR points at. In short: a pre-commit hook inside a linked worktree exports an absolute
+// GIT_DIR, and a fixture that spread process.env into git flipped this repository to core.bare=true.
 test('gitInit(): a planted ambient GIT_DIR/GIT_INDEX_FILE (the linked-worktree shape) never reaches the fixture spawn', () => {
   const sandboxParent = fs.mkdtempSync(path.join(os.tmpdir(), 'coalface-gitenv-sandbox-'));
   const f = fs.mkdtempSync(path.join(os.tmpdir(), 'coalface-gitenv-fixture-'));

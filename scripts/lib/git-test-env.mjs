@@ -6,8 +6,9 @@
 // `core.bare` to `true` -- it happened to THIS repo (CoalFace) at 2026-09-23 00:17:49 +07
 // (repaired by hand). NOT the umbrella's separate 2026-09-10 `core.bare` incident (a
 // different mechanism entirely -- a backtick in a double-quoted `node -e`; see
-// verify.test.mjs's own r34b comment for that one). Full incident:
-// TheColliery/scratchpad/dispatch/r5-coalface.return.md, "INCIDENT during leg (c0) set-up".
+// verify.test.mjs's own r34b comment for that one). In short: a pre-commit hook inside a linked
+// worktree exports an absolute GIT_DIR, and a fixture that spread process.env into git flipped this
+// repository to core.bare=true.
 //
 // Deleting the WHOLE `GIT_*` family, not a hand-maintained list, is the point -- a list rots;
 // the family is what git actually reads (GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE,
