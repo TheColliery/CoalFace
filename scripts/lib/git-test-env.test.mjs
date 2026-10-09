@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { gitTestEnv } from './git-test-env.mjs';
+import { gitTestEnv } from './git-env.mjs';
 
 test('gitTestEnv: strips every GIT_-prefixed key, whatever the name', () => {
   const saved = { ...process.env };

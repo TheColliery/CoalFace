@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { gitTestEnv } from './lib/git-test-env.mjs';
+import { gitTestEnv } from './lib/git-env.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -106,7 +106,7 @@ test('verify.mjs negative path: an over-cap .claude-plugin/plugin.json descripti
 // `spawn` is DI'd (defaults to the real `spawnSync`) so a test can prove the ORDERING itself —
 // that a failed init is never followed by a single `config`/`add`/`commit` spawn — without
 // needing a genuinely broken git binary.
-function gitInit(tmp, { spawn = spawnSync } = {}) {
+function gitInit(tmp, { spawn } = {}) {
   // R14 / CWK-136: ONE spawn call, with its env: inline, so the git-spawn census (scripts/lib/git-env-census.mjs) can
   // read the property it enforces (env from gitTestEnv() alone) at the call, rather than through a shared opts object.
   // r34b bounce1 L2 — no fixture call can walk up past `tmp`'s own parent, structurally,
@@ -117,7 +117,10 @@ function gitInit(tmp, { spawn = spawnSync } = {}) {
   // hook ran this very function. gitTestEnv() strips the whole GIT_* family before
   // re-adding the ceiling.
   // 05a F2: a finite clock (testing.md); a fixture git that stalls is killed, never waited on.
-  const run = (args) => spawn('git', args, { cwd: tmp, encoding: 'utf8', timeout: 60000, killSignal: 'SIGKILL', env: gitTestEnv(path.dirname(tmp)) });
+  // 09a: the canon census cannot follow a spawner bound as a default (spawn = spawnSync), so the real call is written out beside the DI one, each with its env inline.
+  const run = (args) => (spawn
+    ? spawn('git', args, { cwd: tmp, encoding: 'utf8', timeout: 60000, killSignal: 'SIGKILL', env: gitTestEnv(path.dirname(tmp)) })
+    : spawnSync('git', args, { cwd: tmp, encoding: 'utf8', timeout: 60000, killSignal: 'SIGKILL', env: gitTestEnv(path.dirname(tmp)) }));
   const init = run(['init', '-q', '.']);
   assert.equal(init.status, 0, `fixture git init failed (exit ${init.status}): ${init.stderr || ''}`);
   assert.ok(fs.existsSync(path.join(tmp, '.git')),
@@ -323,7 +326,7 @@ test('verify.mjs git-spawn census: a planted git spawn with env: process.env FAI
     fs.writeFileSync(path.join(tmp, 'scripts', 'planted-spawn.mjs'), planted, 'utf8');
     const red = runVerify(tmp);
     assert.equal(red.status, 1, 'a git spawn taking env from process.env must FAIL the gate');
-    assert.match(red.stdout, /FAIL .*git spawn census: finding 1\/1: scripts\/planted-spawn\.mjs:2 spawnSync\('git', \.\.\.\) takes env from process\.env/);
+    assert.match(red.stdout, /FAIL .*git spawn census: finding 1\/1: scripts\/planted-spawn\.mjs:2 spawnSync\('git', \.\.\.\) env: holds process\.env without gitEnv\(\)/);
     assert.match(red.stdout, /VERIFY: FAIL/);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });

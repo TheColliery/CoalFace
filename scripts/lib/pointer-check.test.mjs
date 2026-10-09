@@ -18,7 +18,7 @@ import {
   classifyCheckIgnoreResult, applyCheckIgnoreProbe, PROBE_SUFFIX,
   collectSurfaces, DEFAULT_SURFACE_PLAN,
 } from './pointer-check.mjs';
-import { gitTestEnv } from './git-test-env.mjs';
+import { gitTestEnv } from './git-env.mjs';
 
 const OURS = new Set(['scripts', 'hooks', 'skills', 'commands', 'README.md', '.github']);
 const base = (over = {}) => ({

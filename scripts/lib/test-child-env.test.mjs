@@ -6,7 +6,7 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { testChildEnv } from './test-child-env.mjs';
-import { gitTestEnv } from './git-test-env.mjs';
+import { gitTestEnv } from './git-env.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const GIT = "'git'";

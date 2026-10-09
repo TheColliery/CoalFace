@@ -216,7 +216,7 @@ try {
   const { execFileSync, spawnSync } = await import('node:child_process');
   // CWK-133 / CWK-136: every git child here takes its env from gitEnv() alone (R14 b1 L1: GIT_INDEX_FILE stays inherited, so a partial commit is read as made) (the census below enforces it).
   // Dynamic, inside this block (node/runtime.md section 1): an absent lib is a named crash line, never a link-time crash.
-  const { gitEnv } = await import(pathToFileURL(path.join(repo, 'scripts', 'lib', 'git-env.mjs')).href);
+  const { gitEnv } = await import('./lib/git-env.mjs'); // a literal path: the census reads no other form of a dynamic import (09a)
 
   // GIT IS AN OPTIONAL ENHANCEMENT, NEVER A RUNTIME REQUIREMENT (no-external-assumption).
   // This gate's whole question is "reachable from a CLONE", which only git can answer, so
@@ -368,13 +368,14 @@ try {
   }
 } catch (e) { fail(`pointer drift check crashed: ${e.message}`); }
 
-// CWK-133 / CWK-136: the git-spawn census proves SAFETY, not presence. Every git child under scripts/ and hooks/ takes
-// its env from gitTestEnv() or gitEnv() ALONE (scripts/lib/git-env-census.mjs states the three refusals and what it
-// cannot see). Imported dynamically, inside this block (node/runtime.md section 1), so an absent lib is a named FAIL here.
+// CWK-133 / CWK-136 / 09a: the git-spawn census proves SAFETY, not presence. Every git child under scripts/ and hooks/ takes its env from gitEnv() or
+// gitTestEnv() imported by that name from scripts/lib/git-env.mjs, or from a literal of named keys (scripts/lib/git-env-census.mjs is the shared canon
+// census, adopted by blob id; scripts/lib/git-spawn-room.mjs holds this room's two pins). Imported dynamically, inside this block (node/runtime.md
+// section 1), so an absent lib is a named FAIL here.
 try {
-  const census = await import(pathToFileURL(path.join(repo, 'scripts', 'lib', 'git-env-census.mjs')).href);
-  const report = census.censusGitSpawns(census.collectSources(repo));
-  if (report.findings.length === 0) ok(`git spawn census: every one of ${report.spawns} git spawn(s) in ${report.files} source file(s) takes env from gitTestEnv()/gitEnv() alone or a named-key allowlist${report.pinned ? ` (${report.pinned} of them in byte-equal org carriers pinned by blob)` : ''}`);
+  const { roomCensus } = await import('./lib/git-spawn-room.mjs');
+  const report = roomCensus(repo);
+  if (report.findings.length === 0) ok(`git spawn census: every one of ${report.calls} git spawn(s) in ${report.files} source file(s) takes env from gitEnv()/gitTestEnv() of scripts/lib/git-env.mjs or a named-key allowlist${report.exempted ? ` (${report.exempted} byte-equal org carrier file(s) pinned by blob, their spawns not counted)` : ''}`);
   else report.findings.forEach((m, i) => fail(`git spawn census: finding ${i + 1}/${report.findings.length}: ${m}`));
 } catch (e) { fail(`git spawn census crashed or its module failed to load: ${e.message}`); }
 

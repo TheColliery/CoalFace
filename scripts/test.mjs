@@ -19,10 +19,10 @@ const TESTS = [
   'scripts/lib/config-keys.test.mjs',
   'scripts/lib/pointer-check.test.mjs',
   'scripts/lib/git-test-env.test.mjs',
-  // CWK-133 / CWK-136: the git-spawn census, wired into scripts/verify.mjs.
+  // CWK-133 / CWK-136 / 09a: the canon git-spawn census (adopted by blob id from .github), wired into scripts/verify.mjs.
   'scripts/lib/git-env-census.test.mjs',
-  // 08d: the lexer the census reads source through (comments, strings, templates and regex bodies blanked).
-  'scripts/lib/js-skeleton.test.mjs',
+  // 09a: this room's side of the canon census: its pins, measured, over the room's real sources (git-env-census.mjs and its test are the canon's).
+  'scripts/git-env-census-room.test.mjs',
   // R14 b1 L1: gitEnv() keeps GIT_INDEX_FILE for the gate's two real-repo reads (partial-commit proof).
   'scripts/lib/git-env.test.mjs',
   // R14 b1 H1: the suite child never inherits a hook's GIT_* family (the pinned secret-scan.test.mjs runs git init env-less).
