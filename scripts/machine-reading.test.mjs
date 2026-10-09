@@ -110,3 +110,15 @@ test('CLI: --json prints the structured reading; exit code is 0 or 1; --help 0; 
   assert.match(u.stderr, /usage/i);
   assert.equal(u.stdout, '');
 });
+
+// 09a: the canon wave runner (scripts/lib/wave-run.mjs, adopted by blob id) calls the reading as a sibling file, scripts/lib/machine-reading.mjs, and its own test holds that copy to
+// blob 1c550b66. This room therefore keeps THREE copies of one file (skills/coalface/scripts/ the source, its plugin/ twin, scripts/lib/ for the runner): a NAMED duplication, the
+// canon's rule being that the file is never edited in a room, so the copies change together or this test goes red.
+test('the three copies of machine-reading.mjs are byte for byte one file (the source, its plugin/ twin, and the copy the canon wave runner reads)', async () => {
+  const fs = await import('node:fs');
+  const copies = [SCRIPT, path.join(repo, 'plugin', 'skills', 'coalface', 'scripts', 'machine-reading.mjs'), path.join(repo, 'scripts', 'lib', 'machine-reading.mjs')];
+  const [src, twin, runner] = copies.map((p) => fs.readFileSync(p));
+  assert.ok(src.length > 0);
+  assert.ok(src.equals(twin), 'the plugin/ twin differs from the source');
+  assert.ok(src.equals(runner), 'scripts/lib/machine-reading.mjs differs from the source: re-copy it, never edit it (an improvement goes to the canon through the chief)');
+});

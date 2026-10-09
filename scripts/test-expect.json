@@ -1,0 +1,41 @@
+{
+ "note": "Per-file expectations for scripts/test.mjs (scripts/lib/suite-run.mjs). floors: the file must report at least this many tests (a ratchet: raise it with the file, lower it only on purpose). names: the file must report each listed top-level test name. Every roster file has exactly one entry. Keep: node scripts/test.mjs --counts, --names <file>.",
+ "floors": {
+  "scripts/lib/config-schema.test.mjs": 7,
+  "scripts/machine-reading.test.mjs": 14,
+  "scripts/lib/jsonc.test.mjs": 3,
+  "scripts/lib/hooks.test.mjs": 71,
+  "scripts/lib/desc-cap.test.mjs": 7,
+  "scripts/lib/claude-ai-trim.test.mjs": 9,
+  "scripts/lib/config-keys.test.mjs": 27,
+  "scripts/lib/pointer-check.test.mjs": 60,
+  "scripts/lib/git-test-env.test.mjs": 6,
+  "scripts/lib/git-env-census.test.mjs": 193,
+  "scripts/lib/git-env.test.mjs": 3,
+  "scripts/lib/test-child-env.test.mjs": 4,
+  "scripts/lib/wave-run.test.mjs": 38,
+  "scripts/lib/suite-run.test.mjs": 13,
+  "scripts/secret-scan.test.mjs": 46,
+  "scripts/secret-gate.test.mjs": 18,
+  "scripts/build-plugin.test.mjs": 10,
+  "scripts/verify.test.mjs": 20,
+  "scripts/build-claude-ai-zips.test.mjs": 2,
+  "scripts/configure.test.mjs": 16,
+  "scripts/link-check.test.mjs": 36,
+  "scripts/decide-upload.test.mjs": 6,
+  "scripts/prune-release-zips.test.mjs": 3,
+  "scripts/release-notes.test.mjs": 24,
+  "scripts/verify-release-shape.test.mjs": 14,
+  "scripts/lib/asset-upload-mode.test.mjs": 5,
+  "scripts/lib/release-prune.test.mjs": 6,
+  "scripts/lib/release-shape.test.mjs": 31
+ },
+ "names": {
+  "scripts/git-env-census-room.test.mjs": [
+   "every git spawn of this room reads clean with the room pins, and the walk really reaches the gate, its tests and the hooks",
+   "each pin is needed: dropping it makes the census name that file (the measurement, kept as a test)",
+   "each pin names the blob the file holds now: an edited carrier re-arms the census",
+   "the gate refuses a planted env copy and accepts the room helper, through the same room entry point"
+  ]
+ }
+}

@@ -95,14 +95,13 @@ test('H1: where a planted GIT_DIR flips a sandbox repo bare, the stripped suite 
   assert.ok(fs.existsSync(path.join(sandbox, '.git')));
 });
 
-// 08b: the runner reaches testChildEnv() through testSpawnPlan() (lib/test-spawn.mjs), which strips the GIT_* family and adds
-// the heap cap; the runner must spawn with that plan's env and never the bare ambient env.
-test('scripts/test.mjs hands its node --test child the plan env (testChildEnv inside), never the bare ambient env', () => {
+// 09a: the runner reaches testChildEnv() through suite.cli() (lib/suite-run.mjs), which strips the GIT_* family before every child; the heap cap is added by the canon wave runner.
+// scripts/test.mjs must go through that entry point and never spawn with the bare ambient env (the behavioural leg is in suite-run.test.mjs).
+test('scripts/test.mjs hands its children the suite env (testChildEnv inside suite.cli), never the bare ambient env', () => {
   const src = fs.readFileSync(path.join(here, '..', 'test.mjs'), 'utf8');
-  assert.match(src, /testSpawnPlan\(TESTS, process\.env\)/);
-  assert.match(src, /await runPlan\(plan, /);
-  assert.ok(!/env: process\.env/.test(src));
-  const lib = fs.readFileSync(path.join(here, 'test-spawn.mjs'), 'utf8');
-  assert.match(lib, /testChildEnv\(baseEnv\)/);
-  assert.match(lib, /spawn\(process\.execPath, plan\.args, \{[^}]*env: plan\.env/);
+  assert.ok(src.includes('await suite.cli({ repo, tests: TESTS,'));
+  assert.ok(!src.includes('env: process.env'));
+  const lib = fs.readFileSync(path.join(here, 'suite-run.mjs'), 'utf8');
+  assert.ok(lib.includes("import { testChildEnv } from './test-child-env.mjs';"));
+  assert.ok(lib.includes('const run = { cwd: repo, env: testChildEnv(env), ...limits };'));
 });
