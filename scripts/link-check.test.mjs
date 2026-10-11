@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { extractHeadingSlugs, extractLinks, checkFile, checkFiles } from './lib/link-check.mjs';
-import { gitTestEnv } from './lib/git-test-env.mjs';
+import { gitTestEnv } from './lib/git-env.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const cli = path.join(repo, 'scripts', 'link-check.mjs');
@@ -151,10 +151,10 @@ function stubIO({ files = {}, dirs = new Set() } = {}) {
     resolveTarget: (fromFile, target) => path.posix.resolve(path.posix.dirname(fromFile), target),
     stat: (p) => {
       if (dirs.has(p)) return { isFile: false, isDir: true };
-      if (Object.prototype.hasOwnProperty.call(files, p)) return { isFile: true, isDir: false };
+      if (Object.hasOwn(files, p)) return { isFile: true, isDir: false };
       return null;
     },
-    readText: (p) => (Object.prototype.hasOwnProperty.call(files, p) ? files[p] : null),
+    readText: (p) => (Object.hasOwn(files, p) ? files[p] : null),
   };
 }
 

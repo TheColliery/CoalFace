@@ -6,8 +6,9 @@
 // `core.bare` to `true` -- it happened to THIS repo (CoalFace) at 2026-09-23 00:17:49 +07
 // (repaired by hand). NOT the umbrella's separate 2026-09-10 `core.bare` incident (a
 // different mechanism entirely -- a backtick in a double-quoted `node -e`; see
-// verify.test.mjs's own r34b comment for that one). Full incident:
-// TheColliery/scratchpad/dispatch/r5-coalface.return.md, "INCIDENT during leg (c0) set-up".
+// verify.test.mjs's own r34b comment for that one). In short: a pre-commit hook inside a linked
+// worktree exports an absolute GIT_DIR, and a fixture that spread process.env into git flipped this
+// repository to core.bare=true.
 //
 // Deleting the WHOLE `GIT_*` family, not a hand-maintained list, is the point -- a list rots;
 // the family is what git actually reads (GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE,
@@ -17,11 +18,26 @@
 // `ceilingDir` is the one directory a fixture spawn is never allowed to walk up past (its own
 // parent) -- belt-and-suspenders on top of the GIT_* strip, matching the pattern every call
 // site in this repo already used before this fix (r34b FOLD R1).
+//
+// 05a: a fixture git must also never WAIT on a human. With a signing global config a bare `git tag`
+// becomes an annotated tag and git opens the system editor (Notepad on this box) on the owner's
+// screen; the spawn blocks until it is closed. GIT_EDITOR=false makes any git that wants an editor
+// fail at once, and GIT_TERMINAL_PROMPT=0 does the same for a credential prompt.
 export function gitTestEnv(ceilingDir) {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
     if (key.startsWith('GIT_')) delete env[key];
   }
   env.GIT_CEILING_DIRECTORIES = ceilingDir;
+  env.GIT_EDITOR = 'false';
+  env.GIT_TERMINAL_PROMPT = '0';
+  // 05a F2: and never SIGN. The operator's global config can demand commit.gpgsign / tag.gpgsign; a fixture commit would
+  // then wait on a signer and use the operator's live key. The env-config form (git 2.31+) overrides the global for every
+  // call that inherits this env, so no call site has to remember `-c commit.gpgsign=false`.
+  env.GIT_CONFIG_COUNT = '2';
+  env.GIT_CONFIG_KEY_0 = 'commit.gpgsign';
+  env.GIT_CONFIG_VALUE_0 = 'false';
+  env.GIT_CONFIG_KEY_1 = 'tag.gpgsign';
+  env.GIT_CONFIG_VALUE_1 = 'false';
   return env;
 }

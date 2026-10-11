@@ -102,13 +102,14 @@ export const PENDING_POINTERS = [
 //
 // `dir: true` means `root` is a directory of `.md` files, walked recursively, whole
 // text. Its absence means `root` is one exact file. `historyOnly: true` marks a surface
-// `checkPointers` binds to the gitignored-root case only, never the ordinary resolve
-// check (CHANGELOG.md -- published history is never fixed forward).
+// `checkPointers` exempts from BOTH the ordinary resolve check and the
+// gitignored-root check (R18b; CHANGELOG.md -- published history is never fixed forward). `collectSurfaces` marks only the RELEASED
+// entries (from the second `## [` heading on) historyOnly; the top entry gets the FULL check, resolve and gitignored-root (R20).
 export const DEFAULT_SURFACE_PLAN = [
   { root: 'README.md',
     why: 'the front door -- every install/config claim starts here' },
   { root: 'CHANGELOG.md', historyOnly: true,
-    why: 'published history is never fixed forward -- a path correct when the entry was written is not a defect now, but a gitignored citation was never correct on any day' },
+    why: 'released entries are published history, never fixed forward -- a path correct when the entry was written, or cited before its root was ignored (R18b), is not a defect now; the TOP entry is checked in full (R20)' },
   { root: 'SECURITY.md',
     why: 'the disclosure surface, and it cites internal paths (e.g. a hook line ref)' },
   { root: 'CONTRIBUTING.md',
@@ -122,6 +123,44 @@ export const DEFAULT_SURFACE_PLAN = [
   { root: 'commands', dir: true,
     why: 'command docs are ship-text a user reads' },
 ];
+
+// THE ONE FENCE SCANNER (05a t13): pointerCandidates and the CHANGELOG split both ask it what a fence is, so they cannot
+// disagree. CommonMark: a fence opens with 3+ backticks or tildes (up to 3 spaces of indent) and closes with a fence of the
+// same character at least as long, carrying nothing but spaces. Returns one kind per line: 0 = prose, 1 = inside a CLOSED
+// fence (the delimiters included), 2 = inside an UNCLOSED fence (it runs to the end of the text).
+export const FENCE = { PROSE: 0, CLOSED: 1, UNCLOSED: 2 };
+export function scanFences(lines) {
+  const kind = new Array(lines.length).fill(FENCE.PROSE);
+  let open = null; // { ch, len, at }
+  for (let i = 0; i < lines.length; i++) {
+    const f = /^ {0,3}(`{3,}|~{3,})/.exec(lines[i]);
+    if (open) {
+      kind[i] = FENCE.CLOSED;
+      if (f && f[1][0] === open.ch && f[1].length >= open.len && /^\s*$/.test(lines[i].slice(f[0].length))) open = null;
+    } else if (f) {
+      open = { ch: f[1][0], len: f[1].length, at: i };
+      kind[i] = FENCE.CLOSED;
+    }
+  }
+  if (open) for (let i = open.at; i < lines.length; i++) kind[i] = FENCE.UNCLOSED;
+  return kind;
+}
+
+// The nth line starting with `## [` (a CHANGELOG entry heading) that is not inside a fence: { index, unclosedLine }.
+// index is -1 when there is no such heading; unclosedLine is the 1-based line where a fence was opened and never closed
+// (null otherwise). An unclosed fence hides every later heading, so the caller must say so, not just fail on the result.
+function nthHeading(text, n) {
+  const lines = text.split('\n');
+  const kind = scanFences(lines);
+  let seen = 0;
+  let offset = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (kind[i] === FENCE.PROSE && lines[i].startsWith('## [') && ++seen === n) return { index: offset, unclosedLine: null };
+    offset += lines[i].length + 1;
+  }
+  const u = kind.indexOf(FENCE.UNCLOSED);
+  return { index: -1, unclosedLine: u === -1 ? null : u + 1 };
+}
 
 // COLLECT -- plan-driven, DI'd fs so this module stays pure (it imports nothing today
 // and must not start). `io.join`/`io.walkMd`/`io.read`/`io.rel` are the SAME filesystem
@@ -138,7 +177,25 @@ export function collectSurfaces(repo, plan, io) {
         surfaces.push({ label: io.rel(f), text: io.read(f) });
       }
     } else {
-      const s = { label: row.root, text: io.read(io.join(repo, row.root)) };
+      const text = io.read(io.join(repo, row.root));
+      if (row.historyOnly && typeof text === 'string') {
+        // R18b: only RELEASED entries are history. Split at the SECOND `## [` heading: everything before it (the
+        // preamble and the TOP entry, `[Unreleased]` or the version being released, the text the next Release body
+        // is built from) is an ordinary surface; everything from it on is released history.
+        const { index: second, unclosedLine } = nthHeading(text, 2);
+        // R20 (ONE FLOCK ONE COLOR with CoalMine 82a55cc): the top entry gets the FULL check, resolve and gitignored-root,
+        // so a dead path in a new entry fails before it ships. A line naming a file the release DELETED cites it with the
+        // tag it last lived in (`vX.Y.Z:path`, the convention in the FAIL message). The scope test skips that shape and
+        // `tagFileExists` then checks it (a missing tag is a named SKIP, `tagExists`).
+        // The split is fence-aware here and in CoalMine (f4f8eea, on its origin/main). TWO REMAINING divergences from CoalMine's
+        // origin/main, both named (ONE FLOCK ONE COLOR (2)): (1) this room names an UNCLOSED fence (R20 L-3, `unclosedFence`
+        // below), where CoalMine's gate fails closed on it without saying why; (2) this room has the `vX.Y.Z:path` convention and
+        // its git check (`tagFileExists`, `tagExists`), which CoalMine lacks (0 hits for cat-file or tagFileExists there).
+        if (second === -1) surfaces.push({ label: row.root, text, ...(unclosedLine ? { unclosedFence: unclosedLine } : {}) });
+        else surfaces.push({ label: row.root, text: text.slice(0, second) }, { label: row.root, text: text.slice(second), historyOnly: true });
+        continue;
+      }
+      const s = { label: row.root, text };
       if (row.historyOnly) s.historyOnly = true;
       surfaces.push(s);
     }
@@ -352,8 +409,11 @@ export function deriveIgnoredRoots({ surfaces = [], agentHomes = new Set(), chec
 // rather than re-implementing it and getting different numbers.
 export function pointerCandidates(text) {
   const out = [];
-  // Fenced code blocks are EXAMPLES, not prose claims about this tree.
-  const prose = String(text).replace(/^```[\s\S]*?^```/gm, '');
+  // Fenced code blocks are EXAMPLES, not prose claims about this tree (the shared scanner: backtick or tilde, up to 3 spaces of
+  // indent). An UNCLOSED fence is kept: checking more is the safe direction, and the CHANGELOG gate names it.
+  const all = String(text).split('\n');
+  const kind = scanFences(all);
+  const prose = all.filter((_, i) => kind[i] !== FENCE.CLOSED).join('\n');
   for (const m of prose.matchAll(/`([^`\n]+)`/g)) {
     const tok = m[1];
     if (/\s/.test(tok)) continue;          // a command or a Markdown table row, not a pointer
@@ -385,6 +445,8 @@ export function checkPointers({
   hasEntry = () => false,   // (relDir, name) => boolean
   resolve,                  // (relPath) => 'tracked' | 'untracked' | 'missing'
   pending = PENDING_POINTERS,
+  tagFileExists,            // (tag, path) => boolean; optional. Absent (no git) = the vX.Y.Z:path form is skipped, as before (05a L-2)
+  tagExists,                // (tag) => boolean; optional (05a F1). A clone without the tag (CI checks out depth 1, no tags) cannot answer tagFileExists: named SKIP, never a FAIL
 } = {}) {
   const findings = [];
   if (typeof resolve !== 'function') {
@@ -396,6 +458,9 @@ export function checkPointers({
   let checked = 0;
 
   for (const s of surfaces) {
+    // R20 L-3: an unclosed fence hides every later heading, so the whole file would be read as the top entry and fail on
+    // released history with no word about the cause. Name the fence and where it opened.
+    if (s.unclosedFence) findings.push({ level: 'FAIL', msg: `${s.label} has an unclosed code fence opened at line ${s.unclosedFence}: every heading below it is hidden, so the whole file is checked as the top entry. Close the fence.` });
     if (typeof s.text !== 'string') {
       // NAME what could not be read. A caller that filters unreadable surfaces out first
       // hides its own scope gap — the silent narrowing this family of gates exists against.
@@ -414,11 +479,28 @@ export function checkPointers({
       const first = tok.split('/')[0];
       const norm = normalise(tok);
 
+      // 05a L-2: a file the release DELETED is cited as `vX.Y.Z:path` (the convention). The scope test below skips that shape (its first
+      // segment is not a top-level directory), so a typo inside it would ship. When the caller can ask git, ask: the file must have
+      // existed at that tag. Released history is exempt, and with no tagFileExists (no git) the form stays skipped (no-external-assumption).
+      const tagForm = /^(v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?):(.+)$/.exec(norm);
+      if (tagForm) {
+        if (!s.historyOnly && typeof tagFileExists === 'function' && typeof tagExists === 'function' && !tagExists(tagForm[1])) {
+          // 05a F1: the TAG is missing here, not the file. Say so, and count it nowhere as a pass: nothing was checked.
+          findings.push({ level: 'SKIP', msg: `${s.label} cites \`${tok}\`; tag ${tagForm[1]} is not in this clone, so the file was not checked (git fetch --tags checks it)${occSuffix}` });
+        } else if (!s.historyOnly && typeof tagFileExists === 'function' && !tagFileExists(tagForm[1], tagForm[2])) {
+          findings.push({ level: 'FAIL', msg: `${s.label} cites \`${tok}\`, but that file did not exist at ${tagForm[1]} (git cat-file -e failed): check the path and the tag${occSuffix}` });
+        }
+        continue;
+      }
+
       // A GITIGNORED ROOT IS THE SHARP CASE, decided WITHOUT resolving and BEFORE `pending`
       // is consulted — deliberately. A declaration can excuse a path that does not exist
       // YET; it can never launder one that exists and is unreachable from a clone.
       if (ignoredRoots.has(first)) {
         cited.add(norm);
+        // R18b: released history is never fixed forward, so a historyOnly surface (released CHANGELOG entries only) is
+        // exempt from this check too -- an entry written before the root was ignored cited it on a day it was ordinary.
+        if (s.historyOnly) continue;
         checked++;
         findings.push({
           level: 'FAIL',
@@ -444,7 +526,7 @@ export function checkPointers({
       cited.add(norm);
 
       // Published history is never fixed forward: a path correct when written is not a
-      // defect now. Such a surface is checked for the gitignored case above and nothing else.
+      // defect now. Such a surface skips the gitignored-root check above and this one (R18b).
       if (s.historyOnly) continue;
 
       checked++;
@@ -455,7 +537,9 @@ export function checkPointers({
       if (state === 'untracked') {
         findings.push({ level: 'FAIL', msg: `${s.label} cites \`${tok}\`, which exists here but is UNTRACKED — a clone does not have it. Commit it, or cite the durable artefact.${occSuffix}` });
       } else {
-        findings.push({ level: 'FAIL', msg: `${s.label} cites \`${tok}\`, which does not resolve in this repo${occSuffix}` });
+        // A CHANGELOG line that names a file the release DELETED: the convention is stated here, where the author trips it.
+        const hint = s.label === 'CHANGELOG.md' ? '. If this names a file this release deleted: cite it with the tag it last lived in, `vX.Y.Z:path` (the gate checks that form with git when it can).' : '';
+        findings.push({ level: 'FAIL', msg: `${s.label} cites \`${tok}\`, which does not resolve in this repo${occSuffix}${hint}` });
       }
     }
   }

@@ -24,3 +24,7 @@ coverage/
 
 # CoalBoard run reports and working files (CWK-154): local audit output, never committed
 .coalboard/
+
+# Scratch/working files from agent sessions (drafts, throwaway probes): internal, never published.
+# Untracked-but-not-ignored, they are one broad `git add` from this repository's remote.
+scratchpad/

@@ -2,10 +2,13 @@
 // Stages one directory per skill under dist-claude-ai/<name>/, copied from
 // plugin/skills/<name>/ with ONLY the SKILL.md frontmatter `description`
 // field rewritten to a 200-char skill-listing cap (our own cross-platform cap
-// is 1024, desc-cap.mjs). claude.ai's skills page, read 2026-10-02, states a
-// 1,024-char limit, so the 200 trim is conservative: a description that is too
-// short still uploads, one that is too long may not. It stays until one real
-// upload at the longer length is on record (UMB-333). A DERIVED artifact;
+// is 1024, desc-cap.mjs). Two Anthropic pages disagree, both read 2026-10-09:
+// the platform overview (platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)
+// says "Maximum 1024 characters", the Help Center create-a-skill page
+// (support.claude.com/en/articles/12512198-how-to-create-custom-skills) says
+// "200 characters maximum". The build follows the stricter 200: a description
+// that is too short still uploads, one that is too long may not. It stays until
+// one real upload at a longer length is on record (UMB-333). A DERIVED artifact;
 // skills/*/SKILL.md and plugin/skills/*/SKILL.md are never touched. The
 // claude-ai-zips workflow zips each staged directory and attaches it to
 // the GitHub Release as an asset. The workflow zips each staged FOLDER from its

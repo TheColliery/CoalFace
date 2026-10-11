@@ -18,7 +18,7 @@ import {
   classifyCheckIgnoreResult, applyCheckIgnoreProbe, PROBE_SUFFIX,
   collectSurfaces, DEFAULT_SURFACE_PLAN,
 } from './pointer-check.mjs';
-import { gitTestEnv } from './git-test-env.mjs';
+import { gitTestEnv } from './git-env.mjs';
 
 const OURS = new Set(['scripts', 'hooks', 'skills', 'commands', 'README.md', '.github']);
 const base = (over = {}) => ({
@@ -126,13 +126,19 @@ test('a declaration CANNOT launder a gitignored path — the check runs before `
   assert.ok(fails(f).some((m) => /gitignored/.test(m)), fails(f).join(' | '));
 });
 
-test('a historyOnly surface is still checked for the gitignored case, and nothing else', () => {
+test('a historyOnly surface is exempt from the gitignored-root check AND the resolve check (R18b)', () => {
   const ignored = checkPointers(base({
     surfaces: [{ label: 'CHANGELOG.md', text: '`dist-claude-ai/x.zip`', historyOnly: true }],
     ourRoots: new Set([...OURS, 'dist-claude-ai']),
     ignoredRoots: new Set(['dist-claude-ai']),
   }));
-  assert.ok(fails(ignored).some((m) => /gitignored/.test(m)));
+  assert.deepEqual(fails(ignored), []); // an entry written before the root was ignored; history is never fixed forward
+  const live = checkPointers(base({
+    surfaces: [{ label: 'README.md', text: '`dist-claude-ai/x.zip`' }],
+    ourRoots: new Set([...OURS, 'dist-claude-ai']),
+    ignoredRoots: new Set(['dist-claude-ai']),
+  }));
+  assert.ok(fails(live).some((m) => /gitignored/.test(m))); // a non-history surface still FAILs
   const renamed = checkPointers(base({
     surfaces: [{ label: 'CHANGELOG.md', text: '`scripts/renamed-away.mjs`', historyOnly: true }],
     resolve: () => 'missing',
@@ -582,7 +588,14 @@ test('collectSurfaces: a single-file row reads one surface, label = root, histor
     rel: (p) => p,
   };
   const surfaces = collectSurfaces('REPO', [{ root: 'CHANGELOG.md', historyOnly: true, why: 'x' }], io);
-  assert.deepEqual(surfaces, [{ label: 'CHANGELOG.md', text: 'text', historyOnly: true }]);
+  // no second `## [` heading: nothing is released history yet, so the one surface is ordinary
+  assert.deepEqual(surfaces, [{ label: 'CHANGELOG.md', text: 'text' }]);
+  const lines = ['pre', '## [Unreleased]', 'new', '## [1.0.0]', 'old', '## [0.9.0]', 'older', ''];
+  const two = collectSurfaces('REPO', [{ root: 'CHANGELOG.md', historyOnly: true, why: 'x' }], { ...io, read: () => lines.join('\n') });
+  assert.deepEqual(two, [
+    { label: 'CHANGELOG.md', text: lines.slice(0, 3).join('\n') + '\n' },
+    { label: 'CHANGELOG.md', text: lines.slice(3).join('\n'), historyOnly: true },
+  ]);
 });
 
 test('collectSurfaces: a dir row walks every file walkMd returns, in order, label from rel()', () => {
@@ -633,4 +646,66 @@ test('collectSurfaces: against the real tree, produces exactly the 8 declared ro
     );
   }
   assert.ok(surfaces.every((s) => typeof s.label === 'string' && s.text !== undefined), JSON.stringify(surfaces));
+});
+
+test('collectSurfaces: a heading-shaped line inside a ``` or ~~~ fence does not move the CHANGELOG split (R19 N-1)', () => {
+  const io = { join: (...p) => p.join('/'), walkMd: () => [], rel: (p) => p };
+  const split = (lines) => collectSurfaces('REPO', [{ root: 'CHANGELOG.md', historyOnly: true, why: 'x' }], { ...io, read: () => lines.join('\n') });
+  for (const fence of ['```', '~~~', '````']) {
+    const lines = ['## [Unreleased]', fence, '## [9.9.9] - example', fence, 'after the fence', '## [1.0.0]', 'old', ''];
+    const [top, released] = split(lines);
+    assert.ok(top.text.includes('after the fence'), `top entry keeps the text below a ${fence} fence`);
+    assert.deepEqual([released.historyOnly, released.text.startsWith('## [1.0.0]')], [true, true]);
+  }
+  // a shorter fence does not close a longer one, a different char does not close it, and an unclosed fence swallows the rest
+  const [a] = split(['## [Unreleased]', '````', '```', '## [9.9.9]', '````', 'x', '## [1.0.0]', 'old']);
+  assert.ok(a.text.includes('x') && !a.text.includes('## [1.0.0]'));
+  assert.equal(split(['## [Unreleased]', '```', '## [1.0.0]', 'old']).length, 1);
+});
+
+// 05a t13 -- ONE fence scanner serves pointerCandidates and the CHANGELOG split, so they cannot disagree about what a fence is.
+// CommonMark: a fence opens with 3+ backticks or tildes (up to 3 spaces of indent) and closes with the same character, at
+// least as long. Before, pointerCandidates stripped only column-0 backtick fences.
+test('pointerCandidates: a tilde-fenced and a 2-space-indented fenced example cite nothing', () => {
+  const tilde = ['Real: `scripts/real.mjs`', '~~~', 'run `scripts/in-tilde.mjs`', '~~~', 'after'].join('\n');
+  assert.deepEqual(pointerCandidates(tilde), ['scripts/real.mjs']);
+  const indented = ['Real: `scripts/real.mjs`', '  ```', '  see `scripts/in-indented.mjs`', '  ```', 'after'].join('\n');
+  assert.deepEqual(pointerCandidates(indented), ['scripts/real.mjs']);
+  // a shorter fence does not close a longer one; a different character does not close it
+  const longer = ['````', '```', '`scripts/inside-long.mjs`', '````', '`scripts/outside.mjs`'].join('\n');
+  assert.deepEqual(pointerCandidates(longer), ['scripts/outside.mjs']);
+  const mixed = ['```', '~~~', '`scripts/inside-mixed.mjs`', '```', '`scripts/outside2.mjs`'].join('\n');
+  assert.deepEqual(pointerCandidates(mixed), ['scripts/outside2.mjs']);
+});
+
+test('pointerCandidates: an UNCLOSED fence strips nothing (checking more, never less)', () => {
+  const open = ['`scripts/before.mjs`', '```', '`scripts/inside-open.mjs`'].join('\n');
+  assert.deepEqual(pointerCandidates(open), ['scripts/before.mjs', 'scripts/inside-open.mjs']);
+});
+
+test('the split and pointerCandidates agree on a tilde fence in the top entry (one scanner)', () => {
+  const lines = ['## [Unreleased]', '~~~', '## [9.9.9] - example', '`scripts/in-example.mjs`', '~~~', 'after', '## [1.0.0]', 'old', ''];
+  const io = { join: (...p) => p.join('/'), walkMd: () => [], rel: (p) => p, read: () => lines.join('\n') };
+  const [top, released] = collectSurfaces('REPO', [{ root: 'CHANGELOG.md', historyOnly: true, why: 'x' }], io);
+  assert.ok(top.text.includes('after') && released.historyOnly && released.text.startsWith('## [1.0.0]'));
+  assert.deepEqual(pointerCandidates(top.text), []);
+});
+
+// 05a L-2 -- the vX.Y.Z:path form (a deleted file cited with the tag it last lived in) is CHECKED, not just skipped: a typo
+// inside the form must not ship. `tagFileExists(tag, path)` is injected (git cat-file -e through gitEnv() in verify.mjs).
+test('checkPointers: a vX.Y.Z:path citation in a non-history surface is checked; a typo FAILs saying the file did not exist at that tag', () => {
+  const tagFileExists = (tag, p) => p === 'scripts/lib/real.mjs' && tag === 'v0.14.0';
+  const r = checkPointers(base({
+    surfaces: [{ label: 'CHANGELOG.md', text: 'Removed `v0.14.0:scripts/lib/real.mjs` and `v0.14.0:scripts/lib/typo.mjs`.' }],
+    tagFileExists,
+  }));
+  assert.equal(fails(r).length, 1, fails(r).join(' | '));
+  assert.match(fails(r)[0], /CHANGELOG\.md cites `v0\.14\.0:scripts\/lib\/typo\.mjs`, but that file did not exist at v0\.14\.0/);
+});
+
+test('checkPointers: the tag form is not checked in a historyOnly surface, nor when no tagFileExists is supplied (no git: skipped)', () => {
+  const text = 'Removed `v0.14.0:scripts/lib/typo.mjs`.';
+  const never = () => false;
+  assert.deepEqual(fails(checkPointers(base({ surfaces: [{ label: 'CHANGELOG.md', text, historyOnly: true }], tagFileExists: never }))), []);
+  assert.deepEqual(fails(checkPointers(base({ surfaces: [{ label: 'CHANGELOG.md', text }] }))), []);
 });

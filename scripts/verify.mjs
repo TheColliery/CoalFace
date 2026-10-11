@@ -112,7 +112,7 @@ try {
 } catch (e) { fail(`factory config: ${e.message}`); }
 
 console.log('libs (import check):');
-for (const lib of ['config-schema.mjs', 'jsonc.mjs', 'admission-control.mjs', 'desc-cap.mjs', 'claude-ai-trim.mjs']) {
+for (const lib of ['config-schema.mjs', 'jsonc.mjs', 'desc-cap.mjs', 'claude-ai-trim.mjs']) {
   try { await import(pathToFileURL(path.join(repo, 'scripts', 'lib', lib)).href); ok(`${lib} imports`); }
   catch (e) { fail(`${lib}: ${e.message}`); }
 }
@@ -216,7 +216,7 @@ try {
   const { execFileSync, spawnSync } = await import('node:child_process');
   // CWK-133 / CWK-136: every git child here takes its env from gitEnv() alone (R14 b1 L1: GIT_INDEX_FILE stays inherited, so a partial commit is read as made) (the census below enforces it).
   // Dynamic, inside this block (node/runtime.md section 1): an absent lib is a named crash line, never a link-time crash.
-  const { gitEnv } = await import(pathToFileURL(path.join(repo, 'scripts', 'lib', 'git-env.mjs')).href);
+  const { gitEnv } = await import('./lib/git-env.mjs'); // a literal path: the census reads no other form of a dynamic import (09a)
 
   // GIT IS AN OPTIONAL ENHANCEMENT, NEVER A RUNTIME REQUIREMENT (no-external-assumption).
   // This gate's whole question is "reachable from a CLONE", which only git can answer, so
@@ -280,10 +280,10 @@ try {
     // CHANGELOG.md's own historyOnly ruling (BOUNCE 1) lives in the PLAN now, not here --
     // "published history is never fixed forward, so a path correct when the entry was
     // written is not a defect now" -- matching CoalMine's identical treatment. historyOnly
-    // SKIPS the non-resolving-citation check ONLY -- it does NOT exempt CHANGELOG.md from
-    // the gitignored-root check below: `checkPointers` runs that branch BEFORE it ever
-    // consults `s.historyOnly` (see pointer-check.mjs), so a citation to our own
-    // gitignored `dist-claude-ai/` in the SAME file still FAILs.
+    // (RELEASED entries only, from the second `## [` heading on; the top entry is an ordinary
+    // surface) SKIPS the non-resolving-citation check AND (R18b) the gitignored-root check: a
+    // released entry written before `scratchpad/` was ignored cited it legitimately, and history
+    // is never fixed forward. Any other surface citing a gitignored path still FAILs.
     const surfaces = collected.filter((s) => tracked.has(s.label));
 
     // IGNORED ROOTS, PATTERN-BASED, EXISTENCE-INDEPENDENT (CWK-079) — mechanism, the
@@ -333,6 +333,16 @@ try {
       hasEntry: (relDir, name) => { try { return fs.existsSync(path.join(repo, relDir, name)); } catch { return false; } },
       resolve: (p) => (tracked.has(p) || trackedDirs.has(p) ? 'tracked'
         : fs.existsSync(path.join(repo, p)) ? 'untracked' : 'missing'),
+      // 05a L-2: the vX.Y.Z:path form must name a file that existed at that tag. This block only runs under git (the no-.git
+      // NAMED SKIP is above), so the check needs no fallback of its own. gitEnv() keeps GIT_INDEX_FILE, a harmless read here.
+      // 05a F1: CI checks out depth 1 with no tags, so a tag can be absent from the clone; the gate then names a SKIP instead of
+      // blaming the author's path. `rev-parse --verify` answers by exit status only.
+      tagExists: (tag) => {
+        try { execFileSync('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}`], { cwd: repo, stdio: 'ignore', timeout: 30000, env: gitEnv() }); return true; } catch { return false; }
+      },
+      tagFileExists: (tag, p) => {
+        try { execFileSync('git', ['cat-file', '-e', `${tag}:${p}`], { cwd: repo, stdio: 'ignore', timeout: 30000, env: gitEnv() }); return true; } catch { return false; }
+      },
     });
 
     // PRINT the derived enumeration, CITED and PROBED as separate numbers — each means
@@ -358,13 +368,14 @@ try {
   }
 } catch (e) { fail(`pointer drift check crashed: ${e.message}`); }
 
-// CWK-133 / CWK-136: the git-spawn census proves SAFETY, not presence. Every git child under scripts/ and hooks/ takes
-// its env from gitTestEnv() or gitEnv() ALONE (scripts/lib/git-env-census.mjs states the three refusals and what it
-// cannot see). Imported dynamically, inside this block (node/runtime.md section 1), so an absent lib is a named FAIL here.
+// CWK-133 / CWK-136 / 09a: the git-spawn census proves SAFETY, not presence. Every git child under scripts/ and hooks/ takes its env from gitEnv() or
+// gitTestEnv() imported by that name from scripts/lib/git-env.mjs, or from a literal of named keys (scripts/lib/git-env-census.mjs is the shared canon
+// census, adopted by blob id; scripts/lib/git-spawn-room.mjs holds this room's two pins). Imported dynamically, inside this block (node/runtime.md
+// section 1), so an absent lib is a named FAIL here.
 try {
-  const census = await import(pathToFileURL(path.join(repo, 'scripts', 'lib', 'git-env-census.mjs')).href);
-  const report = census.censusGitSpawns(census.collectSources(repo));
-  if (report.findings.length === 0) ok(`git spawn census: every one of ${report.spawns} git spawn(s) in ${report.files} source file(s) takes env from gitTestEnv()/gitEnv() alone`);
+  const { roomCensus } = await import('./lib/git-spawn-room.mjs');
+  const report = roomCensus(repo);
+  if (report.findings.length === 0) ok(`git spawn census: every one of ${report.calls} git spawn(s) in ${report.files} source file(s) takes env from gitEnv()/gitTestEnv() of scripts/lib/git-env.mjs or a named-key allowlist${report.exempted ? ` (${report.exempted} byte-equal org carrier file(s) pinned by blob, their spawns not counted)` : ''}`);
   else report.findings.forEach((m, i) => fail(`git spawn census: finding ${i + 1}/${report.findings.length}: ${m}`));
 } catch (e) { fail(`git spawn census crashed or its module failed to load: ${e.message}`); }
 

@@ -12,3 +12,7 @@ export function gitEnv(env = process.env) {
     LANGUAGE: 'C',
   };
 }
+
+// 09a: the canon git-spawn census (scripts/lib/git-env-census.mjs) trusts a fixture env only when it is imported by name from THIS file, so the
+// fixture helper is re-exported here; its body and its header stay in git-test-env.mjs (and its tests in git-test-env.test.mjs).
+export { gitTestEnv } from './git-test-env.mjs';

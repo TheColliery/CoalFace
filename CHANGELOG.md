@@ -4,6 +4,57 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- **The pointer gate reads code fences with one shared scanner** (tilde fences and indented fences included), and a `vX.Y.Z:path` citation in the top entry is checked with `git cat-file -e` against that tag (internal gate; no shipped change).
+- **A `vX.Y.Z:path` citation in a clone without that tag is a named SKIP, not a FAIL** (internal gate; no shipped change).
+
+### Changed
+- **The release canon is adopted by blob id for three files** (`scripts/verify-release-shape.test.mjs`, `scripts/secret-gate.test.mjs`, `.coderabbit.yaml`), with the git-spawn census pins re-pinned to the new blobs. Fixture git no longer waits on an editor, a prompt or a signer, and never signs with the operator's key (internal release tooling and tests; no shipped change).
+- **The release canon is re-adopted at `.github` `690c2de` (`scripts/release-notes.mjs` included, superseding its first adoption above), and the hold on `scripts/release-notes.test.mjs` is lifted.** Adopted at the canon blob, `scripts/release-notes.test.mjs` (`7e779ef8`, canon, later than `690c2de`), `scripts/release-notes.mjs` (`f8d998d8`), `scripts/lib/release-shape.mjs` (`bfb29332`), `scripts/lib/release-shape.test.mjs` (`771a7e60`) and `.coderabbit.yaml` (`0d5a8860`); `scripts/verify-release-shape.test.mjs` is `fa8a730d`. Neither release-notes file carries a census pin (internal release tooling and tests; no shipped change).
+- **The secret scanner, the gate and both hooks are re-synced byte for byte:** `scripts/lib/secret-scan.mjs` (`270a21a2`, unchanged) and `scripts/secret-scan.test.mjs` (`a0319dcd`) from Bankfire `bd328f2`, `scripts/secret-gate.mjs` (`856956a1`) and `scripts/secret-gate.test.mjs` (`2f066650`) from the `.github` canon, and `.githooks/pre-commit` and `.githooks/pre-push` whole at `1979bcaf`. The gate and the hooks now state what the scan does not catch (a credential inside a URL or connection string, an HTTP authentication header whose token is not provider-shaped, a key split across lines), and `SECURITY.md` says the same (internal gate; no shipped change).
+- **The git-spawn census is the flock's shared one, adopted by blob id** (`scripts/lib/git-env-census.mjs` `13f8d95c`, its test `972d9ca8` and its vectors file `8147dd7a`, from `.github`), and the room's own lexer census is removed. `gitTestEnv` is re-exported from `scripts/lib/git-env.mjs` so the census trusts it by name; the room's one pin (`scripts/secret-gate.mjs`, which keeps `GIT_INDEX_FILE` on purpose) lives in `scripts/lib/git-spawn-room.mjs` and are measured by `scripts/git-env-census-room.test.mjs` (internal gate; no shipped change).
+- **The claude.ai ZIP workflow is re-copied from the canon** (`.github/workflows/claude-ai-zips.yml`, blob `686f200a`): while no stable Release exists, a newer pre-release tag re-points the one launch-form Release (draft, empty its assets, move its tag) instead of staying tag-only (internal release tooling; no shipped change).
+- **The test runner is the flock's wave runner and judges the suite by the TAP:** each test file runs as its own `node --test --test-reporter=tap` child through `scripts/lib/wave-run.mjs` (`3119cb7d`, with its test `fd578cfd` and the `scripts/lib/stdout-sync.mjs` preload `27bd81af`) and admits files by the live machine reading (`scripts/lib/machine-reading.mjs`, `1c550b66`, byte-equal to the skill's own copy), all adopted by blob id, under the heap cap, a clock per test, a clock per file and a whole-run deadline, and a file that exits 0 before its tests register is VACUOUS and the run is red. `scripts/test-expect.json` holds a count floor for every roster file but one and, for `scripts/git-env-census-room.test.mjs`, the expected test names, so a test that vanishes from a file that still exits 0 turns the run red (`scripts/lib/suite-run.mjs`; testing.md's TAP-names rule). The unreleased single `node --test` child with `--test-force-exit` that preceded it is removed (internal gate; no shipped change).
+
+## [0.14.2] - 2026-10-04
+
+The CPU and memory reading now says it admits the first unit
+
+### Fixed
+- **The admission reference and the probe's usage line no longer say `--running 0` admits "whatever the reading says".** Both now say the first unit is admitted regardless of the reading, which is what the probe does.
+- **An unclosed code fence in the top CHANGELOG entry is now named by the pointer gate** (the fence and its line) instead of failing on released history (internal gate; no shipped change).
+
+### Changed
+- **The pointer gate checks the CHANGELOG's top entry in full:** a path that resolves to nothing now fails, and a file the release deleted is cited as `vX.Y.Z:path` (internal gate, the same shape as CoalMine; no shipped change).
+
+## [0.14.1] - 2026-10-04
+
+The agent passes only plain integers to the CPU and memory probe
+
+### Fixed
+- **The agent now substitutes only plain integers into the machine-reading command line.** The shell parses that line before the probe does, so a value from a cloned repo's config that is not a plain integer is treated as a bad value (one unit at a time) and never put on the command line. A prose rule the agent follows, not a hook-enforced clamp.
+- **The README and the SKILL.md config section no longer say every numeric key clamps to its default on read.** Only `autoFanoutFloor` and `updateCheckDays` do (the hook); the two `admit…` keys are refused by the probe with exit 64. The SKILL.md key list now names all nine keys.
+- **The pointer gate's CHANGELOG split ignores heading-shaped lines inside code fences**, so a gitignored-path citation below a fenced example in the top entry is still caught (internal gate; no shipped change).
+
+### Changed
+- **Release titles keep a CamelCase first word's case** (`CoalFace ...` no longer becomes `coalFace ...`), by adopting the canon `release-shape.mjs` (internal release tooling; no shipped change).
+
+## [0.14.0] - 2026-10-04
+
+The agent now reads your CPU and memory before heavy local runs
+
+### Added
+- **A live machine reading, `skills/coalface/scripts/machine-reading.mjs`.** Before each apply-time domain-gate run and each wave of heavy local work, the agent runs it with your thresholds. It reads CPU busy % (of the container quota where cgroup v2 holds one, else of the host) and free memory now, and prints BREATHE (start) or WAIT (hold, read again). At least one unit always runs, and a reading your machine cannot give never blocks. It needs only `node`.
+- **Two keys, `admitCpuBusyMaxPct` (default `80`) and `admitMemFreeMinPct` (default `10`).** The defaults are ours, not a measurement of your machine. Both are settable from `scripts/configure.mjs`. A project config may only make admission stricter (lower CPU max, raise memory min); the agent takes the stricter of your global and the project value. This is a prose rule the agent follows, not a hook-enforced clamp.
+
+### Changed
+- **`maxLocalWorkers` `0` now means no count of ours: the reading decides.** A positive number is now your own ceiling, honoured as given (it was clamped to the core-derived cap). The cores formula that derived a cap from your core count is retired.
+- **The README, the admission reference and the factory config describe the reading** instead of the cores formula.
+
+*Internal, not shipped: `scripts/lib/admission-control.mjs` and its test are deleted (nothing used them); the probe has its own test, `scripts/machine-reading.test.mjs`.*
+
 ## [0.13.0] - 2026-10-02
 
 The claude.ai ZIP now holds the skill folder the way claude.ai documents it (a ZIP from an earlier Release does not load as a skill: download it again), and the config walk now stops at home on Windows even when a folder is spelled in its short 8.3 form.

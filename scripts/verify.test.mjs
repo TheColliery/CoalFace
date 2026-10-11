@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { gitTestEnv } from './lib/git-test-env.mjs';
+import { gitTestEnv } from './lib/git-env.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -106,7 +106,7 @@ test('verify.mjs negative path: an over-cap .claude-plugin/plugin.json descripti
 // `spawn` is DI'd (defaults to the real `spawnSync`) so a test can prove the ORDERING itself —
 // that a failed init is never followed by a single `config`/`add`/`commit` spawn — without
 // needing a genuinely broken git binary.
-function gitInit(tmp, { spawn = spawnSync } = {}) {
+function gitInit(tmp, { spawn } = {}) {
   // R14 / CWK-136: ONE spawn call, with its env: inline, so the git-spawn census (scripts/lib/git-env-census.mjs) can
   // read the property it enforces (env from gitTestEnv() alone) at the call, rather than through a shared opts object.
   // r34b bounce1 L2 — no fixture call can walk up past `tmp`'s own parent, structurally,
@@ -116,7 +116,11 @@ function gitInit(tmp, { spawn = spawnSync } = {}) {
   // got flipped to `core.bare = true` at 2026-09-23 00:17:49 +07 when a linked worktree's
   // hook ran this very function. gitTestEnv() strips the whole GIT_* family before
   // re-adding the ceiling.
-  const run = (args) => spawn('git', args, { cwd: tmp, encoding: 'utf8', env: gitTestEnv(path.dirname(tmp)) });
+  // 05a F2: a finite clock (testing.md); a fixture git that stalls is killed, never waited on.
+  // 09a: the canon census cannot follow a spawner bound as a default (spawn = spawnSync), so the real call is written out beside the DI one, each with its env inline.
+  const run = (args) => (spawn
+    ? spawn('git', args, { cwd: tmp, encoding: 'utf8', timeout: 60000, killSignal: 'SIGKILL', env: gitTestEnv(path.dirname(tmp)) })
+    : spawnSync('git', args, { cwd: tmp, encoding: 'utf8', timeout: 60000, killSignal: 'SIGKILL', env: gitTestEnv(path.dirname(tmp)) }));
   const init = run(['init', '-q', '.']);
   assert.equal(init.status, 0, `fixture git init failed (exit ${init.status}): ${init.stderr || ''}`);
   assert.ok(fs.existsSync(path.join(tmp, '.git')),
@@ -257,8 +261,8 @@ test('verify.mjs pointer-drift block NAMED SKIPs (never FAILs) when the tree has
 // `core.bare` incident cited above, a different mechanism entirely). `S` plays the role of
 // "the real repository a linked worktree's hook exports GIT_DIR/GIT_INDEX_FILE for" --
 // gitInit() must build fixture `F`'s own .git without ever touching S, whatever an ambient
-// GIT_DIR points at. Full incident: TheColliery/scratchpad/dispatch/r5-coalface.return.md,
-// "INCIDENT during leg (c0) set-up".
+// GIT_DIR points at. In short: a pre-commit hook inside a linked worktree exports an absolute
+// GIT_DIR, and a fixture that spread process.env into git flipped this repository to core.bare=true.
 test('gitInit(): a planted ambient GIT_DIR/GIT_INDEX_FILE (the linked-worktree shape) never reaches the fixture spawn', () => {
   const sandboxParent = fs.mkdtempSync(path.join(os.tmpdir(), 'coalface-gitenv-sandbox-'));
   const f = fs.mkdtempSync(path.join(os.tmpdir(), 'coalface-gitenv-fixture-'));
@@ -322,8 +326,181 @@ test('verify.mjs git-spawn census: a planted git spawn with env: process.env FAI
     fs.writeFileSync(path.join(tmp, 'scripts', 'planted-spawn.mjs'), planted, 'utf8');
     const red = runVerify(tmp);
     assert.equal(red.status, 1, 'a git spawn taking env from process.env must FAIL the gate');
-    assert.match(red.stdout, /FAIL .*git spawn census: finding 1\/1: scripts\/planted-spawn\.mjs:2 spawnSync\('git', \.\.\.\) takes env from process\.env/);
+    assert.match(red.stdout, /FAIL .*git spawn census: finding 1\/1: scripts\/planted-spawn\.mjs:2 spawnSync\('git', \.\.\.\) env: holds process\.env without gitEnv\(\)/);
     assert.match(red.stdout, /VERIFY: FAIL/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+// R18b item 5 -- only RELEASED CHANGELOG history is exempt from the gitignored-root pointer check: published history is never
+// fixed forward, and an entry written before `scratchpad/` was ignored cited it on a day it was ordinary. The TOP entry (the
+// text the next Release body is built from) is checked as an ordinary surface, and so is any non-history surface.
+const CITE = '\nSee `scratchpad/dispatch/old-return.md` for the detail.\n';
+function ignoreScratchpad(tmp) {
+  fs.appendFileSync(path.join(tmp, '.gitignore'), '\nscratchpad/\n');
+}
+// a new top entry [Unreleased] inserted above the first released heading, carrying the citation
+function citeInTopEntry(tmp) {
+  const p = path.join(tmp, 'CHANGELOG.md');
+  const t = fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
+  const at = t.search(/^## \[/m);
+  fs.writeFileSync(p, t.slice(0, at) + '## [Unreleased]\n' + CITE + '\n' + t.slice(at));
+}
+// the citation appended to the LAST (oldest, released) entry
+function citeInReleasedEntry(tmp) {
+  fs.appendFileSync(path.join(tmp, 'CHANGELOG.md'), CITE);
+}
+
+function verifyAfter(plant) {
+  const tmp = mkTmpRepoCopy();
+  try {
+    ignoreScratchpad(tmp);
+    plant(tmp);
+    gitInit(tmp);
+    return runVerify(tmp);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+test('verify.mjs: a citation of a gitignored scratchpad path inside a RELEASED CHANGELOG entry PASSES the pointer gate', () => {
+  const r = verifyAfter(citeInReleasedEntry);
+  assert.equal(r.status, 0, `released history is exempt, got:\n${r.stdout}${r.stderr}`);
+  assert.doesNotMatch(r.stdout, /FAIL CHANGELOG\.md cites/);
+});
+
+test('verify.mjs: the same citation in a NEW [Unreleased] top entry FAILs (the next Release body is built from it)', () => {
+  const r = verifyAfter(citeInTopEntry);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stdout, /FAIL CHANGELOG\.md cites `scratchpad\/dispatch\/old-return\.md`, which lives under the gitignored `scratchpad`/);
+});
+
+test('verify.mjs: a NON-history surface (README) citing a gitignored scratchpad path still FAILs, naming it', () => {
+  const r = verifyAfter((tmp) => fs.appendFileSync(path.join(tmp, 'README.md'), CITE));
+  assert.notEqual(r.status, 0);
+  assert.match(r.stdout, /FAIL README\.md cites `scratchpad\/dispatch\/old-return\.md`, which lives under the gitignored `scratchpad`/);
+});
+
+// R19 N-1 -- a `## [` line inside a fenced code block of the top entry is NOT a heading: it must not move the split early
+// (case E: the citation below the fence is still in the top entry, so it must FAIL).
+function citeBelowFenceInTopEntry(fenceChar) {
+  return (tmp) => {
+    const fence = fenceChar.repeat(3);
+    const p = path.join(tmp, 'CHANGELOG.md');
+    const t = fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
+    const at = t.search(/^## \[/m);
+    const top = ['## [Unreleased]', '', 'Example of a heading:', fence, '## [9.9.9] - example', fence, CITE, ''].join('\n');
+    fs.writeFileSync(p, t.slice(0, at) + top + '\n' + t.slice(at));
+  };
+}
+
+test('verify.mjs: a citation below a ``` fence holding a heading-shaped line, inside the top entry, still FAILs', () => {
+  const r = verifyAfter(citeBelowFenceInTopEntry('`'));
+  assert.notEqual(r.status, 0, `${r.stdout}${r.stderr}`);
+  assert.match(r.stdout, /FAIL CHANGELOG\.md cites `scratchpad\/dispatch\/old-return\.md`, which lives under the gitignored `scratchpad`/);
+});
+
+test('verify.mjs: the same with a ~~~ fence still FAILs', () => {
+  const r = verifyAfter(citeBelowFenceInTopEntry('~'));
+  assert.notEqual(r.status, 0, `${r.stdout}${r.stderr}`);
+  assert.match(r.stdout, /FAIL CHANGELOG\.md cites `scratchpad\/dispatch\/old-return\.md`, which lives under the gitignored `scratchpad`/);
+});
+
+// R20 (UMB-427 4 = a, ONE FLOCK ONE COLOR with CoalMine 82a55cc) -- the CHANGELOG top entry gets the FULL pointer check:
+// the resolve check as well as the gitignored-root check. A dead path in a new entry must fail before it ships.
+function topEntryWith(line) {
+  return (tmp) => {
+    const p = path.join(tmp, 'CHANGELOG.md');
+    const t = fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
+    const at = t.search(/^## \[/m);
+    fs.writeFileSync(p, t.slice(0, at) + '## [Unreleased]\n\n' + line + '\n\n' + t.slice(at));
+  };
+}
+
+test('verify.mjs: a new [Unreleased] top entry citing a path that resolves to nothing FAILs the pointer gate', () => {
+  const r = verifyAfter(topEntryWith('See `scripts/lib/nowhere.mjs` for the detail.'));
+  assert.notEqual(r.status, 0, `${r.stdout}${r.stderr}`);
+  assert.match(r.stdout, /FAIL CHANGELOG\.md cites `scripts\/lib\/nowhere\.mjs`, which does not resolve in this repo/);
+});
+
+// THE CONVENTION for a Removed/Changed line that names a file the release deleted: cite it with the tag it last lived in,
+// `v0.13.0:scripts/lib/admission-control.mjs`. The gate reads that as a path into another revision (its first segment,
+// `v0.13.0:scripts`, is not a top-level directory of this tree), so it is neither resolved nor reported.
+test('verify.mjs: a top entry naming a deleted file with the tag form (vX.Y.Z:path) PASSES; the bare path FAILs and the message states the convention', () => {
+  const ok = verifyTagged('Removed `v0.0.1:scripts/verify.mjs`, the cores formula.');
+  assert.equal(ok.status, 0, `the tag form is skipped, got:\n${ok.stdout}${ok.stderr}`);
+  const bad = verifyAfter(topEntryWith('Removed `scripts/lib/admission-control.mjs`, the cores formula.'));
+  assert.notEqual(bad.status, 0);
+  assert.match(bad.stdout, /FAIL CHANGELOG\.md cites `scripts\/lib\/admission-control\.mjs`, which does not resolve in this repo/);
+  assert.match(bad.stdout, /does not resolve in this repo[.] If this names a file this release deleted: cite it with the tag it last lived in, `vX\.Y\.Z:path`/);
+});
+
+test('verify.mjs: a released (second and later) entry naming a missing path still PASSES (history is never fixed forward)', () => {
+  const r = verifyAfter((tmp) => fs.appendFileSync(path.join(tmp, 'CHANGELOG.md'), '\nSee `scripts/lib/nowhere.mjs`.\n'));
+  assert.equal(r.status, 0, `${r.stdout}${r.stderr}`);
+});
+
+// R20 L-3 -- an UNCLOSED fence in the top entry hides every later heading, so the whole file would be checked as the top
+// entry and fail on released history with no word about the fence. The gate now names the fence and where it opened.
+test('verify.mjs: an unclosed code fence in the CHANGELOG top entry FAILs naming the unclosed fence and its line', () => {
+  const r = verifyAfter((tmp) => {
+    const p = path.join(tmp, 'CHANGELOG.md');
+    const t = fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
+    const at = t.search(/^## \[/m);
+    fs.writeFileSync(p, t.slice(0, at) + '## [Unreleased]\n\nAn example that never closes:\n' + '`'.repeat(3) + '\nsome text\n\n' + t.slice(at));
+  });
+  assert.notEqual(r.status, 0, `${r.stdout}${r.stderr}`);
+  assert.match(r.stdout, /FAIL CHANGELOG\.md has an unclosed code fence opened at line \d+/);
+});
+
+// 05a L-2, through the real gate: the fixture repo is tagged v0.0.1 after its first commit, so `v0.0.1:scripts/verify.mjs`
+// existed at that tag and `v0.0.1:scripts/typo-nowhere.mjs` never did.
+function verifyTagged(line) {
+  const tmp = mkTmpRepoCopy();
+  try {
+    topEntryWith(line)(tmp);
+    gitInit(tmp);
+    const t = spawnSync('git', ['-c', 'tag.gpgsign=false', 'tag', 'v0.0.1'], { cwd: tmp, encoding: 'utf8', env: gitTestEnv(path.dirname(tmp)) });
+    assert.equal(t.status, 0, `fixture tag: ${t.stderr}`);
+    return runVerify(tmp);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+test('verify.mjs: a top-entry vX.Y.Z:path citation that existed at the tag PASSES; a typo inside the form FAILs naming the tag', () => {
+  const ok = verifyTagged('Removed `v0.0.1:scripts/verify.mjs`.');
+  assert.equal(ok.status, 0, `${ok.stdout}${ok.stderr}`);
+  const bad = verifyTagged('Removed `v0.0.1:scripts/typo-nowhere.mjs`.');
+  assert.notEqual(bad.status, 0);
+  assert.match(bad.stdout, /FAIL CHANGELOG\.md cites `v0\.0\.1:scripts\/typo-nowhere\.mjs`, but that file did not exist at v0\.0\.1/);
+});
+
+// 05a F1: CI checks out depth 1 with NO tags. A valid citation then cannot be answered, and the gate must say the TAG is
+// missing (a named SKIP, exit 0), never that the author's path did not exist. Four cases: tag absent, tag present + file
+// present, tag present + file absent (above), no .git (the pre-existing skip).
+test('verify.mjs: a vX.Y.Z:path citation in a clone WITHOUT that tag is a named SKIP, not a FAIL (05a F1)', () => {
+  const tmp = mkTmpRepoCopy();
+  try {
+    topEntryWith('Removed `v0.0.1:scripts/verify.mjs`.')(tmp);
+    gitInit(tmp); // a committed fixture with no tag at all: CI's shape
+    const r = runVerify(tmp);
+    assert.equal(r.status, 0, `${r.stdout}${r.stderr}`);
+    assert.match(r.stdout, /--\s+CHANGELOG\.md cites `v0\.0\.1:scripts\/verify\.mjs`; tag v0\.0\.1 is not in this clone, so the file was not checked \(git fetch --tags checks it\)/);
+    assert.ok(!/did not exist at v0\.0\.1/.test(r.stdout), 'the missing tag is not blamed on the file');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('verify.mjs: a vX.Y.Z:path citation with no .git at all stays skipped, exit 0 (05a F1, the no-git leg)', () => {
+  const tmp = mkTmpRepoCopy();
+  try {
+    topEntryWith('Removed `v0.0.1:scripts/verify.mjs`.')(tmp);
+    const r = runVerify(tmp); // no gitInit: no .git
+    assert.equal(r.status, 0, `${r.stdout}${r.stderr}`);
+    assert.ok(!/did not exist at v0\.0\.1/.test(r.stdout));
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
