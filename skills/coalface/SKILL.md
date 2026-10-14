@@ -6,7 +6,7 @@ description: >-
   mandatory SCOUT surveys the worksite, deterministic PARTITION merges overlapping/tiny
   spots, workers return anchor-edit orders as TEXT (propose-not-execute), QC checks
   scope+spec at collection, main = SINGLE WRITER (pre-swarm snapshot + domain gate), RECEIPT
-  shows tokens-vs-solo. Wallet caps DOLLAR cost at ~solo via cheap tiers (raw tokens run
+  shows tokens-vs-solo. Wallet: ~solo DOLLAR cost only on cheaper worker tiers (raw tokens run
   HIGHER — fan-out ×N the per-sub baseline), not raw tokens. Modes: coalfaceMode auto
   (default, rides the contract at/above autoFanoutFloor units) | on (scout every prompt) |
   off. Manual "/coalface" or "swarm this" convenes it in any mode except off. Cross-agent
@@ -17,12 +17,12 @@ description: >-
 
 # CoalFace
 
-> **Honest frame:** ad-hoc fan-out makes the same promises with NO guarantee; CoalFace enforces them by STRUCTURE instead — bounded ($, Wallet below) · full width (floor/width-bounded) · netted (QC + single-writer + snapshot). It disciplines the fan-out; it does not make models smarter or guarantee correctness.
+> **Honest frame:** ad-hoc fan-out makes the same promises with NO guarantee; CoalFace enforces them by STRUCTURE instead — bounded ($ ~solo on cheap tiers, Wallet) · full width (floor/width-bounded) · netted (QC + single-writer + snapshot).
 
 You are the **CONDUCTOR** (the session main). Workers are **LEAVES** (P1) — spawn them via a spawn-tool-less agent type where the platform offers one (Claude Code: `Explore`-class); they read + produce + RETURN.
 
 ## Activation
-`coalfaceMode` (def `auto`): **auto** — you judge when a prompt warrants fan-out; ANY fan-out of ≥ `autoFanoutFloor` units (def 4) rides this contract instead of ad-hoc spawning (below it stays ad-hoc). **on** — scout EVERY prompt; everything decomposable fans out; only non-decomposable work runs solo. **off** — CoalFace fully out; native fan-out untouched. Manual `/coalface` convenes it in any mode except off.
+`coalfaceMode` (def `auto`): **auto** — you judge when a prompt warrants fan-out; ANY fan-out of ≥ `autoFanoutFloor` units (def 4) rides this contract instead of ad-hoc spawning. **on** — scout EVERY prompt; everything decomposable fans out; only non-decomposable work runs solo. **off** — CoalFace fully out; native fan-out untouched. Manual `/coalface` convenes it in any mode except off.
 
 **Consent — 2, numbered G1–G2. Everything else in this contract (scout, partition, waves, apply, rollback, receipt) runs on the ONE standing consent below — never a fresh ask.**
 | # | Ask before proceeding |
@@ -124,7 +124,7 @@ or clean.
 Per-domain unit/invariant/gate tables + mode detail: `references/taxonomy.md`.
 
 ## Wallet (the solo-baseline DOLLAR invariant, P20)
-The WHOLE swarm (scout + workers + apply) fits inside the estimated main-SOLO **dollar** cost — NOT its token count (P20). Guards keep the overhead *bounded* (not ≤ solo tokens): (1) the SHARED-DIGEST (the scout pays once, distributes); (2) the MIN-UNIT floor (P5 — a job too small to clear it says *don't fan out*); (3) P13 (no retry storms). `bandwidth` is ORTHOGONAL: how FAST the same budget burns, never how much.
+The swarm fits the estimated main-SOLO **dollar** cost only if workers run cheaper than main (CoalTipple delegate-down, or a cheaper user-set model); main-equivalent workers can exceed it, and no budget stop exists. Never a token claim (P20). Guards keep overhead *bounded*: (1) the SHARED-DIGEST (the scout pays once, distributes); (2) the MIN-UNIT floor (P5 — a job too small to clear it says *don't fan out*); (3) P13 (no retry storms). `bandwidth` is ORTHOGONAL: how FAST the same budget burns, never how much.
 
 ## Journal (per-worker-return)
 Journal each worker's assigned scope at spawn and its returned order on landing — a returned order is safe the moment it lands. A dead/stopped/silent worker → re-spawn one fresh worker on the un-done REMAINDER from the journal (P14). The journal also feeds the receipt and any partial report.

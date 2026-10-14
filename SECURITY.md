@@ -33,6 +33,12 @@ GitHub scans this public repository for provider tokens. The repository's own ga
 
 ---
 
+## 🔗 Planted Links in the Project Config
+
+The project config (`.claude/coal/coalface.json` and its legacy locations) sits in a folder a cloned repository supplies. A link planted at the config file or at a folder above it (a junction on Windows, a symlink on POSIX) made the conductor read a file outside the project, and made `scripts/configure.mjs` read, back up and write outside it. Fixed in v0.14.3: the conductor (and the Antigravity adapter, which shares the read) accepts a project config only when its real path is exactly its folder's real path plus the literal path the walk built, and a refused file counts as absent and is named in the report with the reason "it resolves outside its folder"; `configure.mjs` pins the config it finds, the file it writes and the `.bak` copy the same way before anything is read or written, and on a refusal prints one FAIL line and writes nothing. Verified here on Windows (directory junctions): 9 hook, Antigravity and helper witnesses and 4 configure witnesses failed before the fix and pass after (hook tests 71 to 85, configure tests 16 to 25), and the full suite is green (749 tests, 743 pass, 6 skipped). The file-symlink cases need a privilege this machine lacks, and the ENOTDIR case does not occur on Windows, so those skip visibly here and run on CI; the CI legs follow the push and are recorded after it. Nothing on POSIX was run here. Named residue: the check and the read are two acts, so a link swapped in between them is not caught; a hard link cannot be told from a file; a differently cased existing folder on a case-insensitive volume is refused (the safe direction).
+
+---
+
 ## 📦 Dist Integrity
 
 The clean `plugin/` distribution is generated from source by `node scripts/build-plugin.mjs`; `node scripts/verify.mjs` checks the dist is in sync **both directions** (stale files AND dist-only orphans) — byte-exact, with a CRLF/LF-normalized fallback on text files only (so a checkout's line-ending doesn't false-flag byte-identical content) — the manifests are valid, the factory config matches the schema, and the issue-template version pins are current. `node scripts/test.mjs` runs the zero-dependency unit + hermetic-hook tests.

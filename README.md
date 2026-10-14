@@ -37,7 +37,7 @@ Agents already fan work out to subagents — CoalFace does not invent that. It d
 
 | Promise | Ad-hoc fan-out | CoalFace |
 |---|---|---|
-| **Cost** | UNBOUNDED — uncontrolled spawn overhead, N workers re-reading the same files, retry storms, stray runaway workers | Overhead BOUNDED (shared-digest + min-unit floor + no self-retry) and **cheaper in $** via cheap worker tiers. NOTE: raw **tokens run HIGHER than solo** — fan-out multiplies the ~per-sub baseline by N (the benchmark showed ~5.3× on a small job); the wallet bounds **dollars + wall-time**, never raw tokens |
+| **Cost** | UNBOUNDED — uncontrolled spawn overhead, N workers re-reading the same files, retry storms, stray runaway workers | Overhead BOUNDED (shared-digest + min-unit floor + no self-retry) and **cheaper in $ only when workers run on cheaper tiers** (with main-equivalent workers it can cost more than solo). NOTE: raw **tokens run HIGHER than solo** — fan-out multiplies the ~per-sub baseline by N (the benchmark showed ~5.3× on a small job); the wallet bounds **dollars + wall-time**, never raw tokens |
 | **Speed** | UNDER-FANNED — a lazy orchestrator batches 100 spots into 5-8 bloated workers whose tail quality drops | Full width — worker count = spot count, floor/width-bounded waves |
 | **Quality** | Can dip BELOW solo — a deviant worker, real-tree writes, a half-applied death | Netted — mechanical QC at collection, single-writer apply behind a pre-swarm snapshot, a domain gate |
 
@@ -60,7 +60,7 @@ The flow is fixed — a swarm never skips a step:
 
 **Activation.** `coalfaceMode: auto` (the default) lets the agent judge — any fan-out of ≥ `autoFanoutFloor` units (default 4) rides the contract; 1-3-sub ad-hoc spawns, below the default floor, keep zero ceremony. `on` scouts every prompt; `off` removes CoalFace entirely. Manual **`/coalface`** convenes it in any mode except `off`. There is no pre-pay gate: your command IS the consent — a solo run would burn a comparable **dollar** budget silently, and the wallet caps the swarm's dollar cost at ~that — so transparency arrives as the receipt.
 
-**The wallet — a DOLLAR bound, not a token one.** The whole swarm — scout + workers + apply — fits inside the estimated solo **dollar** cost, NOT its token count. Raw tokens run *higher* than solo: fan-out multiplies the fixed ~per-sub baseline by N (the [benchmark](https://github.com/TheColliery/.github/blob/main/benchmarks/CoalFace/RESULTS.md) showed ~5.3× solo tokens on a small 6-spot job — its CF arm ran 3 workers, extrapolated to 6). What holds the *dollar* line is that Claude Code's cheap worker tiers cost ~5× less per token — so N cheap workers can undercut one expensive solo main (the benchmark: −15% in $). The shared-digest, min-unit floor, and no-self-retry rule (a per-worker-return journal + at most one re-spawn on the remainder) keep that overhead *bounded* — the guarantee is "≤ solo **in dollars**, much faster, QC'd", never "fewer tokens".
+**The wallet — a DOLLAR bound, not a token one.** The whole swarm — scout + workers + apply — fits inside the estimated solo **dollar** cost only when worker tiers are cheaper than main (CoalTipple delegate-down, or a cheaper model you set), NOT its token count. With the default main-equivalent workers the swarm can exceed the solo dollar cost, and no budget stop exists. Raw tokens run *higher* than solo: fan-out multiplies the fixed ~per-sub baseline by N (the [benchmark](https://github.com/TheColliery/.github/blob/main/benchmarks/CoalFace/RESULTS.md) showed ~5.3× solo tokens on a small 6-spot job — its CF arm ran 3 workers, extrapolated to 6). What holds the *dollar* line is that Claude Code's cheap worker tiers cost ~5× less per token — so N cheap workers can undercut one expensive solo main (the benchmark: −15% in $). The shared-digest, min-unit floor, and no-self-retry rule (a per-worker-return journal + at most one re-spawn on the remainder) keep that overhead *bounded* — on cheaper worker tiers the result is "about solo **in dollars**, much faster, QC'd", never "fewer tokens", and never a dollar guarantee.
 
 **No worksite "breaks."** The scout classifies the shape and routes it to a safe mode:
 
@@ -176,7 +176,7 @@ Full series matrix + the must-fail set: [Permission Matrix](https://github.com/T
 The structure sets the shape:
 
 - **Wall-clock saturates at wave width.** Wall ≈ ceil(N / width) × unit-time — a 100-spot job at width 4 runs ~25 waves, not 100× faster; slicing finer than ~2-4× the width buys nothing, and a full dependency chain degrades to a pipeline with **no speedup at all**.
-- **The wallet is a DOLLAR bound, not free.** Spawn overhead is real and raw tokens run *higher* than solo; the invariant is that the swarm's **dollar** cost fits inside the estimated solo dollar cost — "about solo cost in $, much faster, with QC", never "fewer tokens".
+- **The wallet is a DOLLAR bound, not free.** Spawn overhead is real and raw tokens run *higher* than solo; on cheaper worker tiers the swarm's **dollar** cost lands about the estimated solo dollar cost — "about solo cost in $, much faster, with QC", never "fewer tokens"; with main-equivalent workers it can exceed it.
 
 ## 🧭 Part of TheColliery
 
