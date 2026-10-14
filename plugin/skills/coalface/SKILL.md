@@ -52,7 +52,7 @@ or clean.
 | P3 | Size a swarm from the prompt alone — scout first, always | P17 | Skip-and-flag an ALL-OR-NOTHING unit — one failure there is a full rollback |
 | P4 | Let N workers re-read the same files — shared-digest, scout pays once | P18 | Ship past a red domain gate — full rollback to the snapshot |
 | P5 | Fan out a job under the min-unit floor — merge it or don't fan out | P19 | Surface a 429 to the user as a failure — transient, retried from the journal |
-| P6 | Resolve a partition overlap by model judgment — it's a rule-table | P20 | State the wallet guarantee in tokens — dollars only; raw tokens run higher |
+| P6 | Resolve a partition overlap by model judgment — it's a rule-table | P20 | State a wallet claim in tokens — dollars, on cheaper tiers only; tokens run higher |
 | P7 | Turn the heads-up into a question-box — non-blocking only | P21 | Drop a SENSITIVE unit (crypto/auth/payment/migration) below main-tier |
 | P8 | Ask before starting in `auto`/`on` — the command is the consent (G1/G2 are the only asks) | P22 | Default error-not-allowed work to CoalFace — CoalBoard wins |
 | P9 | Return line-number diffs — anchor-edits only (lines shift after apply) | P23 | Let a worker choose what the locked spec/invariants already chose |

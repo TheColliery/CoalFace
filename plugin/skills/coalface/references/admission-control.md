@@ -1,6 +1,6 @@
 # Admission control — the MACHINE bound, by a live reading
 
-> Loaded on-demand from WAVES (step 4, P29). Three bounds compose, each answering a different question: the WALLET bounds **dollars** (§ Wallet) · `bandwidth` bounds **speed** (AIMD, agent-process width) · this bound asks **the machine**: is there room right now for the next apply-time DOMAIN-GATE run (main's own step-7 build/test, or a depth-1 nested conductor's own for its scope) or the next wave of heavy local work? It is separate from worker-wave width, which is `floor(platform width × bandwidth%)` alone.
+> Loaded on-demand from WAVES (step 4, P29). Three bounds compose, each answering a different question: the WALLET bounds **dollars**, ~solo only on cheaper worker tiers (§ Wallet) · `bandwidth` bounds **speed** (AIMD, agent-process width) · this bound asks **the machine**: is there room right now for the next apply-time DOMAIN-GATE run (main's own step-7 build/test, or a depth-1 nested conductor's own for its scope) or the next wave of heavy local work? It is separate from worker-wave width, which is `floor(platform width × bandwidth%)` alone.
 
 ## Why a third bound
 
