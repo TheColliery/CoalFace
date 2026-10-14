@@ -150,7 +150,7 @@ function strayPathsFor(dir, ownAgentDir) {
 // so a caller that does not report (findProjectCfg, the configure.mjs write path) pays
 // nothing for the probe (Phoenix #3: the probe is 7 existsSync per visited level).
 function walkProject(ownAgentDir, probeStrays) {
-  const out = { file: null, legacy: false, strays: [] };
+  const out = { file: null, legacy: false, strays: [], dir: null }; // dir: the level the winning file sits at (the pin containedProjectFile checks against)
   try {
     const home = physical(os.homedir());
     let dir = physical(process.cwd());
@@ -160,7 +160,7 @@ function walkProject(ownAgentDir, probeStrays) {
         for (const s of strayPathsFor(dir, ownAgentDir)) if (fs.existsSync(s)) out.strays.push(s);
       }
       for (const c of candidatesFor(dir, ownAgentDir)) {
-        if (fs.existsSync(c.file)) { out.file = c.file; out.legacy = c.legacy; return out; }
+        if (fs.existsSync(c.file)) { out.file = c.file; out.legacy = c.legacy; out.dir = dir; return out; }
       }
       const parent = path.dirname(dir);
       if (parent === dir) break;
@@ -174,6 +174,69 @@ function walkProject(ownAgentDir, probeStrays) {
 // (scripts/configure.mjs's write path): a path or null, no notices, no stray probe.
 function findProjectCfg(ownAgentDir) {
   return walkProject(ownAgentDir, false).file;
+}
+
+// The whole walk result ({ file, legacy, dir, ... }) for a caller that must know the LEVEL the file sits at
+// (scripts/configure.mjs pins its containment check to it). Same walk, no notices, no stray probe.
+function findProjectHit(ownAgentDir) {
+  return walkProject(ownAgentDir, false);
+}
+
+// 14a unit 1 (E2-4 class, hooks-safety.md section 6 row 10 as amended 2026-10-04, node/runtime.md section 4). The project config ARRIVES WITH A CLONED REPO, so a link
+// planted at the candidate file, or at a folder above it under its level (a junction on Windows, a symlink on POSIX), would make this hook read a file OUTSIDE the project.
+// A candidate is accepted only when its realpath is EXACTLY the literal location the walk built: the level's realpath joined with the candidate's relative path. Only the
+// candidate is canonicalised; the expectation is the hand-joined literal (the allowlist form, never "both sides through one resolver", which would let a link move the
+// expectation with it). Both sides go through realpathSync.native (an 8.3 alias spells one folder two ways under plain realpath). Any throw is a refusal, never a lexical
+// fallback (fail closed). A link to ANOTHER folder inside the project is refused too: the pin is the literal folder, not "inside the project". A differently cased
+// spelling of an existing folder on a case-insensitive volume never matches the literal either, which is the safe direction (the config is not read, nothing is written).
+// Residue, named: the check and the read are two acts, so a link swapped in between them is not caught (microseconds; the same window CoalHearth names).
+function containedProjectFile(lvl, file) {
+  try {
+    if (typeof lvl !== 'string' || typeof file !== 'string' || !lvl || !file) return false;
+    const rel = path.relative(lvl, file);
+    if (!rel || rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) return false;
+    return fs.realpathSync.native(file) === path.join(fs.realpathSync.native(lvl), rel);
+  } catch { return false; }
+}
+
+// The write twin, for a target that may not exist yet (scripts/configure.mjs): every entry from the level down to the target that EXISTS must resolve to its literal
+// location, so a link at the file, at a folder between, or one that dangles (its realpath throws) refuses the write. The first entry that is absent ends the walk with
+// true: everything below it is created by the caller under a parent already verified. Same literal pin, same fail-closed rules, same named residue as above.
+function containedWriteTarget(lvl, target) {
+  try {
+    if (typeof lvl !== 'string' || typeof target !== 'string' || !lvl || !target) return false;
+    const rel = path.relative(lvl, target);
+    if (!rel || rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) return false;
+    let cur = lvl;
+    let literal = fs.realpathSync.native(lvl);
+    for (const part of rel.split(path.sep)) {
+      cur = path.join(cur, part);
+      literal = path.join(literal, part);
+      try {
+        fs.lstatSync(cur);
+      } catch (e) {
+        if (e && e.code === 'ENOENT') return true; // absent: nothing below it exists either
+        return false;
+      }
+      if (fs.realpathSync.native(cur) !== literal) return false;
+    }
+    return true;
+  } catch { return false; }
+}
+
+// The fourth UNREADABLE reason (the flock's other three: malformed JSON / a directory / unreadable). A refused project candidate contributes {} exactly like an absent file,
+// so the clamp then holds the global; the SELECTION is unchanged (a refused candidate still wins the walk, as an unreadable one does).
+const OUTSIDE_REASON = 'it resolves outside its folder';
+
+// Why a candidate was refused, for the report only (nothing is read either way). A file the user's own permissions deny cannot be resolved (the ACL or mode that blocks the
+// read blocks the realpath too), and calling that "outside its folder" would be false: it keeps the flock's third reason, "unreadable". Any other failure is the outside reason.
+function refusalReason(file) {
+  try {
+    fs.realpathSync.native(file);
+  } catch (e) {
+    if (e && (e.code === 'EACCES' || e.code === 'EPERM')) return 'unreadable';
+  }
+  return OUTSIDE_REASON;
 }
 
 // Config-cascade clamp (hooks-safety.md §9): the project .coalface.json ARRIVES
@@ -234,7 +297,7 @@ function loadCfg(ownAgentDir, probeStrays) {
   const hit = walkProject(ownAgentDir, probeStrays); // never throws (its own try/catch)
   try {
     if (hit.file && fs.existsSync(hit.file)) {
-      const r = readConfigFile(hit.file);
+      const r = containedProjectFile(hit.dir, hit.file) ? readConfigFile(hit.file) : { cfg: {}, reason: refusalReason(hit.file) };
       projectCfg = r.cfg;
       if (probeStrays && r.reason) notices.push(`UNREADABLE: ${hit.file} exists but is not a readable config (${r.reason}); it was skipped — canonical = ${CANONICAL_PATH}`);
     }
@@ -395,7 +458,7 @@ function main() {
 // scripts/configure.mjs's WRITE path resolves through the SAME candidate-search-and-
 // stop-at-home walk this hook's own READ path already uses -- the identical bridge
 // pointer-check.mjs already crosses for AGENT_DIR_ORDER, not a second copy of the walk.
-module.exports = { readCfg, loadCfg, appendNotices, directiveFor, languageLock, AGENT_DIR_ORDER, findProjectCfg, physical };
+module.exports = { readCfg, loadCfg, appendNotices, directiveFor, languageLock, AGENT_DIR_ORDER, findProjectCfg, findProjectHit, containedProjectFile, containedWriteTarget, physical };
 
 if (require.main === module) {
   try { main(); } catch { /* Phoenix #4: fail-silent, never crash the host */ }

@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -1345,4 +1346,205 @@ test('CWK-125: cwd spelled as its 8.3 ALIAS, HOME long -- the walk must STILL st
   assertGraceful(r);
   assert.match(r.stdout, />= 4 units/, 'liveness: a contained walk keeps the default floor; an escaped one reads the foreign 7: ' + r.stdout);
   assert.ok(!r.stdout.includes(foreign), 'the escaped file must not be read or named: ' + r.stdout);
+});
+
+// ---------------------------------------------------------------------------
+// 14a unit 1 (E2-4 class): the project config read is CONTAINED. A candidate the walk finds is read only when its realpath is the literal
+// location the walk built (the level's realpath joined with the candidate's relative path). A link planted at the file, or at any directory
+// above it under the level (a junction on Windows, a symlink on POSIX), is refused: it contributes {} exactly like an absent file, and the
+// report-capable path names it with an UNREADABLE line. The outside file says coalfaceMode off, which is QUIETER than the global auto, so
+// the safer-value-wins clamp would let it through: only containment keeps it out, and the directive staying on (auto) is the witness.
+// A file symlink needs a privilege some Windows boxes lack, so those legs probe by creating the link and skip visibly when it cannot be made
+// (never by process.platform); a junction needs none, and the type argument is ignored off Windows, so the directory legs run everywhere.
+// ---------------------------------------------------------------------------
+const OUTSIDE_CFG = '{"coalfaceMode":"off"}';
+const AUTO_DIRECTIVE = 'Fan-out discipline (auto)';
+const OUTSIDE_REASON = 'it resolves outside its folder';
+
+function e24Sandbox() {
+  const { home, cwd } = sandbox();
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-outside-'));
+  muteUpdate(home, { coalfaceMode: 'auto' });
+  return { home, cwd, outside };
+}
+function e24Clean(s) { clean(s.home, s.cwd, s.outside); }
+function tryLink(t, target, link, type) {
+  try { fs.symlinkSync(target, link, type); return true; } catch { t.skip(`a ${type} link cannot be made here (capability probe)`); return false; }
+}
+function assertRefused(r, file, label) {
+  assertGraceful(r);
+  assert.ok(r.stdout.includes(AUTO_DIRECTIVE), `${label}: the outside config was READ (the directive went quiet): ${r.stdout}`);
+  assert.ok(r.stdout.includes(unreadableLine(file, OUTSIDE_REASON)), `${label}: the refusal is not named: ${r.stdout}`);
+}
+
+test('E2-4 hook: the .claude directory is a link to a folder outside the project -> its config is NOT read, and the refusal is named', (t) => {
+  const s = e24Sandbox();
+  t.after(() => e24Clean(s));
+  fs.mkdirSync(path.join(s.outside, 'coal'));
+  fs.writeFileSync(path.join(s.outside, 'coal', 'coalface.json'), OUTSIDE_CFG);
+  if (!tryLink(t, s.outside, path.join(s.cwd, '.claude'), 'junction')) return;
+  const r = run(s.cwd, s.home);
+  assertRefused(r, path.join(fs.realpathSync.native(s.cwd), '.claude', 'coal', 'coalface.json'), '.claude as a link');
+});
+
+test('E2-4 hook: the coal directory is a link to a folder outside the project -> its config is NOT read', (t) => {
+  const s = e24Sandbox();
+  t.after(() => e24Clean(s));
+  fs.writeFileSync(path.join(s.outside, 'coalface.json'), OUTSIDE_CFG);
+  fs.mkdirSync(path.join(s.cwd, '.claude'));
+  if (!tryLink(t, s.outside, path.join(s.cwd, '.claude', 'coal'), 'junction')) return;
+  const r = run(s.cwd, s.home);
+  assertRefused(r, path.join(fs.realpathSync.native(s.cwd), '.claude', 'coal', 'coalface.json'), 'coal as a link');
+});
+
+test('E2-4 hook: another agent directory (.agents) is a link to a folder outside the project -> its config is NOT read', (t) => {
+  const s = e24Sandbox();
+  t.after(() => e24Clean(s));
+  fs.mkdirSync(path.join(s.outside, 'coal'));
+  fs.writeFileSync(path.join(s.outside, 'coal', 'coalface.json'), OUTSIDE_CFG);
+  if (!tryLink(t, s.outside, path.join(s.cwd, '.agents'), 'junction')) return;
+  const r = run(s.cwd, s.home);
+  assertRefused(r, path.join(fs.realpathSync.native(s.cwd), '.agents', 'coal', 'coalface.json'), '.agents as a link');
+});
+
+test('E2-4 hook: the nested legacy folder (.claude holding .coalface.json) is a link outside -> NOT read', (t) => {
+  const s = e24Sandbox();
+  t.after(() => e24Clean(s));
+  fs.writeFileSync(path.join(s.outside, '.coalface.json'), OUTSIDE_CFG);
+  if (!tryLink(t, s.outside, path.join(s.cwd, '.claude'), 'junction')) return;
+  const r = run(s.cwd, s.home);
+  assertGraceful(r);
+  assert.ok(r.stdout.includes(AUTO_DIRECTIVE), 'the nested legacy config outside the project was READ: ' + r.stdout);
+  assert.ok(r.stdout.includes(unreadableLine(path.join(fs.realpathSync.native(s.cwd), '.claude', '.coalface.json'), OUTSIDE_REASON)), r.stdout);
+});
+
+test('E2-4 hook: the root legacy position is a directory link outside the project -> refused with the outside reason, not "a directory"', (t) => {
+  const s = e24Sandbox();
+  t.after(() => e24Clean(s));
+  if (!tryLink(t, s.outside, path.join(s.cwd, '.coalface.json'), 'junction')) return;
+  const r = run(s.cwd, s.home);
+  assertGraceful(r);
+  assert.ok(r.stdout.includes(unreadableLine(path.join(fs.realpathSync.native(s.cwd), '.coalface.json'), OUTSIDE_REASON)), r.stdout);
+});
+
+test('E2-4 hook: the canonical config FILE is a symlink to a file outside the project -> NOT read', (t) => {
+  const s = e24Sandbox();
+  t.after(() => e24Clean(s));
+  const target = path.join(s.outside, 'victim.json');
+  fs.writeFileSync(target, OUTSIDE_CFG);
+  fs.mkdirSync(path.join(s.cwd, '.claude', 'coal'), { recursive: true });
+  if (!tryLink(t, target, path.join(s.cwd, '.claude', 'coal', 'coalface.json'), 'file')) return;
+  const r = run(s.cwd, s.home);
+  assertRefused(r, path.join(fs.realpathSync.native(s.cwd), '.claude', 'coal', 'coalface.json'), 'the canonical file as a link');
+});
+
+test('E2-4 hook: the root legacy .coalface.json is a symlink to a file outside the project -> NOT read', (t) => {
+  const s = e24Sandbox();
+  t.after(() => e24Clean(s));
+  const target = path.join(s.outside, 'victim.json');
+  fs.writeFileSync(target, OUTSIDE_CFG);
+  if (!tryLink(t, target, path.join(s.cwd, '.coalface.json'), 'file')) return;
+  const r = run(s.cwd, s.home);
+  assertGraceful(r);
+  assert.ok(r.stdout.includes(AUTO_DIRECTIVE), 'the root legacy config outside the project was READ: ' + r.stdout);
+  assert.ok(r.stdout.includes(unreadableLine(path.join(fs.realpathSync.native(s.cwd), '.coalface.json'), OUTSIDE_REASON)), r.stdout);
+});
+
+test('E2-4 hook: a link to ANOTHER folder INSIDE the project is refused too -- the pin is the literal location, not "inside the project"', (t) => {
+  const s = e24Sandbox();
+  t.after(() => e24Clean(s));
+  fs.mkdirSync(path.join(s.cwd, 'elsewhere', 'coal'), { recursive: true });
+  fs.writeFileSync(path.join(s.cwd, 'elsewhere', 'coal', 'coalface.json'), OUTSIDE_CFG);
+  if (!tryLink(t, path.join(s.cwd, 'elsewhere'), path.join(s.cwd, '.claude'), 'junction')) return;
+  const r = run(s.cwd, s.home);
+  assertRefused(r, path.join(fs.realpathSync.native(s.cwd), '.claude', 'coal', 'coalface.json'), '.claude linked inside the project');
+});
+
+test('E2-4 hook control: an ordinary config inside the project is still read, and nothing is named', (t) => {
+  const s = e24Sandbox();
+  t.after(() => e24Clean(s));
+  fs.mkdirSync(path.join(s.cwd, '.claude', 'coal'), { recursive: true });
+  fs.writeFileSync(path.join(s.cwd, '.claude', 'coal', 'coalface.json'), OUTSIDE_CFG);
+  const r = run(s.cwd, s.home);
+  assertGraceful(r);
+  assert.strictEqual(r.stdout, '', 'an in-project config saying off still silences the directive, with no refusal line');
+});
+
+test('E2-4 hook: a link at the config level of a PARENT folder the walk climbs to is refused as well', (t) => {
+  const s = e24Sandbox();
+  t.after(() => e24Clean(s));
+  const sub = path.join(s.cwd, 'sub');
+  fs.mkdirSync(sub);
+  fs.mkdirSync(path.join(s.outside, 'coal'));
+  fs.writeFileSync(path.join(s.outside, 'coal', 'coalface.json'), OUTSIDE_CFG);
+  if (!tryLink(t, s.outside, path.join(s.cwd, '.claude'), 'junction')) return;
+  const r = run(sub, s.home);
+  assertRefused(r, path.join(fs.realpathSync.native(s.cwd), '.claude', 'coal', 'coalface.json'), 'a parent level link');
+});
+
+test('E2-4 AG adapter: the shared read refuses a linked .claude under the payload cwd too', (t) => {
+  const s = agSandbox();
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-outside-'));
+  t.after(() => { clean(s.home); clean(outside); });
+  writeGlobalCfg(s.home, { updateMode: 'off', coalfaceMode: 'auto' });
+  fs.mkdirSync(path.join(outside, 'coal'));
+  fs.writeFileSync(path.join(outside, 'coal', 'coalface.json'), OUTSIDE_CFG);
+  const proj = fs.mkdtempSync(path.join(s.home, 'cf-proj-'));
+  if (!tryLink(t, outside, path.join(proj, '.claude'), 'junction')) return;
+  const r = agRun(s, agEvent({ session_id: 'sess-e24', cwd: proj }));
+  assertGraceful(r);
+  assert.ok(agMessage(r).includes(AUTO_DIRECTIVE), 'the AG adapter read the outside config: ' + r.stdout);
+});
+
+test('E2-4 helper: containedProjectFile pins the literal location and fails closed (a .. path, an absent file, a throwing path)', (t) => {
+  const { containedProjectFile } = createRequire(import.meta.url)(HOOK);
+  const s = e24Sandbox();
+  t.after(() => e24Clean(s));
+  const lvl = fs.realpathSync.native(s.cwd);
+  fs.mkdirSync(path.join(lvl, '.claude', 'coal'), { recursive: true });
+  const real = path.join(lvl, '.claude', 'coal', 'coalface.json');
+  fs.writeFileSync(real, '{}');
+  fs.writeFileSync(path.join(s.outside, 'x.json'), '{}');
+  assert.strictEqual(containedProjectFile(lvl, real), true, 'the ordinary file passes');
+  assert.strictEqual(containedProjectFile(lvl, path.join(lvl, '.claude', 'coal', 'nope.json')), false, 'an absent file fails closed');
+  assert.strictEqual(containedProjectFile(lvl, path.join(lvl, '..', path.basename(s.outside), 'x.json')), false, 'a .. path out of the level is refused');
+  assert.strictEqual(containedProjectFile(lvl, path.join(s.outside, 'x.json')), false, 'an absolute path outside the level is refused');
+  assert.strictEqual(containedProjectFile(lvl, lvl), false, 'the level itself is not a config file');
+  assert.strictEqual(containedProjectFile(undefined, real), false, 'a missing level fails closed');
+  assert.strictEqual(containedProjectFile(lvl, '\0'), false, 'a path that makes realpath throw fails closed');
+});
+
+test('E2-4 helper: containedWriteTarget pins every existing entry down to the target, and fails closed (a file as a folder, a dangling link, a link in the middle, a .. path)', (t) => {
+  const { containedWriteTarget } = createRequire(import.meta.url)(HOOK);
+  const s = e24Sandbox();
+  t.after(() => e24Clean(s));
+  const lvl = fs.realpathSync.native(s.cwd);
+  assert.strictEqual(containedWriteTarget(lvl, path.join(lvl, '.claude', 'coal', 'coalface.json')), true, 'nothing exists yet: the write may create it');
+  fs.mkdirSync(path.join(lvl, '.claude', 'coal'), { recursive: true });
+  assert.strictEqual(containedWriteTarget(lvl, path.join(lvl, '.claude', 'coal', 'coalface.json')), true, 'real folders, absent file');
+  fs.writeFileSync(path.join(lvl, '.claude', 'coal', 'coalface.json'), '{}');
+  assert.strictEqual(containedWriteTarget(lvl, path.join(lvl, '.claude', 'coal', 'coalface.json')), true, 'real folders, real file');
+  fs.writeFileSync(path.join(lvl, 'afile'), 'x');
+  assert.strictEqual(containedWriteTarget(lvl, path.join(lvl, '..', 'x', 'coalface.json')), false, 'a .. path out of the level is refused');
+  assert.strictEqual(containedWriteTarget(lvl, lvl), false, 'the level itself is not a write target');
+  assert.strictEqual(containedWriteTarget(undefined, path.join(lvl, 'x')), false, 'a missing level fails closed');
+  const gone = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-gone-'));
+  if (!tryLink(t, gone, path.join(lvl, 'dangling'), 'junction')) return;
+  fs.rmSync(gone, { recursive: true, force: true });
+  assert.strictEqual(containedWriteTarget(lvl, path.join(lvl, 'dangling', 'coal', 'coalface.json')), false, 'a link whose target is gone is refused: mkdir would otherwise create the target');
+  assert.strictEqual(containedWriteTarget(lvl, path.join(lvl, 'dangling')), false, 'the dangling link as the target itself is refused');
+  if (!tryLink(t, s.outside, path.join(lvl, 'mid'), 'junction')) return;
+  assert.strictEqual(containedWriteTarget(lvl, path.join(lvl, 'mid', 'coal', 'coalface.json')), false, 'a link in the middle of the path is refused');
+});
+
+test('E2-4 helper: containedWriteTarget fails closed when a FILE sits where a folder must be and the volume reports ENOTDIR (not "absent")', (t) => {
+  const { containedWriteTarget } = createRequire(import.meta.url)(HOOK);
+  const s = e24Sandbox();
+  t.after(() => e24Clean(s));
+  const lvl = fs.realpathSync.native(s.cwd);
+  fs.writeFileSync(path.join(lvl, 'afile'), 'x');
+  let code = null;
+  try { fs.lstatSync(path.join(lvl, 'afile', 'coal')); } catch (e) { code = e && e.code; }
+  if (code !== 'ENOTDIR') { t.skip(`this volume reports ${code} for a path through a file, not ENOTDIR (capability probe; Windows does, POSIX does not)`); return; }
+  assert.strictEqual(containedWriteTarget(lvl, path.join(lvl, 'afile', 'coal', 'coalface.json')), false, 'a file where a folder must be fails closed');
 });

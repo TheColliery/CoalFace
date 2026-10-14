@@ -252,3 +252,124 @@ test('configure CWK-125: HOME spelled as its 8.3 ALIAS -- the walk stops at home
   assert.equal(fs.readFileSync(foreign, 'utf8'), before, 'the foreign config above home must be left untouched');
   assert.ok(fs.existsSync(path.join(proj, '.claude', 'coal', 'coalface.json')), 'the write must land at the project own-dir default');
 });
+
+// 14a unit 1 (E2-4 class, S3): configure.mjs WRITES the project config at the path the walk found, or at the own-dir default. A link planted at that file, or at a directory
+// above it under the level (a junction on Windows, a symlink on POSIX), made the write land outside the project. The write is now refused: nothing is written, nothing is removed,
+// stderr carries one FAIL line naming the path, and the exit is non-zero. A file symlink needs a privilege some Windows boxes lack, so those legs probe by creating the link and
+// skip visibly when it cannot be made; a junction needs none, and the type argument is ignored off Windows.
+function e24Layout(t) {
+  const { home, project } = sandbox();
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-configure-outside-'));
+  t.after(() => { for (const d of [home, project, outside]) fs.rmSync(d, { recursive: true, force: true }); });
+  return { home, project, outside };
+}
+function tryLinkCfg(t, target, link, type) {
+  try { fs.symlinkSync(target, link, type); return true; } catch { t.skip(`a ${type} link cannot be made here (capability probe)`); return false; }
+}
+function assertRefusedWrite(r, expectedFailPath, label) {
+  assert.notEqual(r.status, 0, `${label}: the write was not refused (exit 0): ${r.stdout}`);
+  const fail = r.stderr.split('\n').find((l) => l.startsWith('FAIL '));
+  assert.ok(fail, `${label}: no FAIL line on stderr: ${r.stderr}`);
+  assert.ok(fail.startsWith(`FAIL ${expectedFailPath}: `), `${label}: the FAIL line does not name ${expectedFailPath}: ${fail}`);
+  assert.ok(fail.includes('resolves outside its folder'), `${label}: the reason is not stated: ${fail}`);
+  assert.ok(!r.stderr.includes('    at '), `${label}: a raw stack trace reached the user: ${r.stderr}`);
+}
+
+test('E2-4 configure: the .claude directory is a link outside the project -> the write is REFUSED and nothing lands outside', (t) => {
+  const { home, project, outside } = e24Layout(t);
+  if (!tryLinkCfg(t, outside, path.join(project, '.claude'), 'junction')) return;
+  const r = run(['--bandwidth', '40'], { cwd: project, home });
+  assertRefusedWrite(r, path.join(fs.realpathSync.native(project), '.claude', 'coal', 'coalface.json'), '.claude as a link');
+  assert.deepEqual(fs.readdirSync(outside), [], 'a file or a folder was created outside the project');
+});
+
+test('E2-4 configure: the coal directory is a link outside the project -> the write is REFUSED and nothing lands outside', (t) => {
+  const { home, project, outside } = e24Layout(t);
+  fs.mkdirSync(path.join(project, '.claude'));
+  if (!tryLinkCfg(t, outside, path.join(project, '.claude', 'coal'), 'junction')) return;
+  const r = run(['--bandwidth', '40'], { cwd: project, home });
+  assertRefusedWrite(r, path.join(fs.realpathSync.native(project), '.claude', 'coal', 'coalface.json'), 'coal as a link');
+  assert.deepEqual(fs.readdirSync(outside), [], 'a file was created outside the project');
+});
+
+test('E2-4 configure: a legacy config being MIGRATED through a linked .claude is refused whole -- the legacy file stays, nothing lands outside', (t) => {
+  const { home, project, outside } = e24Layout(t);
+  const legacy = path.join(project, '.coalface.json');
+  fs.writeFileSync(legacy, JSON.stringify({ bandwidth: 10 }) + '\n');
+  if (!tryLinkCfg(t, outside, path.join(project, '.claude'), 'junction')) return;
+  const r = run(['--autoFanoutFloor', '8'], { cwd: project, home });
+  assertRefusedWrite(r, path.join(fs.realpathSync.native(project), '.claude', 'coal', 'coalface.json'), 'the migration through a link');
+  assert.deepEqual(fs.readdirSync(outside), [], 'a file was created outside the project');
+  assert.deepEqual(JSON.parse(fs.readFileSync(legacy, 'utf8')), { bandwidth: 10 }, 'the legacy file was changed or removed although the write was refused');
+});
+
+test('E2-4 configure: the config found at a PARENT folder sits behind a link outside -> refused, and nothing lands outside', (t) => {
+  const { home, project, outside } = e24Layout(t);
+  const sub = path.join(project, 'sub');
+  fs.mkdirSync(sub);
+  fs.mkdirSync(path.join(outside, 'coal'));
+  fs.writeFileSync(path.join(outside, 'coal', 'coalface.json'), JSON.stringify({ bandwidth: 10 }));
+  if (!tryLinkCfg(t, outside, path.join(project, '.claude'), 'junction')) return;
+  const r = run(['--bandwidth', '40'], { cwd: sub, home });
+  assertRefusedWrite(r, path.join(fs.realpathSync.native(project), '.claude', 'coal', 'coalface.json'), 'a parent level link');
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(outside, 'coal', 'coalface.json'), 'utf8')), { bandwidth: 10 }, 'the file outside the project was rewritten');
+});
+
+test('E2-4 configure: the canonical config FILE is a symlink to a file outside -> the write is REFUSED and the outside file is untouched', (t) => {
+  const { home, project, outside } = e24Layout(t);
+  const target = path.join(outside, 'victim.json');
+  fs.writeFileSync(target, JSON.stringify({ bandwidth: 10 }));
+  fs.mkdirSync(path.join(project, '.claude', 'coal'), { recursive: true });
+  if (!tryLinkCfg(t, target, path.join(project, '.claude', 'coal', 'coalface.json'), 'file')) return;
+  const r = run(['--bandwidth', '40'], { cwd: project, home });
+  assertRefusedWrite(r, path.join(fs.realpathSync.native(project), '.claude', 'coal', 'coalface.json'), 'the canonical file as a link');
+  assert.deepEqual(JSON.parse(fs.readFileSync(target, 'utf8')), { bandwidth: 10 }, 'the file outside the project was rewritten through the link');
+});
+
+test('E2-4 configure: the .bak target is a symlink to a file outside -> a malformed config is not backed up through it, and the outside file is untouched', (t) => {
+  const { home, project, outside } = e24Layout(t);
+  const target = path.join(outside, 'victim.txt');
+  fs.writeFileSync(target, 'precious');
+  const dir = path.join(project, '.claude', 'coal');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'coalface.json'), '{ not json');
+  if (!tryLinkCfg(t, target, path.join(dir, 'coalface.json.bak'), 'file')) return;
+  const r = run(['--bandwidth', '40'], { cwd: project, home });
+  assertRefusedWrite(r, path.join(fs.realpathSync.native(project), '.claude', 'coal', 'coalface.json.bak'), 'the .bak as a link');
+  assert.equal(fs.readFileSync(target, 'utf8'), 'precious', 'the file outside the project was overwritten by the backup copy');
+  assert.equal(fs.readFileSync(path.join(dir, 'coalface.json'), 'utf8'), '{ not json', 'the malformed config was rewritten although the run was refused');
+});
+
+test('E2-4 configure control: --global still writes the user-level file, and an ordinary project still writes inside itself', (t) => {
+  const { home, project } = e24Layout(t);
+  const g = run(['--global', '--updateMode', 'remind'], { cwd: project, home });
+  assert.equal(g.status, 0, g.stderr);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(home, '.claude', '.coalface.json'), 'utf8')), { updateMode: 'remind' });
+  const p = run(['--bandwidth', '40'], { cwd: project, home });
+  assert.equal(p.status, 0, p.stderr);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(project, '.claude', 'coal', 'coalface.json'), 'utf8')), { bandwidth: 40 });
+});
+
+test('E2-4 configure: the root legacy position is a directory link outside the project -> refused by the READ check, nothing is created or removed', (t) => {
+  const { home, project, outside } = e24Layout(t);
+  fs.writeFileSync(path.join(outside, 'keep'), 'k');
+  if (!tryLinkCfg(t, outside, path.join(project, '.coalface.json'), 'junction')) return;
+  const r = run(['--bandwidth', '40'], { cwd: project, home });
+  assertRefusedWrite(r, path.join(fs.realpathSync.native(project), '.coalface.json'), 'the legacy position as a link');
+  assert.equal(fs.existsSync(path.join(project, '.claude')), false, 'a migration write was made although the found config was refused');
+  assert.deepEqual(fs.readdirSync(outside), ['keep'], 'something was created or removed outside the project');
+  assert.ok(fs.lstatSync(path.join(project, '.coalface.json')).isSymbolicLink(), 'the link itself was removed');
+});
+
+test('E2-4 configure: the .bak position is a directory link outside the project -> refused BEFORE any write, the malformed config is left as it was', (t) => {
+  const { home, project, outside } = e24Layout(t);
+  fs.writeFileSync(path.join(outside, 'keep'), 'k');
+  const dir = path.join(project, '.claude', 'coal');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'coalface.json'), '{ not json');
+  if (!tryLinkCfg(t, outside, path.join(dir, 'coalface.json.bak'), 'junction')) return;
+  const r = run(['--bandwidth', '40'], { cwd: project, home });
+  assertRefusedWrite(r, path.join(fs.realpathSync.native(project), '.claude', 'coal', 'coalface.json.bak'), 'the .bak position as a link');
+  assert.equal(fs.readFileSync(path.join(dir, 'coalface.json'), 'utf8'), '{ not json', 'the malformed config was rewritten although the run was refused');
+  assert.deepEqual(fs.readdirSync(outside), ['keep'], 'something was created outside the project');
+});

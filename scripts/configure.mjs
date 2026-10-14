@@ -103,7 +103,7 @@ async function main() {
   // configure.mjs under Claude Code is the only supported entry today (same assumption
   // the hook's own `main()` makes at its one call site), so 'claude' is hardcoded here
   // exactly as it is there.
-  const { findProjectCfg, AGENT_DIR_ORDER, physical } = await import(pathToFileURL(path.join(repo, 'hooks', 'coalface-conductor.js')).href);
+  const { findProjectHit, containedWriteTarget, AGENT_DIR_ORDER, physical } = await import(pathToFileURL(path.join(repo, 'hooks', 'coalface-conductor.js')).href);
 
   // --global targets ~/.claude/.coalface.json (readCfg's own hardcoded global home);
   // default targets the project config. The hook merges the two per key
@@ -120,7 +120,8 @@ async function main() {
   const cwd = physical(process.cwd());
   const legacyPath = path.join(cwd, '.coalface.json');
   const globalPath = path.join(os.homedir(), '.claude', '.coalface.json');
-  const foundProjectPath = isGlobal ? null : findProjectCfg('claude');
+  const hit = isGlobal ? null : findProjectHit('claude'); // the SAME walk as findProjectCfg('claude'), plus the level the file sits at
+  const foundProjectPath = hit ? hit.file : null;
   const readPath = isGlobal ? globalPath : foundProjectPath;
   // Both LEGACY shapes the hook reads at this level (UMB-133): the root dotfile and the
   // nested `.<agent>/.coalface.json`. A config found at either migrates on this write.
@@ -135,6 +136,21 @@ async function main() {
   const writePath = isGlobal
     ? globalPath
     : (readPath === null || readIsLegacy) ? ownDirDefault(cwd, AGENT_DIR_ORDER) : readPath;
+
+  // 14a unit 1 (E2-4 class): the project config sits in a folder a cloned repo supplies, so a link planted at the file or at a folder above it would send the read, the .bak
+  // copy and the write outside the project. Every project path this run touches is pinned to its literal location BEFORE anything is read or written (the check lives in
+  // hooks/coalface-conductor.js beside the read-side twin): the config found by the walk is checked against the level the walk found it at, the write target against the level it
+  // will be created under (cwd for a new or migrated config). A refused path writes nothing, removes nothing, and ends the run with one clean FAIL line. The global file is the
+  // user's own and is not a project path. Residue, named: check and use are two acts, so a link swapped in between is not caught (microseconds).
+  const refuse = (p) => {
+    console.error(`FAIL ${p}: it resolves outside its folder (a link at the file or at a folder above it); nothing was written`);
+    process.exitCode = 1;
+  };
+  const writeLvl = (readPath === null || readIsLegacy) ? cwd : (hit && hit.dir);
+  if (!isGlobal) {
+    if (readPath !== null && !containedWriteTarget(hit.dir, readPath)) return refuse(readPath);
+    if (!containedWriteTarget(writeLvl, writePath)) return refuse(writePath);
+  }
 
   let cfg = {};
   let hadComments = false;
@@ -168,6 +184,7 @@ async function main() {
       // partial failure the user must notice — flag the non-zero exit even though the
       // run continues from defaults (the old config is backed up where possible).
       process.exitCode = 1;
+      if (!isGlobal && !containedWriteTarget(hit.dir, readPath + '.bak')) return refuse(readPath + '.bak'); // the backup is a write too (it sits beside the found file): a link at .bak must not carry it outside
       try {
         fs.copyFileSync(readPath, readPath + '.bak');
         console.warn(`Warning: existing config is malformed — backed it up to ${readPath}.bak and rebuilding.`);
