@@ -1567,6 +1567,7 @@ test('E2-4 helper: containedWriteTarget fails closed when a FILE sits where a fo
 // 15b item 7: the conductor spawned EXACTLY the way hooks/hooks.json says (the exec form: command "node", the script in args, ${CLAUDE_PLUGIN_ROOT} substituted as a plain string).
 // Every other leg in this file spawns the script by path; this one proves the wired entry itself starts the hook, and holds stdout to the sanctioned output EXACTLY (an equality,
 // never a "match": a stray byte before or after the directive, or a notice line, fails it). No earlier leg spawned through the exec form, so none accepted stray output.
+// the spawn is entry.command itself (resolved through PATH, no shell), not process.execPath, so a wired command that cannot start the hook fails this leg.
 test('exec form: the entry hooks/hooks.json wires starts the conductor, and stdout is exactly the sanctioned SessionStart output, stderr empty', () => {
   const entry = JSON.parse(fs.readFileSync(path.join(REPO, 'hooks', 'hooks.json'), 'utf8')).hooks.SessionStart[0].hooks[0];
   assert.strictEqual(entry.type, 'command');
@@ -1576,7 +1577,7 @@ test('exec form: the entry hooks/hooks.json wires starts the conductor, and stdo
   try {
     muteUpdate(home, { coalfaceMode: 'auto' });
     const args = entry.args.map((a) => a.split('${CLAUDE_PLUGIN_ROOT}').join(REPO));
-    const r = spawnSync(process.execPath, args, {
+    const r = spawnSync(entry.command, args, {
       cwd,
       env: { ...process.env, HOME: home, USERPROFILE: home, TEMP: home, TMP: home, CLAUDE_CONFIG_DIR: '' },
       input: SESSION_START,
