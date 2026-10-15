@@ -6,7 +6,7 @@ All notable changes to CoalFace are documented here. Format follows
 
 ## [0.14.4] - 2026-10-15
 
-the machine reading no longer misreads memory or confined CPUs
+The machine reading no longer misreads memory or confined CPUs
 
 ### Fixed
 - **A memory limit that is not a limit no longer sets the denominator.** `skills/coalface/scripts/machine-reading.mjs` reads a `process.constrainedMemory()` of 0, at or above 2**63 (libuv returns UINT64_MAX for a cgroup with no limit) or above `os.totalmem()` as no limit and reads the free share over the machine total; where `process.availableMemory` is absent (Node before 22.0.0) the memory axis is unmeasured and `os.freemem()` is never the fallback, because on macOS it counts free pages only (nodejs.org/docs/latest-v22.x/api/process.html, read 2026-10-15) - test: scripts/machine-reading.test.mjs.

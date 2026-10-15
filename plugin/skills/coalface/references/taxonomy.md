@@ -55,3 +55,7 @@ conductor's consented sequential apply, and is never auto-retried (retry = doing
 Real sites mix shapes (a flat sweep + one chained pair + a glossary). The scout tags each
 spot with its shape; the partition orders waves so locked invariants come first, chains run
 in order, and the flat bulk fills the width. One receipt covers the lot.
+
+## Granularity honesty
+
+Granularity honesty: "finer = faster" saturates — beyond N ≈ 2-4× wave width overhead dominates → pick near-optimum inside the floor and the width ceiling. (SKILL.md step 2 carries the action line; the min-unit floor bounds from below, this bounds from above.)

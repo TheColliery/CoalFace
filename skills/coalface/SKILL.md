@@ -97,7 +97,7 @@ or clean.
 
 **1 · SCOUT (mandatory, P3).** Survey the worksite FIRST. Scout sub(s) return: the SPOT LIST (each with its file/range or unit id) · the DEPENDENCY GRAPH between spots · the INVARIANTS to lock · the DOMAIN GATE to run at the end · the recommended SWARM-MODE · the SHARED-DIGEST (paid once by the scout, shipped in every contract, P4).
 
-**2 · PARTITION (deterministic, P5/P6).** Interval-intersection check on the spot ranges: OVERLAPPING spots merge into one unit or chain as a dependency; a unit smaller than spawn overhead merges with a neighbor (the min-unit floor). Unit count sizes the swarm.
+**2 · PARTITION (deterministic, P5/P6).** Interval-intersection check on the spot ranges: OVERLAPPING spots merge into one unit or chain as a dependency; a unit smaller than spawn overhead merges with a neighbor (the min-unit floor). Don't slice finer than ~2-4× the wave width: overhead dominates (`references/taxonomy.md`). Unit count sizes the swarm.
 
 **3 · HEADS-UP (conditional, non-blocking, P7).** Job dwarfs the prompt → the one-liner above, then proceed.
 
@@ -137,7 +137,7 @@ Journal each worker's assigned scope at spawn and its returned order on landing 
 - **Engine:** a platform Workflow/orchestration engine present → ride it; else native subagent waves. Riding Claude Code's `Workflow` tool → **read `references/workflow-engine.md` first** (P28: waves not `parallel(all-N)` · scattered nulls = one retry pass, a run of ≥3 = quota death → STOP + return the remainder · continuation-run over `resumeFromRunId`).
 
 ## Nested conductor (depth note, P2)
-A depth-1 sub may itself conduct (scout → contract → QC → apply for its scope), spawning its workers at depth-2. Beyond depth-2 a spawn FLATTENS into an independent, unreapable top-level session — workers are structural leaves. The wallet slices DOWN the chain (you allocate the sub a slice; it splits that across its workers); receipts flow UP.
+A depth-1 sub may itself conduct (scout → contract → QC → apply for its scope), spawning its workers at depth-2. The wallet slices DOWN the chain (you allocate the sub a slice; it splits that across its workers); receipts flow UP.
 
 ## Platforms (cross-agent, P24)
 Spawn via the platform's NATIVE subagent tool (Claude Code `Agent`/`Task` · each platform its own). Any platform with concurrent subagents runs the full contract; width sizes to the local cap via `bandwidth`; an unknown platform gets the conservative default. NO fan-out at all → degrade to a sequential pipeline under the same contract (scout → units in order → QC → apply). On a platform/version you have not actually run a swarm on, treat width/nesting behavior as UNVERIFIED — degrade conservatively and say so.
