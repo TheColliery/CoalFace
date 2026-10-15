@@ -4,6 +4,22 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.14.4] - 2026-10-15
+
+the machine reading no longer misreads memory or confined CPUs
+
+### Fixed
+- **A memory limit that is not a limit no longer sets the denominator.** `skills/coalface/scripts/machine-reading.mjs` reads a `process.constrainedMemory()` of 0, at or above 2**63 (libuv returns UINT64_MAX for a cgroup with no limit) or above `os.totalmem()` as no limit and reads the free share over the machine total; where `process.availableMemory` is absent (Node before 22.0.0) the memory axis is unmeasured and `os.freemem()` is never the fallback, because on macOS it counts free pages only (nodejs.org/docs/latest-v22.x/api/process.html, read 2026-10-15) - test: scripts/machine-reading.test.mjs.
+- **A process confined to fewer CPUs than the machine has reads busy when its CPUs are saturated.** The CPU share is judged over the k busiest logical CPUs, k = `os.availableParallelism()`; an unconfined box keeps the whole-machine weighted mean exactly. Witness on this box with an affinity mask of 2 CPUs and 8 busy threads: the old reading was `BREATHE` at 24.1%, the new one `WAIT` at 100%. A hybrid box (performance and efficiency cores) is not weighted by core class: a `shortcut:` comment in the source and the admission reference name that limit, which waits for phase 2 (CWK2-025 finding 1) - test: scripts/machine-reading.test.mjs.
+
+### Changed
+- **A WAIT line names its reasons.** `WAIT ... held: cpu 92% at or above 80%; mem free 5% below 10%`; a BREATHE line and the `--json` keys are unchanged. The agent reads the exit code, not the text.
+- **When every axis is unmeasured, only the first unit runs.** `--running 0` is admitted; a second unit WAITs with the reason `every axis unmeasured`. One measured axis keeps the old rule. Before, a machine that could not be read at all admitted every unit.
+- **The SessionStart directive states the wallet claim as conditional.** The `auto` and `on` directives now say the swarm's dollar cost stays near solo only on cheaper worker tiers, as the README and SKILL already did.
+- **`skills/coalface/SKILL.md` step 4, `references/admission-control.md` and the README Waves row describe the new reading.**
+- **The hook manifest check also requires `"type": "command"`** (`scripts/verify.mjs`), and the conductor is spawned in its exec form by one test (internal gate; no shipped change).
+- **`CONTRIBUTING.md` says the launch-form Release is posted by a `workflow_dispatch` with `launch_form=true`**, not hand-cut (docs; no shipped change).
+
 ## [0.14.3] - 2026-10-15
 
 A planted link can no longer redirect the project config
