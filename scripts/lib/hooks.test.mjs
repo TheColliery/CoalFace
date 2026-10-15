@@ -1514,7 +1514,7 @@ test('E2-4 helper: containedProjectFile pins the literal location and fails clos
   assert.strictEqual(containedProjectFile(lvl, '\0'), false, 'a path that makes realpath throw fails closed');
 });
 
-test('E2-4 helper: containedWriteTarget pins every existing entry down to the target, and fails closed (a file as a folder, a dangling link, a link in the middle, a .. path)', (t) => {
+test('E2-4 helper: containedWriteTarget pins every existing entry down to the target, and fails closed (a .. path, the level itself, a missing level)', (t) => {
   const { containedWriteTarget } = createRequire(import.meta.url)(HOOK);
   const s = e24Sandbox();
   t.after(() => e24Clean(s));
@@ -1524,15 +1524,30 @@ test('E2-4 helper: containedWriteTarget pins every existing entry down to the ta
   assert.strictEqual(containedWriteTarget(lvl, path.join(lvl, '.claude', 'coal', 'coalface.json')), true, 'real folders, absent file');
   fs.writeFileSync(path.join(lvl, '.claude', 'coal', 'coalface.json'), '{}');
   assert.strictEqual(containedWriteTarget(lvl, path.join(lvl, '.claude', 'coal', 'coalface.json')), true, 'real folders, real file');
-  fs.writeFileSync(path.join(lvl, 'afile'), 'x');
   assert.strictEqual(containedWriteTarget(lvl, path.join(lvl, '..', 'x', 'coalface.json')), false, 'a .. path out of the level is refused');
   assert.strictEqual(containedWriteTarget(lvl, lvl), false, 'the level itself is not a write target');
   assert.strictEqual(containedWriteTarget(undefined, path.join(lvl, 'x')), false, 'a missing level fails closed');
+});
+
+// One skippable leg per test (AGENTS.md Hard-won lessons, Path-traversal; E1 t102): each link kind has its own test, so a failed probe skips only its own leg.
+test('E2-4 helper: containedWriteTarget refuses a DANGLING link, as a folder and as the target itself (mkdir would otherwise create the link target)', (t) => {
+  const { containedWriteTarget } = createRequire(import.meta.url)(HOOK);
+  const s = e24Sandbox();
+  t.after(() => e24Clean(s));
+  const lvl = fs.realpathSync.native(s.cwd);
   const gone = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-gone-'));
+  t.after(() => fs.rmSync(gone, { recursive: true, force: true }));
   if (!tryLink(t, gone, path.join(lvl, 'dangling'), 'junction')) return;
   fs.rmSync(gone, { recursive: true, force: true });
-  assert.strictEqual(containedWriteTarget(lvl, path.join(lvl, 'dangling', 'coal', 'coalface.json')), false, 'a link whose target is gone is refused: mkdir would otherwise create the target');
+  assert.strictEqual(containedWriteTarget(lvl, path.join(lvl, 'dangling', 'coal', 'coalface.json')), false, 'a link whose target is gone is refused');
   assert.strictEqual(containedWriteTarget(lvl, path.join(lvl, 'dangling')), false, 'the dangling link as the target itself is refused');
+});
+
+test('E2-4 helper: containedWriteTarget refuses a link in the MIDDLE of the path', (t) => {
+  const { containedWriteTarget } = createRequire(import.meta.url)(HOOK);
+  const s = e24Sandbox();
+  t.after(() => e24Clean(s));
+  const lvl = fs.realpathSync.native(s.cwd);
   if (!tryLink(t, s.outside, path.join(lvl, 'mid'), 'junction')) return;
   assert.strictEqual(containedWriteTarget(lvl, path.join(lvl, 'mid', 'coal', 'coalface.json')), false, 'a link in the middle of the path is refused');
 });
@@ -1547,4 +1562,29 @@ test('E2-4 helper: containedWriteTarget fails closed when a FILE sits where a fo
   try { fs.lstatSync(path.join(lvl, 'afile', 'coal')); } catch (e) { code = e && e.code; }
   if (code !== 'ENOTDIR') { t.skip(`this volume reports ${code} for a path through a file, not ENOTDIR (capability probe; Windows does, POSIX does not)`); return; }
   assert.strictEqual(containedWriteTarget(lvl, path.join(lvl, 'afile', 'coal', 'coalface.json')), false, 'a file where a folder must be fails closed');
+});
+
+// 15b item 7: the conductor spawned EXACTLY the way hooks/hooks.json says (the exec form: command "node", the script in args, ${CLAUDE_PLUGIN_ROOT} substituted as a plain string).
+// Every other leg in this file spawns the script by path; this one proves the wired entry itself starts the hook, and holds stdout to the sanctioned output EXACTLY (an equality,
+// never a "match": a stray byte before or after the directive, or a notice line, fails it). No earlier leg spawned through the exec form, so none accepted stray output.
+test('exec form: the entry hooks/hooks.json wires starts the conductor, and stdout is exactly the sanctioned SessionStart output, stderr empty', () => {
+  const entry = JSON.parse(fs.readFileSync(path.join(REPO, 'hooks', 'hooks.json'), 'utf8')).hooks.SessionStart[0].hooks[0];
+  assert.strictEqual(entry.type, 'command');
+  assert.strictEqual(entry.command, 'node');
+  assert.ok(Array.isArray(entry.args) && entry.args.length === 1);
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home, { coalfaceMode: 'auto' });
+    const args = entry.args.map((a) => a.split('${CLAUDE_PLUGIN_ROOT}').join(REPO));
+    const r = spawnSync(process.execPath, args, {
+      cwd,
+      env: { ...process.env, HOME: home, USERPROFILE: home, TEMP: home, TMP: home, CLAUDE_CONFIG_DIR: '' },
+      input: SESSION_START,
+      encoding: 'utf8',
+      timeout: 20000,
+    });
+    assertGraceful(r);
+    const { directiveFor } = createRequire(import.meta.url)(HOOK);
+    assert.strictEqual(r.stdout, directiveFor({ coalfaceMode: 'auto' }), 'stdout is the auto directive and nothing else');
+  } finally { clean(home, cwd); }
 });

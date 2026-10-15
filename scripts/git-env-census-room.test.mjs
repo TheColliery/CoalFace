@@ -20,7 +20,7 @@ test('every git spawn of this room reads clean with the room pins, and the walk 
   const r = roomCensus(repo);
   assert.deepEqual(r.findings, []);
   assert.equal(r.files, files.length);
-  assert.equal(r.exempted, ROOM_PINS.length, 'both pinned carriers are present at their pinned blobs');
+  assert.equal(r.exempted, ROOM_PINS.length, 'every pinned carrier is present at its pinned blob');
   assert.ok(r.calls >= 23, `only ${r.calls} git spawns counted: the census walk shrank`);
   assert.equal(r.safe, r.calls, 'every counted spawn is safe');
 });
