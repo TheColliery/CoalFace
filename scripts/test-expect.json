@@ -22,6 +22,7 @@
   "scripts/build-claude-ai-zips.test.mjs": 2,
   "scripts/configure.test.mjs": 26,
   "scripts/link-check.test.mjs": 36,
+  "scripts/front-door-links.test.mjs": 5,
   "scripts/decide-upload.test.mjs": 6,
   "scripts/prune-release-zips.test.mjs": 3,
   "scripts/release-notes.test.mjs": 24,

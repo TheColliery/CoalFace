@@ -46,6 +46,8 @@ const TESTS = [
   'scripts/build-claude-ai-zips.test.mjs',
   'scripts/configure.test.mjs',
   'scripts/link-check.test.mjs',
+  // 16f item 1: the canon's front-door-links (the outward half of the link check), adopted byte-identical from .github's templates/published-code/.
+  'scripts/front-door-links.test.mjs',
   // CWK-124: the sole-creator release workflow, adopted byte-identical from
   // .github's templates/overlay-coal-skill/ (never a room-local variant).
   'scripts/decide-upload.test.mjs',
