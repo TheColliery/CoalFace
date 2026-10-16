@@ -4,6 +4,13 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.14.5] - 2026-10-16
+
+Step 2 of the skill no longer caps the unit count at the wave width
+
+### Changed
+- **Rail change, stated as one: PARTITION no longer tells the agent to hold units to about 2-4x the wave width.** `skills/coalface/SKILL.md` step 2 read "Don't slice finer than ~2-4x the wave width: overhead dominates", which on a flat 100-spot worksite at width 8 capped the partition near 16 to 32 units and contradicted the flat-worksite rule in `references/taxonomy.md` (worker count = unit count). It now reads one rule: the min-unit floor, not the wave width, is the only reason to merge independent spots, and width bounds each wave, never the unit count. `references/taxonomy.md` Granularity honesty and the README bullet now state the 2-4x figure as an observation about wall-clock, not a cap. The README's measured benchmark data is unchanged (E1 t113 finding 1).
+
 ## [0.14.4] - 2026-10-15
 
 The machine reading no longer misreads memory or confined CPUs

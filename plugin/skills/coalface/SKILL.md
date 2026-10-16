@@ -97,7 +97,7 @@ or clean.
 
 **1 · SCOUT (mandatory, P3).** Survey the worksite FIRST. Scout sub(s) return: the SPOT LIST (each with its file/range or unit id) · the DEPENDENCY GRAPH between spots · the INVARIANTS to lock · the DOMAIN GATE to run at the end · the recommended SWARM-MODE · the SHARED-DIGEST (paid once by the scout, shipped in every contract, P4).
 
-**2 · PARTITION (deterministic, P5/P6).** Interval-intersection check on the spot ranges: OVERLAPPING spots merge into one unit or chain as a dependency; a unit smaller than spawn overhead merges with a neighbor (the min-unit floor). Don't slice finer than ~2-4× the wave width: overhead dominates (`references/taxonomy.md`). Unit count sizes the swarm.
+**2 · PARTITION (deterministic, P5/P6).** Interval-intersection check on the spot ranges: OVERLAPPING spots merge into one unit or chain as a dependency; a unit smaller than spawn overhead merges with a neighbor (the min-unit floor). Only the min-unit floor merges independent spots; wave width bounds each wave, never the unit count (`references/taxonomy.md`). Unit count sizes the swarm.
 
 **3 · HEADS-UP (conditional, non-blocking, P7).** Job dwarfs the prompt → the one-liner above, then proceed.
 

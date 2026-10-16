@@ -175,7 +175,7 @@ Full series matrix + the must-fail set: [Permission Matrix](https://github.com/T
 
 The structure sets the shape:
 
-- **Wall-clock saturates at wave width.** Wall ≈ ceil(N / width) × unit-time — a 100-spot job at width 4 runs ~25 waves, not 100× faster; slicing finer than ~2-4× the width buys nothing, and a full dependency chain degrades to a pipeline with **no speedup at all**.
+- **Wall-clock saturates at wave width.** Wall ≈ ceil(N / width) × unit-time — a 100-spot job at width 4 runs ~25 waves, not 100× faster; slicing finer than ~2-4× the width buys no wall-clock (an observation: the only reason to merge independent spots is the min-unit floor), and a full dependency chain degrades to a pipeline with **no speedup at all**.
 - **The wallet is a DOLLAR bound, not free.** Spawn overhead is real and raw tokens run *higher* than solo; on cheaper worker tiers the swarm's **dollar** cost lands about the estimated solo dollar cost — "about solo cost in $, much faster, with QC", never "fewer tokens"; with main-equivalent workers it can exceed it.
 
 ## 🧭 Part of TheColliery

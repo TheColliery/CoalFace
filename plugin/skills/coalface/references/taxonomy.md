@@ -58,4 +58,4 @@ in order, and the flat bulk fills the width. One receipt covers the lot.
 
 ## Granularity honesty
 
-Granularity honesty: "finer = faster" saturates — beyond N ≈ 2-4× wave width overhead dominates → pick near-optimum inside the floor and the width ceiling. (SKILL.md step 2 carries the action line; the min-unit floor bounds from below, this bounds from above.)
+Granularity honesty: "finer = faster" saturates — wall-clock ≈ ceil(N / width) × unit-time, so beyond roughly 2-4× the wave width finer slices add spawn overhead and no wall-clock. That is an OBSERVATION, not a cap: the rule SKILL.md step 2 states is one rule, the min-unit floor. Merge a unit that is below the floor into a neighbour; never merge independent spots that clear it just because there are many (mode 1 keeps worker count = unit count, and a spot is the QC and rollback grain). Width bounds each wave, not the unit count. The README's measured cheapest arm (coarse packing, 2 spots per worker on a 6-spot job) is consistent with the floor, not proof of a width cap: its spots were small enough that packing them cleared the floor.
