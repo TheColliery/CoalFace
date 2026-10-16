@@ -2,7 +2,7 @@
  "note": "Per-file expectations for scripts/test.mjs (scripts/lib/suite-run.mjs). floors: the file must report at least this many tests (a ratchet: raise it with the file, lower it only on purpose). names: the file must report each listed top-level test name. Every roster file has exactly one entry. Keep: node scripts/test.mjs --counts, --names <file>.",
  "floors": {
   "scripts/lib/config-schema.test.mjs": 7,
-  "scripts/machine-reading.test.mjs": 28,
+  "scripts/machine-reading.test.mjs": 30,
   "scripts/lib/jsonc.test.mjs": 3,
   "scripts/lib/hooks.test.mjs": 88,
   "scripts/lib/desc-cap.test.mjs": 7,
@@ -14,7 +14,7 @@
   "scripts/lib/git-env.test.mjs": 3,
   "scripts/lib/test-child-env.test.mjs": 4,
   "scripts/lib/wave-run.test.mjs": 39,
-  "scripts/lib/suite-run.test.mjs": 13,
+  "scripts/lib/suite-run.test.mjs": 14,
   "scripts/secret-scan.test.mjs": 47,
   "scripts/secret-gate.test.mjs": 18,
   "scripts/build-plugin.test.mjs": 10,

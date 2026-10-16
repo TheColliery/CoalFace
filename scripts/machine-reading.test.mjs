@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { spawnSync } from 'node:child_process';
@@ -8,6 +9,14 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCRIPT = path.join(repo, 'skills', 'coalface', 'scripts', 'machine-reading.mjs');
 const { decide, cpuBusyFromTimes, cgroupCpu, parseArgs, formatLine, DEFAULTS } = await import(pathToFileURL(SCRIPT).href);
+
+// 16e R4 (T7, the room half): a child this file starts gets a sandbox for HOME, USERPROFILE and the temp folders, never the operator's own (the canon's 15h rule for a child a test
+// starts). The reading itself touches neither, so this changes no verdict; it keeps a stray write or a future config read out of the operator's profile.
+function sandboxEnv(t) {
+  const dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'cf-mr-home-')));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  return { ...process.env, HOME: dir, USERPROFILE: dir, TEMP: dir, TMP: dir, TMPDIR: dir, NODE_OPTIONS: '--max-old-space-size=2048' };
+}
 
 const idle = { cpuBusyPct: 5, cpuSource: 'host', memFreePct: 60 };
 // running: 1 = the caller already holds a unit, so the reading alone decides (running 0 always admits one)
@@ -96,8 +105,8 @@ test('formatLine: the human line names verdict, cpu source, memory and GPU N/A',
 });
 
 // One spawn test of the CLI: shape only, never a live verdict.
-test('CLI: --json prints the structured reading; exit code is 0 or 1; --help 0; unknown flag 64 with usage on stderr', () => {
-  const env = { ...process.env, NODE_OPTIONS: '--max-old-space-size=2048' };
+test('CLI: --json prints the structured reading; exit code is 0 or 1; --help 0; unknown flag 64 with usage on stderr', (t) => {
+  const env = sandboxEnv(t);
   const j = spawnSync(process.execPath, [SCRIPT, '--json'], { encoding: 'utf8', timeout: 60000, env });
   assert.ok([0, 1].includes(j.status), `exit ${j.status}: ${j.stderr}`);
   const o = JSON.parse(j.stdout);
@@ -223,8 +232,8 @@ test('usable cores: a box where usable equals the CPU count keeps the WEIGHTED w
 });
 
 // The live path with no process.availableMemory (a runtime before Node 22.0.0, simulated by a preload that deletes it): the memory axis is UNMEASURED, never os.freemem().
-test('CLI: with process.availableMemory absent the memory axis prints UNMEASURED (null), never an os.freemem() figure', () => {
-  const env = { ...process.env, NODE_OPTIONS: '--max-old-space-size=2048' };
+test('CLI: with process.availableMemory absent the memory axis prints UNMEASURED (null), never an os.freemem() figure', (t) => {
+  const env = sandboxEnv(t);
   const r = spawnSync(process.execPath, ['--import', 'data:text/javascript,delete process.availableMemory;', SCRIPT, '--json', '--running', '1'], { encoding: 'utf8', timeout: 60000, env });
   assert.ok([0, 1].includes(r.status), `exit ${r.status}: ${r.stderr}`);
   assert.equal(JSON.parse(r.stdout).memFreePct, null);
@@ -244,10 +253,27 @@ test('CLI live path: the usable count (os.availableParallelism) reaches the CPU 
     'os.cpus = () => snap(calls++ > 0);',
     'os.availableParallelism = () => 2;',
   ].join('\n'));
-  const env = { ...process.env, NODE_OPTIONS: '--max-old-space-size=2048' };
+  const env = sandboxEnv(t);
   const r = spawnSync(process.execPath, ['--import', pathToFileURL(preload).href, SCRIPT, '--json', '--running', '1'], { encoding: 'utf8', timeout: 60000, env });
   assert.ok([0, 1].includes(r.status), `exit ${r.status}: ${r.stderr}`);
   const o = JSON.parse(r.stdout);
   if (o.cpuSource !== 'host') { t.skip(`this runner reads the CPU from ${o.cpuSource}, not the host times (capability probe)`); return; }
   assert.equal(o.cpuBusyPct, 100);
+});
+
+// 16e R4, the env-probe shape of the canon's 15h: the child the CLI tests start sees the sandbox, not the operator's HOME.
+test('a child started with sandboxEnv sees the sandbox HOME, USERPROFILE and TMPDIR, and none of the operator home', (t) => {
+  const env = sandboxEnv(t);
+  const r = spawnSync(process.execPath, ['-e', 'process.stdout.write(JSON.stringify([process.env.HOME, process.env.USERPROFILE, process.env.TMPDIR, process.env.TEMP, process.env.TMP]))'], { encoding: 'utf8', timeout: 60000, env });
+  assert.equal(r.status, 0, r.stderr);
+  const seen = JSON.parse(r.stdout);
+  assert.ok(seen.every((v) => v === env.HOME), 'every home and temp variable is the sandbox');
+  assert.notEqual(env.HOME, process.env.HOME);
+  assert.ok(fs.existsSync(env.HOME));
+});
+
+test('no spawn in this file hands a child the process environment unsandboxed', () => {
+  const src = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8');
+  const code = src.split(/\r?\n/).filter((l) => !l.trim().startsWith('//')).join('\n');
+  assert.equal((code.match(/\.\.\.process\.env/g) ?? []).length, 1, 'only sandboxEnv itself spreads process.env');
 });

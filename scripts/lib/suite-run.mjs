@@ -75,7 +75,7 @@ function killTree(child) { // wave-run.mjs does not export its own; the same two
   try { process.kill(-child.pid, 'SIGKILL'); } catch (e) { if (e.code !== 'ESRCH') child.kill('SIGKILL'); }
 }
 
-export function runPinned({ file, cwd, env = process.env, heapMb, fileTimeoutMs, deadlineMs }) {
+export function runPinned({ file, cwd, env = process.env, heapMb, fileTimeoutMs, deadlineMs, fileClockMs }) {
   return new Promise((resolve) => {
     const syncEnv = withStdoutSync(env);
     const childEnv = { ...syncEnv, NODE_OPTIONS: nodeOptionsWithHeap(syncEnv.NODE_OPTIONS, heapMb) };
@@ -91,7 +91,9 @@ export function runPinned({ file, cwd, env = process.env, heapMb, fileTimeoutMs,
     child.stderr.setEncoding('utf8');
     child.stdout.on('data', (d) => { out += d; });
     child.stderr.on('data', (d) => { err += d; });
-    const timer = setTimeout(() => { killedBy = 'killed at the whole-run deadline'; killTree(child); }, deadlineMs);
+    // 16e R3: a pinned file has the per-file clock too (a file hung before its first test is outside --test-timeout); the earlier of the two clocks fires and names itself.
+    const byClock = fileClockMs !== undefined && fileClockMs < deadlineMs;
+    const timer = setTimeout(() => { killedBy = byClock ? `killed at the file clock (${fileClockMs} ms)` : 'killed at the whole-run deadline'; killTree(child); }, byClock ? fileClockMs : deadlineMs);
     const finish = (code, signal, startError) => {
       if (done) return;
       done = true;
@@ -128,7 +130,7 @@ export async function runSuite(opts) {
       byFile.set(file, { file, name: file, status: STATUS.NOT_RUN, reason: 'the whole-run deadline was reached before this file started', counts: null, failing: [] });
       continue;
     }
-    const { result, names } = await runPinned({ file, cwd, env, heapMb, fileTimeoutMs, deadlineMs: left });
+    const { result, names } = await runPinned({ file, cwd, env, heapMb, fileTimeoutMs, deadlineMs: left, fileClockMs });
     if (result.status === STATUS.PASS || result.status === STATUS.SKIP) {
       const { missing, extra } = judgeNames(expect.names[file], names);
       if (missing.length) { result.status = STATUS.FAIL; result.reason = `expected test name(s) missing: ${listSome(missing)}`; }
