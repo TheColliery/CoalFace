@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import os from 'node:os';
-import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -115,7 +114,7 @@ test('CLI: --json prints the structured reading; exit code is 0 or 1; --help 0; 
 });
 
 // 09a: the canon wave runner (scripts/lib/wave-run.mjs, adopted by blob id) calls the reading as a sibling file, scripts/lib/machine-reading.mjs, and its own test holds that copy to
-// blob 1c550b66. This room therefore keeps THREE copies of one file (skills/coalface/scripts/ the source, its plugin/ twin, scripts/lib/ for the runner): a NAMED duplication, the
+// blob 5f861a34, the same blob as the source (it read 1c550b66 until the canon re-pinned). This room therefore keeps THREE copies of one file (skills/coalface/scripts/ the source, its plugin/ twin, scripts/lib/ for the runner): a NAMED duplication, the
 // canon's rule being that the file is never edited in a room, so the copies change together or this test goes red.
 test('the three copies of machine-reading.mjs are byte for byte one file (the source, its plugin/ twin, and the copy the canon wave runner reads)', async () => {
   const fs = await import('node:fs');
@@ -123,12 +122,7 @@ test('the three copies of machine-reading.mjs are byte for byte one file (the so
   const [src, twin, runner] = copies.map((p) => fs.readFileSync(p));
   assert.ok(src.length > 0);
   assert.ok(src.equals(twin), 'the plugin/ twin differs from the source');
-  // 15b: the source moved ahead of the canon pin (CWK2-023/025 phase 1). scripts/lib/machine-reading.mjs stays at the blob the canon wave runner's own test pins until the
-  // canon re-adopts the new file by blob id (the chief's order, BB-87); it is never edited here. So it must be the source OR that one pinned blob, and nothing else.
-  const blobId = (buf) => createHash('sha1').update(Buffer.concat([Buffer.from(`blob ${buf.length}\0`), buf])).digest('hex');
-  const CANON_PINNED = '1c550b6605125aebda5a2552294eaeb9a5d488ba';
-  const runnerLf = Buffer.from(runner.toString('utf8').replace(/\r\n/g, '\n'), 'utf8');
-  assert.ok(src.equals(runner) || blobId(runnerLf) === CANON_PINNED, 'scripts/lib/machine-reading.mjs is neither the source nor the canon-pinned blob: re-copy it, never edit it (an improvement goes to the canon through the chief)');
+  assert.ok(src.equals(runner), 'scripts/lib/machine-reading.mjs differs from the source: re-copy it, never edit it (an improvement goes to the canon through the chief)');
 });
 
 // ---------------------------------------------------------------------------

@@ -13,7 +13,7 @@
   "scripts/lib/git-env-census.test.mjs": 222,
   "scripts/lib/git-env.test.mjs": 3,
   "scripts/lib/test-child-env.test.mjs": 4,
-  "scripts/lib/wave-run.test.mjs": 38,
+  "scripts/lib/wave-run.test.mjs": 39,
   "scripts/lib/suite-run.test.mjs": 13,
   "scripts/secret-scan.test.mjs": 47,
   "scripts/secret-gate.test.mjs": 18,
