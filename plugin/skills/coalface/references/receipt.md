@@ -39,6 +39,7 @@ Task        : <one line>
 Spots       : <found> found -> <units> units (merged <n> overlaps, <n> tiny)
 Workers     : <spawned> spawned · <ok> ok · <reworked> reworked once · <quarantined> quarantined
 Waves       : <n>   Effective width: <settled>/<platform cap> (<why, e.g. "account tier" | "as configured">)
+Machine     : <domain-gate and heavy local runs held or queued by the machine reading; none -> "none">
 Tokens      : swarm ~<Y> vs solo est ~<X>  (swarm runs HIGHER — fan-out xN; wallet win is $ + wall-time)
 Applied     : <n> orders · <n> skip-and-flag (anchor miss) · gate: <PASS | RED -> rolled back>
 Quarantined : <unit>: <reason>  (one line each; empty -> "none")

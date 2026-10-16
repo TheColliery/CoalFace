@@ -4,6 +4,16 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.14.7] - 2026-10-16
+
+The receipt gains a Machine line and the test hygiene findings are closed
+
+### Changed
+- **The receipt block has a `Machine` line** (`skills/coalface/references/receipt.md`): domain-gate and heavy local runs held or queued by the machine reading, or "none". The field note added at 0.14.6 asked for it as its own line and the block above had none (E1 t133 finding 6).
+- **`findProjectCfg` is removed from `hooks/coalface-conductor.js`'s exports.** No importer existed (`scripts/configure.mjs` walks with `findProjectHit`); no behaviour changes.
+- **Test hygiene (internal; no shipped change):** the `removeTree` retry leg skips visibly, alone, where the volume lets a held directory go, and both wall-clock bounds are replaced by a call count on a stub (t133 findings 1 and 2); the room's half of the child-sandbox finding, `holdCwd` and the two pinned files of `scripts/lib/suite-run.test.mjs` now run in a throwaway HOME and TEMP (finding 3); `scripts/machine-reading.test.mjs` checks the sandbox at the spawn instead of counting spreads (finding 5); the test of `gitTestEnv` strips and plants keys case-insensitively; a leg reads `platform-configs/hooks.json` and holds the Antigravity entry to its own command-string schema, so the exec form of the Claude Code manifest cannot leak into it (`scripts/lib/hooks.test.mjs`).
+- **The canon's `front-door-links` is adopted by blob** (the outward-link check of the front-door docs): `.github/workflows/front-door-links.yml` `7c582bd7`, `scripts/front-door-links.mjs` `3793a056`, `scripts/lib/front-door-links.mjs` `7df59db6`, `scripts/front-door-links.test.mjs` `3cff2b30`; the test is in the suite roster (internal; no shipped change).
+
 ## [0.14.6] - 2026-10-16
 
 The self-update nudge now follows updateMode, and the docs match the code
