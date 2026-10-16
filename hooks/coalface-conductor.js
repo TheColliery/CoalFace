@@ -438,7 +438,14 @@ function main() {
   // mode 'off' -> no directive; self-update is ORTHOGONAL (its own off-switch is
   // updateMode), so it still fires when the discipline is off — the keys are independent.
   if (updateDue(cfg)) {
-    msg += (msg ? ' ' : '[CoalFace] ') + '[self-update due] Offer the /coalface:update check: web-check the latest CoalFace tag vs the installed plugin.json version; if newer, OFFER `claude plugin update coalface@coalface`; if current, say "up to date"; if git/network is unavailable, say so and suggest updating manually later (never assume). Consent-gated; the hook only scheduled it.';
+    // Per updateMode, like the sibling conductors: auto = the standing consent covers the CHECK (never the update itself), ask = offer the check, remind = one line, no check.
+    const updateMode = lc(cfg.updateMode || 'ask');
+    const nudge = updateMode === 'auto'
+      ? '[self-update due] Standing consent (updateMode auto): run the /coalface:update check now: web-check the latest CoalFace tag vs the installed plugin.json version; if newer, OFFER `claude plugin update coalface@coalface` and never apply it unasked; if current, say "up to date"; if git/network is unavailable, say so and suggest updating manually later (never assume). The hook only scheduled it.'
+      : updateMode === 'remind'
+        ? '[self-update due] Reminder only (updateMode remind): tell the user in one line that a CoalFace update check is due and they can run /coalface:update when they like; do not web-check and do not ask.'
+        : '[self-update due] Offer the /coalface:update check: web-check the latest CoalFace tag vs the installed plugin.json version; if newer, OFFER `claude plugin update coalface@coalface`; if current, say "up to date"; if git/network is unavailable, say so and suggest updating manually later (never assume). Consent-gated; the hook only scheduled it.';
+    msg += (msg ? ' ' : '[CoalFace] ') + nudge;
   }
   // AL-2: applied to the FINAL message (after the update nudge), never to directiveFor's
   // own text alone — see languageLock's own comment for the hole this closes. Prefix at

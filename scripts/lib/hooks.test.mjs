@@ -1589,3 +1589,29 @@ test('exec form: the entry hooks/hooks.json wires starts the conductor, and stdo
     assert.strictEqual(r.stdout, directiveFor({ coalfaceMode: 'auto' }), 'stdout is the auto directive and nothing else');
   } finally { clean(home, cwd); }
 });
+
+// 16e R6 (T12): the self-update nudge branches on updateMode like the sibling conductors. Before, remind / ask / auto all printed the one ask-shaped line, so the
+// documented "auto = check without asking" and "remind = a one-line reminder" were not what the hook said.
+test('R6: the update nudge is per updateMode -- auto runs the check then offers, ask offers the check, remind is one line with no check, off is silent', () => {
+  const lines = {};
+  for (const mode of ['auto', 'ask', 'remind', 'off']) {
+    const { home, cwd } = sandbox();
+    try {
+      writeGlobalCfg(home, { coalfaceMode: 'off', updateMode: mode });
+      const r = run(cwd, home);
+      assertGraceful(r);
+      lines[mode] = r.stdout;
+      if (mode === 'off') assert.strictEqual(fs.existsSync(stampPath(home)), false, 'off schedules nothing');
+    } finally { clean(home, cwd); }
+  }
+  assert.strictEqual(lines.off, '', 'off stays silent');
+  assert.match(lines.auto, /self-update due/);
+  assert.match(lines.auto, /Standing consent \(updateMode auto\): run the \/coalface:update check now/);
+  assert.match(lines.auto, /never apply it unasked/);
+  assert.match(lines.ask, /self-update due\] Offer the \/coalface:update check/);
+  assert.doesNotMatch(lines.ask, /Standing consent/);
+  assert.match(lines.remind, /self-update due\] Reminder only \(updateMode remind\)/);
+  assert.doesNotMatch(lines.remind, /OFFER|latest CoalFace tag/, 'remind asks for no check and offers no update');
+  assert.notStrictEqual(lines.auto, lines.ask);
+  assert.notStrictEqual(lines.ask, lines.remind);
+});
