@@ -27,7 +27,7 @@ import fs from 'node:fs';
 export function gitTestEnv(ceilingDir) {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
-    if (key.startsWith('GIT_')) delete env[key];
+    if (/^GIT_/i.test(key)) delete env[key];
   }
   env.GIT_CEILING_DIRECTORIES = ceilingDir;
   env.GIT_EDITOR = 'false';

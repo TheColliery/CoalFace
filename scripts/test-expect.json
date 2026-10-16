@@ -9,7 +9,7 @@
   "scripts/lib/claude-ai-trim.test.mjs": 9,
   "scripts/lib/config-keys.test.mjs": 27,
   "scripts/lib/pointer-check.test.mjs": 60,
-  "scripts/lib/git-test-env.test.mjs": 10,
+  "scripts/lib/git-test-env.test.mjs": 11,
   "scripts/lib/git-env-census.test.mjs": 222,
   "scripts/lib/git-env.test.mjs": 3,
   "scripts/lib/test-child-env.test.mjs": 4,

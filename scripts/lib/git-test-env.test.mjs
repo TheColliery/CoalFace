@@ -159,3 +159,22 @@ test('removeTree throws a non-hold error at once, without retrying', () => {
   assert.throws(() => removeTree(42, { budgetMs: 5000 }), (e) => e && e.code === 'ERR_INVALID_ARG_TYPE');
   assert.ok(Date.now() - t0 < 1000, 'no retry loop on an error that is not a hold');
 });
+
+// 16e R2 (T5, T14): Windows keeps the spelling an env key was set with and git reads it case-insensitively, so a `Git_Dir` slips a case-sensitive `GIT_` strip.
+test('gitTestEnv: strips a GIT_ key whatever its letter case (Windows keeps the spelling)', () => {
+  const saved = { ...process.env };
+  try {
+    process.env.Git_Dir = '/somewhere/.git';
+    process.env.git_index_file = '/somewhere/.git/index';
+    const env = gitTestEnv('/ceiling');
+    const own = ['GIT_CEILING_DIRECTORIES', 'GIT_EDITOR', 'GIT_TERMINAL_PROMPT'];
+    for (const key of Object.keys(env)) {
+      assert.ok(!/^git_/i.test(key) || own.includes(key) || key.startsWith('GIT_CONFIG_'), `${key} is a GIT_* key (any case) that survived the strip`);
+    }
+  } finally {
+    for (const key of Object.keys(process.env)) {
+      if (/^git_/i.test(key) && !(key in saved)) delete process.env[key];
+    }
+    Object.assign(process.env, saved);
+  }
+});
