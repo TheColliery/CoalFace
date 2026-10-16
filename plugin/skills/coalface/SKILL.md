@@ -109,7 +109,7 @@ or clean.
 
 **7 · APPLY — you are the SINGLE WRITER.** SNAPSHOT (P16) → apply accepted orders SEQUENTIALLY, topological order (anchor-miss: F2; ALL-OR-NOTHING units: F3/P17) → DOMAIN GATE (code → build+test · corpus → corpus rules · docs → lint+links · data → schema-validate · research → citations; red: F4/P18) → report via the receipt.
 
-**8 · RECEIPT (always).** Spots found · workers used · waves · effective width · tokens vs the solo-baseline estimate · quarantined items + why · test-uncovered flags. Format + layman wording: `references/receipt.md`. The receipt + heads-up speak the USER'S language; technical terms stay verbatim.
+**8 · RECEIPT (always).** Spots found · workers used · waves · effective width · machine holds · tokens vs the solo-baseline estimate · quarantined items + why · test-uncovered flags. Format + layman wording: `references/receipt.md`. The receipt + heads-up speak the USER'S language; technical terms stay verbatim.
 
 ## Swarmability taxonomy (the scout classifies; no worksite "breaks")
 | Worksite shape | Mode |
