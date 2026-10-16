@@ -38,6 +38,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { CONFIG_SCHEMA, validateValue } from './lib/config-schema.mjs';
 import { parseJsonc } from './lib/jsonc.mjs';
+import { mkdirRepoParents, RepoWriteRefused } from './lib/repo-fs.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -217,7 +218,14 @@ async function main() {
   }
 
   try {
-    fs.mkdirSync(path.dirname(writePath), { recursive: true });
+    // CWK2-042: the parent folder is made only after the chain from the write root is judged (a link or a file on the way is refused with a sentence, nothing is made beyond a
+    // checked component). The user-global config has no project root and keeps the plain recursive make.
+    try { mkdirRepoParents(path.dirname(writePath), isGlobal ? null : writeLvl); } catch (e) {
+      if (!(e instanceof RepoWriteRefused)) throw e;
+      console.error(`FAIL ${e.message}`);
+      process.exitCode = 1;
+      return;
+    }
     fs.writeFileSync(writePath, JSON.stringify(cfg, null, 2) + '\n', 'utf8');
     // Move-on-CONFIG-WRITE-only (no-old-version-leftover): the legacy file (root or
     // nested) is removed only AFTER the new-home write above succeeded, and only when this write

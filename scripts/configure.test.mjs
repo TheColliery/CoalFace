@@ -391,3 +391,30 @@ test('a LEGACY .coalface.json found in a PARENT folder is migrated at the parent
   assert.deepEqual(JSON.parse(fs.readFileSync(migrated, 'utf8')), { bandwidth: 10, autoFanoutFloor: 8 });
   assert.deepEqual(fs.readdirSync(sub), [], 'nothing is created in the subfolder');
 });
+
+// CWK2-042 (16f wave 2): the parent folder is made only after the chain is judged. The up-front pin passes a FILE named .claude (it resolves to itself), and the recursive mkdir
+// then failed with a raw errno; the walk refuses it with a sentence that names the path and the fix, and nothing is written.
+test('CWK2-042 configure: a FILE named .claude -> refused with a FAIL line that names the path and the fix, never a raw errno, and the file is untouched', () => {
+  const { home, project } = sandbox();
+  try {
+    fs.writeFileSync(path.join(project, '.claude'), 'keep me');
+    const r = run(['--bandwidth', '40'], { cwd: project, home });
+    assert.notEqual(r.status, 0, r.stdout);
+    const fail = r.stderr.split('\n').find((l) => l.startsWith('FAIL '));
+    assert.ok(fail, `no FAIL line on stderr: ${r.stderr}`);
+    assert.ok(fail.includes(path.join(fs.realpathSync.native(project), '.claude')), `the FAIL line does not name the path: ${fail}`);
+    assert.match(fail, /exists and is not a directory/);
+    assert.match(fail, /make that path a real folder inside the project/);
+    assert.doesNotMatch(r.stderr, /Failed to write to config file|EEXIST|ENOTDIR|\n\s+at /);
+    assert.equal(fs.readFileSync(path.join(project, '.claude'), 'utf8'), 'keep me');
+  } finally { for (const d of [home, project]) fs.rmSync(d, { recursive: true, force: true }); }
+});
+
+test('CWK2-042 configure: the plain case and a missing parent inside the project still write (the walk makes the chain)', () => {
+  const { home, project } = sandbox();
+  try {
+    const r = run(['--bandwidth', '40'], { cwd: project, home });
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(project, '.claude', 'coal', 'coalface.json'), 'utf8')), { bandwidth: 40 });
+  } finally { for (const d of [home, project]) fs.rmSync(d, { recursive: true, force: true }); }
+});

@@ -27,6 +27,8 @@ const TESTS = [
   'scripts/lib/config-keys.test.mjs',
   'scripts/lib/pointer-check.test.mjs',
   'scripts/lib/git-test-env.test.mjs',
+  // CWK2-042: the parent-folder walk configure.mjs makes its folders with (a non-shipped scripts/lib module).
+  'scripts/lib/repo-fs.test.mjs',
   // CWK-133 / CWK-136 / 09a: the canon git-spawn census (adopted by blob id from .github), wired into scripts/verify.mjs.
   'scripts/lib/git-env-census.test.mjs',
   // 09a: this room's side of the canon census: its pins, measured, over the room's real sources (git-env-census.mjs and its test are the canon's).
