@@ -4,6 +4,11 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- **Docs and internal, no shipped change:** the eleven overlay files are re-copied from the canon by blob (`scripts/lib/wave-run.mjs` `b60827c6`, `scripts/lib/wave-run.test.mjs` `bccbaa58`, `scripts/lib/release-prune.mjs` `7f33a695`, `scripts/lib/release-prune.test.mjs` `96a4cceb`, `scripts/lib/asset-upload-mode.mjs` `0022e6fa`, `scripts/lib/asset-upload-mode.test.mjs` `573349d2`, `scripts/verify-release-shape.mjs` `270e43d1`, `scripts/verify-release-shape.test.mjs` `7c2b35c4`, `scripts/release-notes.test.mjs` `f9dde432`, `scripts/lib/git-env-census.test.mjs` `c6b301cd`, `scripts/lib/git-env-census.vectors.mjs` `6dc3ad82`); `SECURITY.md` names the check-then-make race residual of the project-config write and the link rule its folder walk follows; `NOTICE` is conformed to the canon template; the README badge row gains the CodeRabbit reviews badge.
+
 ## [0.14.7] - 2026-10-16
 
 The receipt gains a Machine line and the test hygiene findings are closed

@@ -9,6 +9,7 @@
 ![version](https://img.shields.io/github/v/tag/TheColliery/CoalFace?sort=semver&label=version&color=blue)
 ![license](https://img.shields.io/badge/license-Apache_2.0-blue)
 ![status](https://img.shields.io/badge/status-stable-brightgreen)
+![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/TheColliery/CoalFace?utm_source=oss&utm_medium=github&utm_campaign=TheColliery%2FCoalFace&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
 
 *Compatibility: **validated** on Claude Code · **works with** every other concurrent-subagent platform (Antigravity, Cursor, Codex, Gemini CLI, Cline, Copilot — installs and runs, not yet run by us; see the table for Antigravity's wired-but-unvalidated auto-conductor detail) · claude.ai has no subagents at all, so the contract's built-in sequential-pipeline degrade is what applies there, and no upload of ours has confirmed the install path yet — see the Compatibility table below.*
 
