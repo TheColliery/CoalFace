@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { gitTestEnv } from './git-env.mjs';
+import { gitTestEnv, removeTree } from './git-env.mjs';
 
 test('gitTestEnv: strips every GIT_-prefixed key, whatever the name', () => {
   const saved = { ...process.env };
@@ -96,6 +96,66 @@ test('gitTestEnv: a fixture commit and tag do not wait on a signer, even when th
     assert.equal(g.status, 0, 'tag must not wait on the signer: ' + (g.error ? g.error.code : '') + g.stderr);
   } finally {
     for (const k of ['HOME', 'USERPROFILE', 'XDG_CONFIG_HOME']) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; }
-    fs.rmSync(root, { recursive: true, force: true });
+    removeTree(root); // 16e: a killed git launcher leaves the real git (and the signer) holding the project; see the removeTree tests below
   }
+});
+
+// ---------------------------------------------------------------------------
+// 16e item 2 (CWK-041, the EBUSY class; the cure is CoalWash's removeTree, v1.12.4). Windows will not remove a directory a live process holds as its cwd. When spawnSync kills
+// Git for Windows' launcher (cmd/git.exe) at its clock, the real git.exe (and a gpg.program it started) lives on inside the fixture project, and the teardown rmSync fails with
+// EPERM/EBUSY, masking the assertion that explains the kill. Measured on this box (scratchpad/16e/witness-launcher.out, 3 of 3): launcher first on PATH, the f2 scenario above with
+// its guard removed, commit killed at 3 s, plain rmSync EPERM after ~20 ms, a loop of fresh calls clears it at 9.3-9.4 s; with the real git first on PATH (the box's own order,
+// witness.out) plain rmSync removed it in under 30 ms, 3 of 3, so the class shows only where PATH finds the launcher, as on CI's windows-latest.
+// ---------------------------------------------------------------------------
+import { spawn } from 'node:child_process';
+
+// A child that holds `dir` as its cwd for `holdMs`; resolves once it says so.
+function holdCwd(dir, holdMs) {
+  const child = spawn(process.execPath, ['-e', `process.stdout.write('ready'); setTimeout(() => {}, ${holdMs});`], { cwd: dir, stdio: ['ignore', 'pipe', 'ignore'] });
+  const closed = new Promise((resolve) => child.on('close', resolve));
+  const ready = new Promise((resolve, reject) => { child.stdout.once('data', resolve); child.once('error', reject); });
+  return { child, ready, closed };
+}
+
+test('removeTree removes a temp project while a child process still holds it as its cwd', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-rt-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const h = holdCwd(dir, 2000);
+  await h.ready;
+  removeTree(dir);
+  assert.equal(fs.existsSync(dir), false, 'the held project is removed once the holder exits');
+  await h.closed;
+});
+
+test('the instrument: a plain rmSync refuses the same held directory (skipped where the volume lets a held directory go)', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-rt-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const h = holdCwd(dir, 1500);
+  await h.ready;
+  let code = null;
+  try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { code = e && e.code; }
+  await h.closed;
+  if (code === null) { t.skip('this volume removed a directory a live process holds as its cwd (capability probe; Windows refuses)'); return; }
+  assert.ok(['EBUSY', 'EPERM', 'ENOTEMPTY'].includes(code), `plain rmSync failed with ${code}`);
+});
+
+test('removeTree gives up at its budget with the hold error, so a real leak stays loud (skipped where nothing holds)', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-rt-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const h = holdCwd(dir, 3000);
+  await h.ready;
+  const t0 = Date.now();
+  let code = null;
+  try { removeTree(dir, { budgetMs: 400, pollMs: 50 }); } catch (e) { code = e && e.code; }
+  const took = Date.now() - t0;
+  await h.closed;
+  if (code === null && took < 400) { t.skip('this volume removed a held directory at once (capability probe; Windows refuses)'); return; }
+  assert.ok(['EBUSY', 'EPERM', 'ENOTEMPTY'].includes(code), `expected the hold error at the budget, got ${code} after ${took} ms`);
+  assert.ok(took >= 400 && took < 2500, `gave up after ${took} ms, the budget is 400`);
+});
+
+test('removeTree throws a non-hold error at once, without retrying', () => {
+  const t0 = Date.now();
+  assert.throws(() => removeTree(42, { budgetMs: 5000 }), (e) => e && e.code === 'ERR_INVALID_ARG_TYPE');
+  assert.ok(Date.now() - t0 < 1000, 'no retry loop on an error that is not a hold');
 });

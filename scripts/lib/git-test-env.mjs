@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 // r5 -- a fixture or read-only git spawn in THIS repo's own test suite must never inherit an
 // ambient GIT_* override. A LINKED WORKTREE's own pre-commit/pre-push hook exports an ABSOLUTE
 // GIT_DIR (the worktree's admin dir) and an ABSOLUTE GIT_INDEX_FILE -- both override `cwd` AND
@@ -40,4 +41,24 @@ export function gitTestEnv(ceilingDir) {
   env.GIT_CONFIG_KEY_1 = 'tag.gpgsign';
   env.GIT_CONFIG_VALUE_1 = 'false';
   return env;
+}
+
+// 16e item 2 (CWK-041, the EBUSY class; the cure is CoalWash's removeTree, v1.12.4 scripts/lib/test-plan.mjs, ported here under the same name and the same numbers).
+// A fixture project a git child ran in is removed by this, never by a bare rmSync: Windows refuses to remove a directory a live process holds as its cwd, and when
+// spawnSync kills Git for Windows' launcher (cmd/git.exe) at its clock or on ENOBUFS, the real git.exe it started (and a gpg.program under it) lives on inside the project for
+// seconds and spawnSync cannot wait for a grandchild. Measured here (git-test-env.test.mjs header): 9.3-9.4 s until fresh calls clear it, 3 of 3. Node's own
+// rmSync { maxRetries } is not the instrument: on Node 24.19 / Windows it waits for one holding shape and raised EPERM at once for another (CoalWash, e63-rmprobe.out). So:
+// fresh rmSync calls, retried on EBUSY/EPERM/ENOTEMPTY every pollMs until budgetMs, then the hold error is thrown (a real leak stays loud); any other code throws at once.
+// The budget is about 4x the longest linger CoalWash measured (7,639 ms) and 2.5x this room's longest possible hold (the f2 test's 20 s signer minus its 8 s clock).
+export const TEARDOWN_BUDGET_MS = 30000;
+export const TEARDOWN_POLL_MS = 100;
+const HELD = new Set(['EBUSY', 'EPERM', 'ENOTEMPTY']);
+export function removeTree(dir, { budgetMs = TEARDOWN_BUDGET_MS, pollMs = TEARDOWN_POLL_MS } = {}) {
+  const until = Date.now() + budgetMs;
+  for (;;) {
+    try { fs.rmSync(dir, { recursive: true, force: true }); return; } catch (e) {
+      if (!(e && HELD.has(e.code)) || Date.now() >= until) throw e;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, pollMs); // a synchronous wait: teardowns run in finally blocks and t.after alike
+    }
+  }
 }
