@@ -139,7 +139,7 @@ async function main() {
   // 14a unit 1 (E2-4 class): the project config sits in a folder a cloned repo supplies, so a link planted at the file or at a folder above it would send the read, the .bak
   // copy and the write outside the project. Every project path this run touches is pinned to its literal location BEFORE anything is read or written (the check lives in
   // hooks/coalface-conductor.js beside the read-side twin): the config found by the walk is checked against the level the walk found it at, the write target against the level it
-  // will be created under (cwd for a new or migrated config). A refused path writes nothing, removes nothing, and ends the run with one clean FAIL line. The global file is the
+  // will be created under (cwd for a new config, the found level for a migrated one). A refused path writes nothing, removes nothing, and ends the run with one clean FAIL line. The global file is the
   // user's own and is not a project path. Residue, named: check and use are two acts, so a link swapped in between is not caught (microseconds).
   const refuse = (p) => {
     console.error(`FAIL ${p}: it resolves outside its folder (a link at the file or at a folder above it); nothing was written`);

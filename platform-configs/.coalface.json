@@ -7,7 +7,7 @@
   // fully out; your platform's native fan-out is untouched.
   "coalfaceMode": "auto",
   // Percent of the platform's available subagent width a wave may use — effective wave
-  // width = floor(platform width x bandwidth%). 100 = saturate: fastest, AND it starves
+  // width = max(1, floor(platform width x bandwidth%)), never above the platform width. 100 = saturate: fastest, AND it starves
   // every sibling session on the same box/account (they share one rate limit) — allowed,
   // never the default. Setting above your account's real capacity is safe: AIMD backoff
   // settles at the real capacity (like setting a 100 MB/s download on a 10 MB/s line).

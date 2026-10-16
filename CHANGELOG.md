@@ -10,7 +10,7 @@ The self-update nudge now follows updateMode, and the docs match the code
 
 ### Fixed
 - **The self-update nudge branches on `updateMode`** (`hooks/coalface-conductor.js`, the update command already documented it): `auto` runs the `/coalface:update` web-check when due and then only OFFERS the update, never applies it unasked; `ask` offers the check; `remind` is one line that a check is due, with no check asked for; `off` stays silent. The stamp is still written only when due - test: `scripts/lib/hooks.test.mjs`.
-- **Worker-wave width has a floor of one.** `skills/coalface/SKILL.md` step 4, `references/admission-control.md` and the README state it as `max(1, floor(platform width × bandwidth%))`, never above the platform width; a platform with no fan-out still degrades to the sequential pipeline - test: none (prose that matches the existing code).
+- **Worker-wave width has a floor of one.** `skills/coalface/SKILL.md` step 4, `references/admission-control.md` and the README state it as `max(1, floor(platform width × bandwidth%))`, never above the platform width; a platform with no fan-out still degrades to the sequential pipeline - test: none (prose; no code computes the width). The same SKILL.md edit removes one Journal sentence, "The journal also feeds the receipt and any partial report", a purpose statement that commands nothing; its content still lives in `references/receipt.md`.
 - **The receipt no longer shows `4/6 — machine cap`.** `references/receipt.md` says machine admission (`maxLocalWorkers` and the machine reading) holds domain-gate and heavy local runs, is its own line, and never sets the effective width - test: none (prose).
 
 ### Changed
