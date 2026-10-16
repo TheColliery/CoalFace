@@ -11,7 +11,7 @@
   "scripts/lib/pointer-check.test.mjs": 60,
   "scripts/lib/git-test-env.test.mjs": 12,
   "scripts/lib/repo-fs.test.mjs": 9,
-  "scripts/lib/git-env-census.test.mjs": 222,
+  "scripts/lib/git-env-census.test.mjs": 231,
   "scripts/lib/git-env.test.mjs": 3,
   "scripts/lib/test-child-env.test.mjs": 4,
   "scripts/lib/wave-run.test.mjs": 39,
@@ -27,9 +27,9 @@
   "scripts/decide-upload.test.mjs": 6,
   "scripts/prune-release-zips.test.mjs": 3,
   "scripts/release-notes.test.mjs": 24,
-  "scripts/verify-release-shape.test.mjs": 14,
+  "scripts/verify-release-shape.test.mjs": 17,
   "scripts/lib/asset-upload-mode.test.mjs": 5,
-  "scripts/lib/release-prune.test.mjs": 6,
+  "scripts/lib/release-prune.test.mjs": 7,
   "scripts/lib/release-shape.test.mjs": 31
  },
  "names": {
