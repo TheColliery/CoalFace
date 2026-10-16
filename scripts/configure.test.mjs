@@ -373,3 +373,21 @@ test('E2-4 configure: the .bak position is a directory link outside the project 
   assert.equal(fs.readFileSync(path.join(dir, 'coalface.json'), 'utf8'), '{ not json', 'the malformed config was rewritten although the run was refused');
   assert.deepEqual(fs.readdirSync(outside), ['keep'], 'something was created outside the project');
 });
+
+// 16e R7 (T13): a legacy config found at a PARENT level of the folder configure runs in migrates at ITS OWN level. It used to be written back in place as a legacy file
+// (the legacy test compared the found path against the legacy shapes of cwd only), so the migration the cwd-level case performs never happened one folder up.
+test('a LEGACY .coalface.json found in a PARENT folder is migrated at the parent level, the legacy file removed, and nothing is created in the subfolder', (t) => {
+  const { home, project } = sandbox();
+  t.after(() => { fs.rmSync(home, { recursive: true, force: true }); fs.rmSync(project, { recursive: true, force: true }); });
+  const legacy = path.join(project, '.coalface.json');
+  fs.writeFileSync(legacy, JSON.stringify({ bandwidth: 10 }) + '\n');
+  const sub = path.join(project, 'sub');
+  fs.mkdirSync(sub);
+  const r = run(['--autoFanoutFloor', '8'], { cwd: sub, home });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /Migrated the project config/);
+  assert.equal(fs.existsSync(legacy), false, 'the parent legacy file is removed after the migration write');
+  const migrated = path.join(project, '.claude', 'coal', 'coalface.json');
+  assert.deepEqual(JSON.parse(fs.readFileSync(migrated, 'utf8')), { bandwidth: 10, autoFanoutFloor: 8 });
+  assert.deepEqual(fs.readdirSync(sub), [], 'nothing is created in the subfolder');
+});

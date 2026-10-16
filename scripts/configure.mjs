@@ -114,19 +114,18 @@ async function main() {
   if (isGlobal) args.splice(globalIdx, 1);
 
   // The ONE spelling of cwd for this whole run (CWK-125): findProjectCfg returns paths built from physical(startDir)
-  // (the .native spelling) and legacyPaths.includes(readPath) below is a STRING compare, so a raw process.cwd()
+  // (the .native spelling), and the write level is built from it, so a raw process.cwd()
   // spelled as a Windows 8.3 alias (the runner profile path, RUNNER~1) never matched and a legacy config was written back IN
   // PLACE, never migrated (CoalBoard 5733c20: a CI red on a runner whose username is long enough to alias).
   const cwd = physical(process.cwd());
-  const legacyPath = path.join(cwd, '.coalface.json');
   const globalPath = path.join(os.homedir(), '.claude', '.coalface.json');
   const hit = isGlobal ? null : findProjectHit('claude'); // the SAME walk as findProjectCfg('claude'), plus the level the file sits at
   const foundProjectPath = hit ? hit.file : null;
   const readPath = isGlobal ? globalPath : foundProjectPath;
   // Both LEGACY shapes the hook reads at this level (UMB-133): the root dotfile and the
   // nested `.<agent>/.coalface.json`. A config found at either migrates on this write.
-  const legacyPaths = [legacyPath, ...AGENT_DIR_ORDER.map((d) => path.join(cwd, '.' + d, '.coalface.json'))];
-  const readIsLegacy = !isGlobal && readPath !== null && legacyPaths.includes(readPath);
+  // 16e R7: read from the walk's own verdict (hit.legacy), so a legacy config found at a PARENT level migrates at that level too, not only one at cwd.
+  const readIsLegacy = !isGlobal && !!hit && hit.file !== null && hit.legacy;
   // WRITE goes back to wherever the config was found, EXCEPT a config found at a
   // LEGACY shape (root dotfile or nested) migrates on this write — to the FIRST agent dir the project
   // ALREADY HAS on disk (never a bare .claude planted into a project that only uses
@@ -135,7 +134,7 @@ async function main() {
   // a mere read; this is a CLI script the user/agent explicitly runs).
   const writePath = isGlobal
     ? globalPath
-    : (readPath === null || readIsLegacy) ? ownDirDefault(cwd, AGENT_DIR_ORDER) : readPath;
+    : readPath === null ? ownDirDefault(cwd, AGENT_DIR_ORDER) : readIsLegacy ? ownDirDefault(hit.dir, AGENT_DIR_ORDER) : readPath;
 
   // 14a unit 1 (E2-4 class): the project config sits in a folder a cloned repo supplies, so a link planted at the file or at a folder above it would send the read, the .bak
   // copy and the write outside the project. Every project path this run touches is pinned to its literal location BEFORE anything is read or written (the check lives in
@@ -146,7 +145,7 @@ async function main() {
     console.error(`FAIL ${p}: it resolves outside its folder (a link at the file or at a folder above it); nothing was written`);
     process.exitCode = 1;
   };
-  const writeLvl = (readPath === null || readIsLegacy) ? cwd : (hit && hit.dir);
+  const writeLvl = readPath === null ? cwd : (hit && hit.dir);
   if (!isGlobal) {
     if (readPath !== null && !containedWriteTarget(hit.dir, readPath)) return refuse(readPath);
     if (!containedWriteTarget(writeLvl, writePath)) return refuse(writePath);
