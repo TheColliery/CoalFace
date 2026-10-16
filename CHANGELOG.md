@@ -4,6 +4,18 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.14.6] - 2026-10-16
+
+The self-update nudge now follows updateMode, and the docs match the code
+
+### Fixed
+- **The self-update nudge branches on `updateMode`** (`hooks/coalface-conductor.js`, the update command already documented it): `auto` runs the `/coalface:update` web-check when due and then only OFFERS the update, never applies it unasked; `ask` offers the check; `remind` is one line that a check is due, with no check asked for; `off` stays silent. The stamp is still written only when due - test: `scripts/lib/hooks.test.mjs`.
+- **Worker-wave width has a floor of one.** `skills/coalface/SKILL.md` step 4, `references/admission-control.md` and the README state it as `max(1, floor(platform width × bandwidth%))`, never above the platform width; a platform with no fan-out still degrades to the sequential pipeline - test: none (prose that matches the existing code).
+- **The receipt no longer shows `4/6 — machine cap`.** `references/receipt.md` says machine admission (`maxLocalWorkers` and the machine reading) holds domain-gate and heavy local runs, is its own line, and never sets the effective width - test: none (prose).
+
+### Changed
+- **The README `Docs:` line points at the published page,** `https://docs.thecolliery.org/tools/coalface`, and the "publishing soon" note is gone.
+
 ## [0.14.5] - 2026-10-16
 
 Step 2 of the skill no longer caps the unit count at the wave width

@@ -50,9 +50,9 @@ Field notes:
 
 - **Effective width** shows the AIMD-settled value, not the configured wish — `6/14 —
   account tier` tells the user their `bandwidth` % settled at real capacity (correct
-  behavior, not an error). `4/6 — machine cap` means the `maxLocalWorkers` admission
-  bound floored it instead (`references/admission-control.md`) — also correct, never
-  an error: the excess queued, none denied. `1/<platform cap> — spawn denied` is
+  behavior, not an error). Machine admission (`maxLocalWorkers` and the machine reading, `references/admission-control.md`)
+  holds domain-gate and heavy local runs, is reported as its own line, and never sets the
+  effective width: the excess queued, none denied. `1/<platform cap> — spawn denied` is
   DIFFERENT from both: the `Agent`/`Task` (or `Bash` for `claude -p`) grant was refused,
   not chosen — F9's sequential-pipeline degrade ran instead of a swarm (CLASSIFY-BLOCK).
   State this explicitly; never let a denied fan-out read as a bandwidth/tier choice.
