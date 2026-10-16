@@ -65,7 +65,7 @@ test('a project that already has .agents (never .claude) writes there instead --
   assert.equal(fs.existsSync(path.join(project, '.claude')), false, 'must NOT plant a .claude/ this project never had');
 });
 
-// THE BRIDGE, pinned as behaviour: `findProjectCfg` (hooks/coalface-conductor.js) is
+// THE BRIDGE, pinned as behaviour: `findProjectHit` (hooks/coalface-conductor.js) is
 // the read path this test proves is actually reached -- a legacy root `.coalface.json`
 // is found via that walk, its value survives the merge, and the write migrates it
 // (move-on-CONFIG-WRITE-only) rather than leaving two config files disagreeing.
@@ -207,7 +207,7 @@ test('a __proto__-poisoned existing config is parsed with the key dropped, never
   assert.equal(Object.prototype.polluted, undefined, 'Object.prototype must be untouched by this process');
 });
 
-// ---- CWK-125 (R14 item b): configure.mjs's own cwd was the RAW process.cwd(), while findProjectCfg returns a
+// ---- CWK-125 (R14 item b): configure.mjs's own cwd was the RAW process.cwd(), while findProjectHit returns a
 // path built from physical(startDir) (the `.native` spelling). legacyPaths.includes(readPath) is a STRING compare,
 // so a cwd spelled as its Windows 8.3 alias (C:\Users\RUNNER~1\...) never matched, the legacy config was written
 // back IN PLACE and never migrated: a real CLI defect that needs an aliased cwd, which a dev box with a short

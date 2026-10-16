@@ -13,14 +13,15 @@ test('gitTestEnv: strips every GIT_-prefixed key, whatever the name', () => {
     process.env.GIT_INDEX_FILE = '/somewhere/.git/index';
     process.env.GIT_WORK_TREE = '/somewhere';
     process.env.GIT_SOME_FUTURE_KEY_NOBODY_HAS_WRITTEN_YET = 'x';
+    process.env.git_lowercase_probe_key = 'x'; // 16f item 7: Windows keeps the spelling and git reads the key in any case
     const env = gitTestEnv('/ceiling');
     for (const key of Object.keys(env)) {
-      assert.ok(!key.startsWith('GIT_') || ['GIT_CEILING_DIRECTORIES', 'GIT_EDITOR', 'GIT_TERMINAL_PROMPT'].includes(key) || key.startsWith('GIT_CONFIG_'),
+      assert.ok(!/^GIT_/i.test(key) || ['GIT_CEILING_DIRECTORIES', 'GIT_EDITOR', 'GIT_TERMINAL_PROMPT'].includes(key) || key.startsWith('GIT_CONFIG_'),
         `${key} is a GIT_* key that survived the strip`);
     }
   } finally {
     for (const key of Object.keys(process.env)) {
-      if (key.startsWith('GIT_') && !(key in saved)) delete process.env[key];
+      if (/^GIT_/i.test(key) && !(key in saved)) delete process.env[key];
     }
     Object.assign(process.env, saved);
   }
@@ -110,17 +111,35 @@ test('gitTestEnv: a fixture commit and tag do not wait on a signer, even when th
 import { spawn } from 'node:child_process';
 
 // A child that holds `dir` as its cwd for `holdMs`; resolves once it says so.
-function holdCwd(dir, holdMs) {
-  const child = spawn(process.execPath, ['-e', `process.stdout.write('ready'); setTimeout(() => {}, ${holdMs});`], { cwd: dir, stdio: ['ignore', 'pipe', 'ignore'] });
+// 16f item 3 (E1 t133 finding 5): the child sees a sandbox for HOME, USERPROFILE and the temp folders, never the operator's own.
+function holdCwd(dir, holdMs, t) {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-rt-home-'));
+  t.after(() => fs.rmSync(sandbox, { recursive: true, force: true }));
+  const env = { ...process.env, HOME: sandbox, USERPROFILE: sandbox, TEMP: sandbox, TMP: sandbox, TMPDIR: sandbox };
+  const child = spawn(process.execPath, ['-e', `process.stdout.write('ready'); setTimeout(() => {}, ${holdMs});`], { cwd: dir, env, stdio: ['ignore', 'pipe', 'ignore'] });
   const closed = new Promise((resolve) => child.on('close', resolve));
   const ready = new Promise((resolve, reject) => { child.stdout.once('data', resolve); child.once('error', reject); });
   return { child, ready, closed };
 }
 
+// 16f item 1 (E1 t133 finding 1): does THIS volume refuse to remove a directory a live process holds as its cwd? Windows does; a POSIX volume lets it go. The retry leg below
+// proves nothing where a plain rmSync would also pass, so it asks first and skips VISIBLY, alone in its own test.
+async function volumeRefusesHeldDir(t) {
+  const probe = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-rt-probe-'));
+  t.after(() => fs.rmSync(probe, { recursive: true, force: true }));
+  const h = holdCwd(probe, 1500, t);
+  await h.ready;
+  let refused = false;
+  try { fs.rmSync(probe, { recursive: true, force: true }); } catch { refused = true; }
+  await h.closed;
+  return refused;
+}
+
 test('removeTree removes a temp project while a child process still holds it as its cwd', async (t) => {
+  if (!(await volumeRefusesHeldDir(t))) { t.skip('this volume removes a directory a live process holds as its cwd, so a plain rmSync would also pass this leg (capability probe; Windows refuses)'); return; }
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-rt-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const h = holdCwd(dir, 2000);
+  const h = holdCwd(dir, 2000, t);
   await h.ready;
   removeTree(dir);
   assert.equal(fs.existsSync(dir), false, 'the held project is removed once the holder exits');
@@ -130,7 +149,7 @@ test('removeTree removes a temp project while a child process still holds it as 
 test('the instrument: a plain rmSync refuses the same held directory (skipped where the volume lets a held directory go)', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-rt-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const h = holdCwd(dir, 1500);
+  const h = holdCwd(dir, 1500, t);
   await h.ready;
   let code = null;
   try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { code = e && e.code; }
@@ -140,24 +159,37 @@ test('the instrument: a plain rmSync refuses the same held directory (skipped wh
 });
 
 test('removeTree gives up at its budget with the hold error, so a real leak stays loud (skipped where nothing holds)', async (t) => {
+  if (!(await volumeRefusesHeldDir(t))) { t.skip('this volume removes a held directory at once (capability probe; Windows refuses)'); return; }
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-rt-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const h = holdCwd(dir, 3000);
+  const h = holdCwd(dir, 3000, t);
   await h.ready;
-  const t0 = Date.now();
   let code = null;
   try { removeTree(dir, { budgetMs: 400, pollMs: 50 }); } catch (e) { code = e && e.code; }
-  const took = Date.now() - t0;
   await h.closed;
-  if (code === null && took < 400) { t.skip('this volume removed a held directory at once (capability probe; Windows refuses)'); return; }
-  assert.ok(['EBUSY', 'EPERM', 'ENOTEMPTY'].includes(code), `expected the hold error at the budget, got ${code} after ${took} ms`);
-  assert.ok(took >= 400 && took < 2500, `gave up after ${took} ms, the budget is 400`);
+  assert.ok(['EBUSY', 'EPERM', 'ENOTEMPTY'].includes(code), `expected the hold error at the budget, got ${code}`);
 });
 
-test('removeTree throws a non-hold error at once, without retrying', () => {
-  const t0 = Date.now();
-  assert.throws(() => removeTree(42, { budgetMs: 5000 }), (e) => e && e.code === 'ERR_INVALID_ARG_TYPE');
-  assert.ok(Date.now() - t0 < 1000, 'no retry loop on an error that is not a hold');
+// No wall-clock bound (testing.md, Determinism): fs.rmSync is replaced by a counting stub, so the retry behaviour is read from the number of calls, never from elapsed time.
+function stubRmSync(t, impl) {
+  const real = fs.rmSync;
+  const calls = { n: 0 };
+  fs.rmSync = (...a) => { calls.n += 1; return impl(calls.n, ...a); };
+  t.after(() => { fs.rmSync = real; });
+  return calls;
+}
+const errWith = (code) => Object.assign(new Error(code), { code });
+
+test('removeTree throws a non-hold error at once: one rmSync call, no retry', (t) => {
+  const calls = stubRmSync(t, () => { throw errWith('EACCES'); });
+  assert.throws(() => removeTree('x', { budgetMs: 60000, pollMs: 1 }), (e) => e && e.code === 'EACCES');
+  assert.strictEqual(calls.n, 1);
+});
+
+test('removeTree retries a hold error with fresh calls until the removal works', (t) => {
+  const calls = stubRmSync(t, (n) => { if (n < 3) throw errWith('EPERM'); });
+  removeTree('x', { budgetMs: 60000, pollMs: 1 });
+  assert.strictEqual(calls.n, 3, 'two refusals, then the third call removes');
 });
 
 // 16e R2 (T5, T14): Windows keeps the spelling an env key was set with and git reads it case-insensitively, so a `Git_Dir` slips a case-sensitive `GIT_` strip.

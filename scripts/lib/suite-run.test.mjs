@@ -173,6 +173,8 @@ test('cli: a green run prints the summary line and the per-test totals; an unkno
 
 // 16e R3 (T6): a pinned file runs one child at a time after the waves, and its only clock was the whole-run deadline, so one that hangs before its first test (no test, so
 // --test-timeout never fires) held the rest of the run until the deadline and starved the next pinned file into NOT-RUN. The per-file clock now bounds it too.
+// 16f item 3 (E1 t133 finding 5): the pinned children see the scratch folder as HOME, USERPROFILE and the temp folders, never the operator's own.
+const sandboxEnv = (dir) => ({ ...process.env, HOME: dir, USERPROFILE: dir, TEMP: dir, TMP: dir, TMPDIR: dir });
 const HANG_BEFORE_TEST = "setInterval(() => {}, 1000);\nawait new Promise(() => {});\ntest('never registered', () => {});\n";
 test('a pinned file that hangs before its first test is killed at the file clock; the next pinned file still runs', async (t) => {
   const dir = scratch(t);
@@ -180,7 +182,7 @@ test('a pinned file that hangs before its first test is killed at the file clock
   plant(dir, 'after.test.mjs', GOOD);
   const run = await runSuite({
     files: ['hang.test.mjs', 'after.test.mjs'], expect: { floors: {}, names: { 'hang.test.mjs': ['never registered'], 'after.test.mjs': ['first', 'second'] } },
-    cwd: dir, heapMb: 512, fileTimeoutMs: 30000, deadlineMs: 20000, fileClockMs: 1500,
+    cwd: dir, env: sandboxEnv(dir), heapMb: 512, fileTimeoutMs: 30000, deadlineMs: 20000, fileClockMs: 1500,
   });
   const [hang, after] = run.results;
   assert.notEqual(hang.status, STATUS.PASS);

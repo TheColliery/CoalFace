@@ -147,7 +147,7 @@ function strayPathsFor(dir, ownAgentDir) {
 // alone (defensive; every real caller in this file passes one explicitly).
 // Returns { file, legacy, strays }: `strays` is filled ONLY when probeStrays is true and
 // only for levels the walk actually reads (the winning level included, nothing above it),
-// so a caller that does not report (findProjectCfg, the configure.mjs write path) pays
+// so a caller that does not report (findProjectHit, the configure.mjs write path) pays
 // nothing for the probe (Phoenix #3: the probe is 7 existsSync per visited level).
 function walkProject(ownAgentDir, probeStrays) {
   const out = { file: null, legacy: false, strays: [], dir: null }; // dir: the level the winning file sits at (the pin containedProjectFile checks against)
@@ -168,12 +168,6 @@ function walkProject(ownAgentDir, probeStrays) {
     }
   } catch {}
   return out;
-}
-
-// The path of the nearest project config, or null. Contract unchanged for every caller
-// (scripts/configure.mjs's write path): a path or null, no notices, no stray probe.
-function findProjectCfg(ownAgentDir) {
-  return walkProject(ownAgentDir, false).file;
 }
 
 // The whole walk result ({ file, legacy, dir, ... }) for a caller that must know the LEVEL the file sits at
@@ -263,7 +257,7 @@ const SAFER_ENUM = {
 const SAFER_ENUM_DEFAULT = { coalfaceMode: 'auto', updateMode: 'ask' };
 
 // ownAgentDir: which agent is executing right now ('claude' from the CC hook's own main()
-// below, 'agents' from hooks/ag-conductor.js) -- see findProjectCfg. The GLOBAL config
+// below, 'agents' from hooks/ag-conductor.js) -- see walkProject. The GLOBAL config
 // home (~/.claude/.coalface.json) is UNCHANGED by this pass -- a scoping decision, not a
 // settled fact: the design doc's opening paragraph implies every skill's global home moves
 // to ~/.claude/coal/<skill>/, but this room's own checklist item 3 names only the
@@ -461,11 +455,11 @@ function main() {
 // the directive text + the language-lock clause stay ONE implementation, never forked
 // per platform. Exporting does NOT change the spawned-hook behavior (main still runs
 // when this file is the entrypoint, below) — the hermetic tests keep spawning the real
-// file (hooks-safety §7). `findProjectCfg` exported (r31 UNIT 3, CWK-023) so
+// file (hooks-safety §7). `findProjectHit` exported (r31 UNIT 3, CWK-023) so
 // scripts/configure.mjs's WRITE path resolves through the SAME candidate-search-and-
 // stop-at-home walk this hook's own READ path already uses -- the identical bridge
 // pointer-check.mjs already crosses for AGENT_DIR_ORDER, not a second copy of the walk.
-module.exports = { readCfg, loadCfg, appendNotices, directiveFor, languageLock, AGENT_DIR_ORDER, findProjectCfg, findProjectHit, containedProjectFile, containedWriteTarget, physical };
+module.exports = { readCfg, loadCfg, appendNotices, directiveFor, languageLock, AGENT_DIR_ORDER, findProjectHit, containedProjectFile, containedWriteTarget, physical };
 
 if (require.main === module) {
   try { main(); } catch { /* Phoenix #4: fail-silent, never crash the host */ }

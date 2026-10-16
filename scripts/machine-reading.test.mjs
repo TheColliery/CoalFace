@@ -18,6 +18,20 @@ function sandboxEnv(t) {
   return { ...process.env, HOME: dir, USERPROFILE: dir, TEMP: dir, TMP: dir, TMPDIR: dir, NODE_OPTIONS: '--max-old-space-size=2048' };
 }
 
+// 16f item 2.4 (E1 t133 finding 5): the sandbox is checked AT THE SPAWN, not by counting spreads in the source (a count stays green on `env: process.env` or on no env at all).
+// Every child this file starts goes through this wrapper: its env must be a sandbox, HOME, USERPROFILE, TEMP, TMP and TMPDIR all one folder that is none of the operator's own.
+function assertSandboxed(env) {
+  if (!env || typeof env !== 'object') throw new Error('a child was started with no env: it would inherit the operator environment');
+  const dir = env.TEMP;
+  for (const k of ['HOME', 'USERPROFILE', 'TEMP', 'TMP', 'TMPDIR']) {
+    if (!dir || env[k] !== dir) throw new Error(`a child was started with ${k} that is not the sandbox`);
+  }
+  for (const k of ['HOME', 'USERPROFILE', 'TEMP', 'TMP', 'TMPDIR']) {
+    if (process.env[k] !== undefined && process.env[k] === dir) throw new Error(`the sandbox is the operator's own ${k}`);
+  }
+}
+const spawnNode = (args, opts) => { assertSandboxed(opts && opts.env); return spawnSync(process.execPath, args, opts); };
+
 const idle = { cpuBusyPct: 5, cpuSource: 'host', memFreePct: 60 };
 // running: 1 = the caller already holds a unit, so the reading alone decides (running 0 always admits one)
 const held = { ...idle, running: 1 };
@@ -107,16 +121,16 @@ test('formatLine: the human line names verdict, cpu source, memory and GPU N/A',
 // One spawn test of the CLI: shape only, never a live verdict.
 test('CLI: --json prints the structured reading; exit code is 0 or 1; --help 0; unknown flag 64 with usage on stderr', (t) => {
   const env = sandboxEnv(t);
-  const j = spawnSync(process.execPath, [SCRIPT, '--json'], { encoding: 'utf8', timeout: 60000, env });
+  const j = spawnNode([SCRIPT, '--json'], { encoding: 'utf8', timeout: 60000, env });
   assert.ok([0, 1].includes(j.status), `exit ${j.status}: ${j.stderr}`);
   const o = JSON.parse(j.stdout);
   assert.ok(['BREATHE', 'WAIT'].includes(o.verdict));
   for (const k of ['cpuBusyPct', 'cpuSource', 'memFreePct', 'gpu', 'thresholds', 'running', 'admittedBy']) assert.ok(k in o, `key ${k}`);
   assert.equal(o.gpu, 'N/A');
-  const h = spawnSync(process.execPath, [SCRIPT, '--help'], { encoding: 'utf8', timeout: 60000, env });
+  const h = spawnNode([SCRIPT, '--help'], { encoding: 'utf8', timeout: 60000, env });
   assert.equal(h.status, 0);
   assert.match(h.stdout, /machine-reading/);
-  const u = spawnSync(process.execPath, [SCRIPT, '--bogus'], { encoding: 'utf8', timeout: 60000, env });
+  const u = spawnNode([SCRIPT, '--bogus'], { encoding: 'utf8', timeout: 60000, env });
   assert.equal(u.status, 64);
   assert.match(u.stderr, /usage/i);
   assert.equal(u.stdout, '');
@@ -234,7 +248,7 @@ test('usable cores: a box where usable equals the CPU count keeps the WEIGHTED w
 // The live path with no process.availableMemory (a runtime before Node 22.0.0, simulated by a preload that deletes it): the memory axis is UNMEASURED, never os.freemem().
 test('CLI: with process.availableMemory absent the memory axis prints UNMEASURED (null), never an os.freemem() figure', (t) => {
   const env = sandboxEnv(t);
-  const r = spawnSync(process.execPath, ['--import', 'data:text/javascript,delete process.availableMemory;', SCRIPT, '--json', '--running', '1'], { encoding: 'utf8', timeout: 60000, env });
+  const r = spawnNode(['--import', 'data:text/javascript,delete process.availableMemory;', SCRIPT, '--json', '--running', '1'], { encoding: 'utf8', timeout: 60000, env });
   assert.ok([0, 1].includes(r.status), `exit ${r.status}: ${r.stderr}`);
   assert.equal(JSON.parse(r.stdout).memFreePct, null);
 });
@@ -254,7 +268,7 @@ test('CLI live path: the usable count (os.availableParallelism) reaches the CPU 
     'os.availableParallelism = () => 2;',
   ].join('\n'));
   const env = sandboxEnv(t);
-  const r = spawnSync(process.execPath, ['--import', pathToFileURL(preload).href, SCRIPT, '--json', '--running', '1'], { encoding: 'utf8', timeout: 60000, env });
+  const r = spawnNode(['--import', pathToFileURL(preload).href, SCRIPT, '--json', '--running', '1'], { encoding: 'utf8', timeout: 60000, env });
   assert.ok([0, 1].includes(r.status), `exit ${r.status}: ${r.stderr}`);
   const o = JSON.parse(r.stdout);
   if (o.cpuSource !== 'host') { t.skip(`this runner reads the CPU from ${o.cpuSource}, not the host times (capability probe)`); return; }
@@ -264,7 +278,7 @@ test('CLI live path: the usable count (os.availableParallelism) reaches the CPU 
 // 16e R4, the env-probe shape of the canon's 15h: the child the CLI tests start sees the sandbox, not the operator's HOME.
 test('a child started with sandboxEnv sees the sandbox HOME, USERPROFILE and TMPDIR, and none of the operator home', (t) => {
   const env = sandboxEnv(t);
-  const r = spawnSync(process.execPath, ['-e', 'process.stdout.write(JSON.stringify([process.env.HOME, process.env.USERPROFILE, process.env.TMPDIR, process.env.TEMP, process.env.TMP]))'], { encoding: 'utf8', timeout: 60000, env });
+  const r = spawnNode(['-e', 'process.stdout.write(JSON.stringify([process.env.HOME, process.env.USERPROFILE, process.env.TMPDIR, process.env.TEMP, process.env.TMP]))'], { encoding: 'utf8', timeout: 60000, env });
   assert.equal(r.status, 0, r.stderr);
   const seen = JSON.parse(r.stdout);
   assert.ok(seen.every((v) => v === env.HOME), 'every home and temp variable is the sandbox');
@@ -272,8 +286,13 @@ test('a child started with sandboxEnv sees the sandbox HOME, USERPROFILE and TMP
   assert.ok(fs.existsSync(env.HOME));
 });
 
-test('no spawn in this file hands a child the process environment unsandboxed', () => {
-  const src = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8');
-  const code = src.split(/\r?\n/).filter((l) => !l.trim().startsWith('//')).join('\n');
-  assert.equal((code.match(/\.\.\.process\.env/g) ?? []).length, 1, 'only sandboxEnv itself spreads process.env');
+test('the spawn wrapper refuses a child that would see the operator environment: no env, the process env, a copy of it, a half-sandbox', (t) => {
+  const args = ['-e', ''];
+  assert.throws(() => spawnNode(args, { timeout: 60000 }), /no env/);
+  assert.throws(() => spawnNode(args, { timeout: 60000, env: process.env }), /not the sandbox/);
+  assert.throws(() => spawnNode(args, { timeout: 60000, env: { ...process.env } }), /not the sandbox/);
+  const half = sandboxEnv(t);
+  half.TMPDIR = process.env.TMPDIR ?? os.tmpdir();
+  assert.throws(() => spawnNode(args, { timeout: 60000, env: half }), /TMPDIR that is not the sandbox/);
+  assert.equal(spawnNode(args, { timeout: 60000, env: sandboxEnv(t) }).status, 0, 'a real sandbox passes');
 });

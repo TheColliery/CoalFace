@@ -19,7 +19,7 @@
 //     against, one level over. So the walk is IMPORTED across the CJS/ESM boundary via
 //     the SAME bridge scripts/verify.mjs already crosses for AGENT_DIR_ORDER
 //     (`await import(pathToFileURL(...).href)`, cjs-module-lexer resolving
-//     `module.exports` into real named exports) — `findProjectCfg` is now exported
+//     `module.exports` into real named exports) — `findProjectHit` is now exported
 //     alongside it for exactly this. No local re-walk of candidate dirs here.
 //   - parse via OUR parseJsonc(content) (jsonc.mjs), which already carries the
 //     proto-pollution guard verify.mjs's own config check relies on — the same file,
@@ -97,7 +97,7 @@ async function main() {
   }
 
   // The bridge (see the file header): this room's config WALK is not re-implemented
-  // here. `findProjectCfg('claude')` is the IDENTICAL search hooks/coalface-conductor.js
+  // here. `findProjectHit('claude')` is the IDENTICAL search hooks/coalface-conductor.js
   // itself runs for `readCfg('claude')` — own agent dir first, then the fixed
   // AGENT_DIR_ORDER fallback, then the LEGACY root dotfile, stopping at home. Running
   // configure.mjs under Claude Code is the only supported entry today (same assumption
@@ -113,13 +113,13 @@ async function main() {
   const isGlobal = globalIdx !== -1;
   if (isGlobal) args.splice(globalIdx, 1);
 
-  // The ONE spelling of cwd for this whole run (CWK-125): findProjectCfg returns paths built from physical(startDir)
+  // The ONE spelling of cwd for this whole run (CWK-125): findProjectHit returns paths built from physical(startDir)
   // (the .native spelling), and the write level is built from it, so a raw process.cwd()
   // spelled as a Windows 8.3 alias (the runner profile path, RUNNER~1) never matched and a legacy config was written back IN
   // PLACE, never migrated (CoalBoard 5733c20: a CI red on a runner whose username is long enough to alias).
   const cwd = physical(process.cwd());
   const globalPath = path.join(os.homedir(), '.claude', '.coalface.json');
-  const hit = isGlobal ? null : findProjectHit('claude'); // the SAME walk as findProjectCfg('claude'), plus the level the file sits at
+  const hit = isGlobal ? null : findProjectHit('claude'); // the walk the hook reads with, plus the level the file sits at
   const foundProjectPath = hit ? hit.file : null;
   const readPath = isGlobal ? globalPath : foundProjectPath;
   // Both LEGACY shapes the hook reads at this level (UMB-133): the root dotfile and the
@@ -243,7 +243,7 @@ async function main() {
 // order, so a project probes .claude before .agents before .gemini exactly like the
 // hook's own read path does) — never a bare `.claude` guess. Falls back to `.claude`
 // only when the project has NONE of the three yet, because configure.mjs's one
-// supported entry today is Claude Code itself (same assumption as `findProjectCfg`'s
+// supported entry today is Claude Code itself (same assumption as `findProjectHit`'s
 // hardcoded 'claude' above).
 function ownDirDefault(root, agentDirOrder) {
   for (const d of agentDirOrder) {

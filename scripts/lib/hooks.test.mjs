@@ -15,7 +15,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(here, '..', '..');
@@ -696,7 +696,7 @@ test('case 37: update-check stamp write-new-drop-old -- a due check writes only 
 });
 
 // Clamp-unchanged: the SAFER_ENUM clamp (hooks-safety.md §9) reads projectCfg from
-// WHATEVER candidate findProjectCfg() resolved to -- prove it still holds when that
+// WHATEVER candidate findProjectHit() resolved to -- prove it still holds when that
 // candidate is a NEW-shape own-dir path, not just the legacy path cases 23-32 use.
 test('case 38: the config-cascade clamp is unaffected by which candidate supplied the project override', () => {
   const s = agSandbox();
@@ -1614,4 +1614,27 @@ test('R6: the update nudge is per updateMode -- auto runs the check then offers,
   assert.doesNotMatch(lines.remind, /OFFER|latest CoalFace tag/, 'remind asks for no check and offers no update');
   assert.notStrictEqual(lines.auto, lines.ask);
   assert.notStrictEqual(lines.ask, lines.remind);
+});
+
+// 16f item 5 (16e item 3a; the canon bullet .github/SKILL-REPO-PATTERN.md, the exec-form MUST): the Claude Code hooks.json is exec form everywhere (verify.mjs pins it), and the
+// Antigravity template KEEPS the shell string, because the exec form did not fire on agy 1.3.2 (0 of 3, measured by CoalMine's head, v3.23.2). This is the room's one test leg that
+// holds that divergence, so a well-meant "exec-form everywhere" edit goes red here instead of silently breaking AG.
+test('the Antigravity hooks template keeps the SHELL STRING form: node + ag-conductor.js + PreInvocation, no exec-form args', async () => {
+  const { parseJsonc } = await import(pathToFileURL(path.join(REPO, 'scripts', 'lib', 'jsonc.mjs')).href);
+  const cfg = parseJsonc(fs.readFileSync(path.join(REPO, 'platform-configs', 'hooks.json'), 'utf8'));
+  const entries = cfg.coalface && cfg.coalface.PreInvocation;
+  assert.ok(Array.isArray(entries) && entries.length === 1, 'one PreInvocation entry');
+  const e = entries[0];
+  assert.strictEqual(e.type, 'command');
+  assert.strictEqual(typeof e.command, 'string');
+  assert.match(e.command, /^node "[^"]*hooks\/ag-conductor\.js" PreInvocation$/, 'the string form: the program, the script and the event in one command string');
+  assert.ok(!('args' in e), 'no exec-form args: the exec form did not fire on agy 1.3.2');
+  assert.deepStrictEqual(Object.keys(cfg.coalface), ['PreInvocation'], 'AG has no SessionStart that fires; PreInvocation is the only event wired');
+});
+
+// 16f item 6: findProjectCfg had no caller (scripts/configure.mjs walks with findProjectHit, which carries the level too), so it was deleted.
+test('the conductor exports findProjectHit and no longer the unused findProjectCfg', () => {
+  const api = createRequire(import.meta.url)(HOOK);
+  assert.strictEqual(typeof api.findProjectHit, 'function');
+  assert.strictEqual('findProjectCfg' in api, false);
 });
