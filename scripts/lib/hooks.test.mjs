@@ -1638,3 +1638,22 @@ test('the conductor exports findProjectHit and no longer the unused findProjectC
   assert.strictEqual(typeof api.findProjectHit, 'function');
   assert.strictEqual('findProjectCfg' in api, false);
 });
+
+// 17c (a): the pin's refusal names the right reason for a FILE in the chain. The reason is computed in ONE place, refusalReason, used by the read-side report and by configure.mjs.
+// A path under a file reads ENOTDIR from realpath on POSIX and ENOENT on Windows, so the ENOTDIR is injected here: the leg runs on every platform.
+test('17c (a): refusalReason names "not a folder" for ENOTDIR, keeps "unreadable" for EACCES/EPERM and "outside its folder" for the rest', () => {
+  const { refusalReason, NOT_FOLDER_REASON } = createRequire(import.meta.url)(HOOK);
+  const real = fs.realpathSync.native;
+  const throwing = (code) => { fs.realpathSync.native = () => { throw Object.assign(new Error(code), { code }); }; };
+  try {
+    throwing('ENOTDIR');
+    assert.strictEqual(refusalReason('x'), NOT_FOLDER_REASON);
+    assert.match(NOT_FOLDER_REASON, /not a folder/);
+    throwing('EACCES');
+    assert.strictEqual(refusalReason('x'), 'unreadable');
+    throwing('EPERM');
+    assert.strictEqual(refusalReason('x'), 'unreadable');
+    throwing('ELOOP');
+    assert.strictEqual(refusalReason('x'), 'it resolves outside its folder');
+  } finally { fs.realpathSync.native = real; }
+});

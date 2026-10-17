@@ -221,14 +221,19 @@ function containedWriteTarget(lvl, target) {
 // The fourth UNREADABLE reason (the flock's other three: malformed JSON / a directory / unreadable). A refused project candidate contributes {} exactly like an absent file,
 // so the clamp then holds the global; the SELECTION is unchanged (a refused candidate still wins the walk, as an unreadable one does).
 const OUTSIDE_REASON = 'it resolves outside its folder';
+// 17c (a): a component of the path that is a regular FILE (an lstat or realpath under it reads ENOTDIR on POSIX) is refused by the pin too, and "outside its folder (a link ...)"
+// named the wrong cause for it. One place computes the reason, refusalReason below, for the read-side report and for scripts/configure.mjs's FAIL line alike.
+const NOT_FOLDER_REASON = 'a component of the path is not a folder';
 
 // Why a candidate was refused, for the report only (nothing is read either way). A file the user's own permissions deny cannot be resolved (the ACL or mode that blocks the
-// read blocks the realpath too), and calling that "outside its folder" would be false: it keeps the flock's third reason, "unreadable". Any other failure is the outside reason.
+// read blocks the realpath too), and calling that "outside its folder" would be false: it keeps the flock's third reason, "unreadable". A component that is a file (ENOTDIR) is
+// NOT_FOLDER_REASON. Any other failure is the outside reason. (Windows reads a path under a file as ENOENT, so there the pin passes it and the folder walk of configure.mjs refuses it.)
 function refusalReason(file) {
   try {
     fs.realpathSync.native(file);
   } catch (e) {
     if (e && (e.code === 'EACCES' || e.code === 'EPERM')) return 'unreadable';
+    if (e && e.code === 'ENOTDIR') return NOT_FOLDER_REASON;
   }
   return OUTSIDE_REASON;
 }
@@ -459,7 +464,7 @@ function main() {
 // scripts/configure.mjs's WRITE path resolves through the SAME candidate-search-and-
 // stop-at-home walk this hook's own READ path already uses -- the identical bridge
 // pointer-check.mjs already crosses for AGENT_DIR_ORDER, not a second copy of the walk.
-module.exports = { readCfg, loadCfg, appendNotices, directiveFor, languageLock, AGENT_DIR_ORDER, findProjectHit, containedProjectFile, containedWriteTarget, physical };
+module.exports = { readCfg, loadCfg, appendNotices, directiveFor, languageLock, AGENT_DIR_ORDER, findProjectHit, containedProjectFile, containedWriteTarget, refusalReason, NOT_FOLDER_REASON, physical };
 
 if (require.main === module) {
   try { main(); } catch { /* Phoenix #4: fail-silent, never crash the host */ }

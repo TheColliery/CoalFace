@@ -88,3 +88,60 @@ test('dir equal to the root returns at once and makes nothing (named narrow gap 
   mkdirRepoParents(viaLink, viaLink);
   assert.deepEqual(fs.readdirSync(root), []);
 });
+
+// 17c (c)(d): writeFileAtomic, the temp-then-rename write.
+import { writeFileAtomic } from './repo-fs.mjs';
+
+test('writeFileAtomic writes a string and a Buffer, replaces an existing file, and leaves no temp', (t) => {
+  const { root } = layout(t);
+  const f = path.join(root, 'a.json');
+  writeFileAtomic(f, 'one');
+  assert.equal(fs.readFileSync(f, 'utf8'), 'one');
+  writeFileAtomic(f, Buffer.from('two'));
+  assert.equal(fs.readFileSync(f, 'utf8'), 'two');
+  assert.deepEqual(fs.readdirSync(root), ['a.json']);
+});
+
+test('writeFileAtomic: a hard link at the target is replaced, the other name keeps its bytes (a rename never writes through)', (t) => {
+  const { root, outside } = layout(t);
+  const victim = path.join(outside, 'victim.txt');
+  fs.writeFileSync(victim, 'keep me');
+  const f = path.join(root, 'a.json');
+  try { fs.linkSync(victim, f); } catch { t.skip('a hard link cannot be made here (capability probe)'); return; }
+  writeFileAtomic(f, 'new');
+  assert.equal(fs.readFileSync(victim, 'utf8'), 'keep me');
+  assert.equal(fs.readFileSync(f, 'utf8'), 'new');
+});
+
+test('writeFileAtomic: a symlink at the target is replaced, never followed (probed by capability)', (t) => {
+  const { root, outside } = layout(t);
+  const victim = path.join(outside, 'victim.txt');
+  fs.writeFileSync(victim, 'keep me');
+  const f = path.join(root, 'a.json');
+  try { fs.symlinkSync(victim, f, 'file'); } catch { t.skip('a file symlink cannot be made here (capability probe; Windows needs a privilege)'); return; }
+  writeFileAtomic(f, 'new');
+  assert.equal(fs.readFileSync(victim, 'utf8'), 'keep me');
+  assert.equal(fs.lstatSync(f).isSymbolicLink(), false);
+  assert.equal(fs.readFileSync(f, 'utf8'), 'new');
+});
+
+test('writeFileAtomic: a leftover temp of this pid refuses with a sentence, leaves the leftover and the target untouched', (t) => {
+  const { root } = layout(t);
+  const f = path.join(root, 'a.json');
+  fs.writeFileSync(f, 'old');
+  const temp = `${f}.coalface-tmp-${process.pid}`;
+  fs.writeFileSync(temp, 'leftover');
+  refused(() => writeFileAtomic(f, 'new'), /leftover temp file blocks the write/);
+  assert.equal(fs.readFileSync(f, 'utf8'), 'old');
+  assert.equal(fs.readFileSync(temp, 'utf8'), 'leftover');
+});
+
+test('writeFileAtomic: a rename that fails (the target is a non-empty folder) refuses with a sentence, keeps the old entry and deletes the temp, never writes in place', (t) => {
+  const { root } = layout(t);
+  const f = path.join(root, 'a.json');
+  fs.mkdirSync(f);
+  fs.writeFileSync(path.join(f, 'inner.txt'), 'keep me');
+  refused(() => writeFileAtomic(f, 'new'), /could not be replaced/);
+  assert.equal(fs.readFileSync(path.join(f, 'inner.txt'), 'utf8'), 'keep me');
+  assert.deepEqual(fs.readdirSync(root), ['a.json'], 'the temp was left behind');
+});

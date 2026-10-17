@@ -420,3 +420,96 @@ test('CWK2-042 configure: the plain case and a missing parent inside the project
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(project, '.claude', 'coal', 'coalface.json'), 'utf8')), { bandwidth: 40 });
   } finally { for (const d of [home, project]) fs.rmSync(d, { recursive: true, force: true }); }
 });
+
+// ---------------------------------------------------------------------------
+// 17c (CWK2-054). Four fixes, each with its own red against the pre-fix code.
+// ---------------------------------------------------------------------------
+function tryHardLink(t, existing, link) {
+  try { fs.linkSync(existing, link); return true; } catch { t.skip('a hard link cannot be made here (capability probe)'); return false; }
+}
+
+// (a) a FILE in the chain: the class is refused with a reason that is not "a link", and a fix. Which refusal fires differs by platform (the 14a pin on POSIX, the folder walk on
+// Windows, where an lstat under a file reads ENOENT), so the assertion is on the text both share, never on which one fired.
+test('17c (a) configure: a FILE in the chain is refused with a reason that names a file and a fix, never "a link"', () => {
+  const { home, project } = sandbox();
+  try {
+    fs.writeFileSync(path.join(project, '.claude'), 'keep me');
+    const r = run(['--bandwidth', '40'], { cwd: project, home });
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    const fail = r.stderr.split(/\r?\n/).find((l) => l.startsWith('FAIL '));
+    assert.ok(fail, r.stderr);
+    assert.match(fail, /make that path a real folder inside the project/);
+    assert.doesNotMatch(fail, /a link at the file/, 'a plain file named .claude is not a link');
+  } finally { for (const d of [home, project]) fs.rmSync(d, { recursive: true, force: true }); }
+});
+
+// (b) a DIRECTORY at the config path
+test('17c (b) configure: a DIRECTORY at the config path is refused with one FAIL line and a reason, never a raw EISDIR, and nothing is changed', () => {
+  const { home, project } = sandbox();
+  try {
+    const dir = path.join(project, '.claude', 'coal', 'coalface.json');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'inner.txt'), 'keep me');
+    const r = run(['--bandwidth', '40'], { cwd: project, home });
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    const fails = r.stderr.split(/\r?\n/).filter((l) => l.startsWith('FAIL '));
+    assert.equal(fails.length, 1, r.stderr);
+    assert.ok(fails[0].includes(path.join('.claude', 'coal', 'coalface.json')), fails[0]);
+    assert.match(fails[0], /folder, not a config file/);
+    assert.doesNotMatch(r.stderr, /EISDIR|Failed to write to config file|\n\s+at /);
+    assert.equal(fs.readFileSync(path.join(dir, 'inner.txt'), 'utf8'), 'keep me');
+    assert.deepEqual(fs.readdirSync(path.dirname(dir)), ['coalface.json'], 'a temp or a backup was left beside it');
+  } finally { for (const d of [home, project]) fs.rmSync(d, { recursive: true, force: true }); }
+});
+
+// (c) the write is temp-then-rename: a rename REPLACES the directory entry. A hard link at the config path (the 14a pin passes it: it resolves to itself) was written THROUGH.
+test('17c (c) configure: a hard link at the config path is replaced, never written through; the file outside keeps its bytes and no temp is left', (t) => {
+  const { home, project } = sandbox();
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-configure-outside-'));
+  t.after(() => { for (const d of [home, project, outside]) fs.rmSync(d, { recursive: true, force: true }); });
+  const target = path.join(outside, 'shared.json');
+  fs.writeFileSync(target, JSON.stringify({ bandwidth: 10 }));
+  const coal = path.join(project, '.claude', 'coal');
+  fs.mkdirSync(coal, { recursive: true });
+  if (!tryHardLink(t, target, path.join(coal, 'coalface.json'))) return;
+  const r = run(['--bandwidth', '40'], { cwd: project, home });
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(JSON.parse(fs.readFileSync(target, 'utf8')), { bandwidth: 10 }, 'the file outside the project was written through the link');
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(coal, 'coalface.json'), 'utf8')), { bandwidth: 40 });
+  assert.deepEqual(fs.readdirSync(coal), ['coalface.json'], 'a temp file was left');
+});
+
+// (d) the .bak goes through the same route: copyFileSync wrote THROUGH a hard link at the backup name.
+test('17c (d) configure: the .bak is a hard link to a file outside -> the backup replaces it, the file outside keeps its bytes', (t) => {
+  const { home, project } = sandbox();
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-configure-outside-'));
+  t.after(() => { for (const d of [home, project, outside]) fs.rmSync(d, { recursive: true, force: true }); });
+  const victim = path.join(outside, 'victim.txt');
+  fs.writeFileSync(victim, 'keep me');
+  const coal = path.join(project, '.claude', 'coal');
+  fs.mkdirSync(coal, { recursive: true });
+  fs.writeFileSync(path.join(coal, 'coalface.json'), '{ not json');
+  if (!tryHardLink(t, victim, path.join(coal, 'coalface.json.bak'))) return;
+  const r = run(['--bandwidth', '40'], { cwd: project, home });
+  assert.equal(fs.readFileSync(victim, 'utf8'), 'keep me', 'the backup was written through the link: ' + r.stdout + r.stderr);
+  assert.equal(fs.readFileSync(path.join(coal, 'coalface.json.bak'), 'utf8'), '{ not json', 'the backup holds the malformed original');
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(coal, 'coalface.json'), 'utf8')), { bandwidth: 40 });
+  assert.deepEqual(fs.readdirSync(coal).sort(), ['coalface.json', 'coalface.json.bak']);
+});
+
+// 17c (b), the legacy half: a DIRECTORY named .coalface.json is found by the walk as the config to read; it differs from the write target (the migration path), so the check must
+// cover the found path too, not only the write path.
+test('17c (b) configure: a DIRECTORY at the FOUND legacy config path is refused with a reason, never a raw errno, and nothing is created', () => {
+  const { home, project } = sandbox();
+  try {
+    const legacyDir = path.join(project, '.coalface.json');
+    fs.mkdirSync(legacyDir);
+    const r = run(['--bandwidth', '40'], { cwd: project, home });
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    const fails = r.stderr.split(/\r?\n/).filter((l) => l.startsWith('FAIL '));
+    assert.equal(fails.length, 1, r.stderr);
+    assert.match(fails[0], /folder, not a config file/);
+    assert.doesNotMatch(r.stderr, /EISDIR|Failed to write to config file|\n\s+at /);
+    assert.deepEqual(fs.readdirSync(project), ['.coalface.json'], 'something was created beside it');
+  } finally { for (const d of [home, project]) fs.rmSync(d, { recursive: true, force: true }); }
+});

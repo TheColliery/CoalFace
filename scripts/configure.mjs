@@ -38,7 +38,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { CONFIG_SCHEMA, validateValue } from './lib/config-schema.mjs';
 import { parseJsonc } from './lib/jsonc.mjs';
-import { mkdirRepoParents, RepoWriteRefused } from './lib/repo-fs.mjs';
+import { mkdirRepoParents, writeFileAtomic, RepoWriteRefused } from './lib/repo-fs.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -104,7 +104,7 @@ async function main() {
   // configure.mjs under Claude Code is the only supported entry today (same assumption
   // the hook's own `main()` makes at its one call site), so 'claude' is hardcoded here
   // exactly as it is there.
-  const { findProjectHit, containedWriteTarget, AGENT_DIR_ORDER, physical } = await import(pathToFileURL(path.join(repo, 'hooks', 'coalface-conductor.js')).href);
+  const { findProjectHit, containedWriteTarget, refusalReason, NOT_FOLDER_REASON, AGENT_DIR_ORDER, physical } = await import(pathToFileURL(path.join(repo, 'hooks', 'coalface-conductor.js')).href);
 
   // --global targets ~/.claude/.coalface.json (readCfg's own hardcoded global home);
   // default targets the project config. The hook merges the two per key
@@ -142,14 +142,34 @@ async function main() {
   // hooks/coalface-conductor.js beside the read-side twin): the config found by the walk is checked against the level the walk found it at, the write target against the level it
   // will be created under (cwd for a new config, the found level for a migrated one). A refused path writes nothing, removes nothing, and ends the run with one clean FAIL line. The global file is the
   // user's own and is not a project path. Residue, named: check and use are two acts, so a link swapped in between is not caught (microseconds).
+  // 17c (a): the reason comes from the conductor's refusalReason, the one place that names it (a file in the chain is not "a link").
   const refuse = (p) => {
-    console.error(`FAIL ${p}: it resolves outside its folder (a link at the file or at a folder above it); nothing was written`);
+    const why = refusalReason(p);
+    const text = why === NOT_FOLDER_REASON
+      ? `${NOT_FOLDER_REASON} -- make that path a real folder inside the project (remove the file that sits there) and re-run`
+      : why === 'unreadable'
+        ? 'it could not be inspected (permission denied) -- fix the permissions on that path and re-run'
+        : 'it resolves outside its folder (a link at the file or at a folder above it)';
+    console.error(`FAIL ${p}: ${text}; nothing was written`);
     process.exitCode = 1;
   };
   const writeLvl = readPath === null ? cwd : (hit && hit.dir);
   if (!isGlobal) {
     if (readPath !== null && !containedWriteTarget(hit.dir, readPath)) return refuse(readPath);
     if (!containedWriteTarget(writeLvl, writePath)) return refuse(writePath);
+  }
+
+  // 17c (b): a DIRECTORY at the config path (the file it would write, or the legacy file it found) is refused with a reason, never a raw EISDIR. A link is the pin's, above.
+  if (!isGlobal) {
+    for (const p of new Set([writePath, readPath])) {
+      let st = null;
+      try { st = p === null ? null : fs.lstatSync(p); } catch {}
+      if (st && st.isDirectory()) {
+        console.error(`FAIL ${p}: it is a folder, not a config file -- remove or rename that folder and re-run; nothing was written`);
+        process.exitCode = 1;
+        return;
+      }
+    }
   }
 
   let cfg = {};
@@ -186,7 +206,8 @@ async function main() {
       process.exitCode = 1;
       if (!isGlobal && !containedWriteTarget(hit.dir, readPath + '.bak')) return refuse(readPath + '.bak'); // the backup is a write too (it sits beside the found file): a link at .bak must not carry it outside
       try {
-        fs.copyFileSync(readPath, readPath + '.bak');
+        // 17c (d): the backup goes through the same temp-then-rename route as the config (writeFileAtomic), never a copyFileSync that follows a link at the destination after the pin.
+        writeFileAtomic(readPath + '.bak', fs.readFileSync(readPath));
         console.warn(`Warning: existing config is malformed — backed it up to ${readPath}.bak and rebuilding.`);
       } catch {
         console.warn('Warning: existing config is malformed. Overwriting.');
@@ -226,7 +247,12 @@ async function main() {
       process.exitCode = 1;
       return;
     }
-    fs.writeFileSync(writePath, JSON.stringify(cfg, null, 2) + '\n', 'utf8');
+    try { writeFileAtomic(writePath, JSON.stringify(cfg, null, 2) + '\n'); } catch (e) {
+      if (!(e instanceof RepoWriteRefused)) throw e;
+      console.error(`FAIL ${e.message}`);
+      process.exitCode = 1;
+      return;
+    }
     // Move-on-CONFIG-WRITE-only (no-old-version-leftover): the legacy file (root or
     // nested) is removed only AFTER the new-home write above succeeded, and only when this write
     // actually migrated it. Best-effort — a failed delete here still leaves a
