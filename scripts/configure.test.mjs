@@ -394,9 +394,10 @@ test('a LEGACY .coalface.json found in a PARENT folder is migrated at the parent
 
 // CWK2-042 (16f wave 2): the parent folder is made only after the chain is judged. A FILE named .claude is refused WHICHEVER refusal fires first: on Windows the up-front pin
 // (containedWriteTarget) passes it through (lstat of a path under a file is ENOENT there) and the walk refuses it with its own sentence; on POSIX that lstat is ENOTDIR, the pin
-// fails closed and refuses it with its 14a text (CI run 38949562405, ubuntu and macOS). So this test asserts the CLASS, never which refusal fired: exit 1, exactly one FAIL line
-// that names the .claude target, no errno text and no stack, the file untouched, nothing created beside it. (The pin's text for this case says "resolves outside its folder (a link ...)",
-// which is the wrong story for a plain file; that is a shipped-conductor wording question, returned separately.)
+// fails closed and refuses it through refuse() (CI run 38949562405, ubuntu and macOS). So this test asserts the CLASS, never which refusal fired: exit 1, exactly one FAIL line
+// that names the .claude target, no errno text and no stack, the file untouched, nothing created beside it. Since 17c (a) both refusals tell the same story, "a component of the path is
+// not a folder" with a fix: refuse() takes its reason from the conductor's refusalReason, which names ENOTDIR (a file in the chain) as NOT_FOLDER_REASON, where the pin used to say
+// "resolves outside its folder (a link ...)" for a plain file. The 17c (a) test below asserts that shared text; this one stays platform-agnostic.
 test('CWK2-042 configure: a FILE named .claude -> refused with exactly one FAIL line naming it, never a raw errno, the file untouched, nothing created beside it', () => {
   const { home, project } = sandbox();
   try {
