@@ -168,3 +168,108 @@ test('writeFileAtomic: a rename refused EPERM on a plain-file target keeps the o
   assert.equal(fs.readFileSync(f, 'utf8'), 'old', 'the target was written in place');
   assert.deepEqual(fs.readdirSync(root), ['a.json'], 'the temp was left behind');
 });
+
+// 17c E1 (t161 finding 1, the mode half): the old in-place write kept an existing file's permission bits; a rename installs the TEMP's mode (0o666 & umask), so a 0o640 config became
+// 0o644 under the usual umask. A REPLACED regular target keeps its own bits; the .bak copy of a config takes the mode of the config it copies (what copyFileSync gave it); a NEW file
+// keeps the previous default (no restrictive default nobody asked for). The mode legs probe the capability (a volume that keeps no POSIX bits skips VISIBLY), one skippable leg per test.
+function modeBitsKept(dir) {
+  const probe = path.join(dir, 'mode-probe');
+  fs.writeFileSync(probe, 'x');
+  try { fs.chmodSync(probe, 0o640); return (fs.statSync(probe).mode & 0o777) === 0o640; } catch { return false; } finally { fs.rmSync(probe, { force: true }); }
+}
+
+test('writeFileAtomic keeps the permission bits of a replaced regular file (skipped where the volume keeps no POSIX modes)', (t) => {
+  const { root } = layout(t);
+  if (!modeBitsKept(root)) { t.skip('this volume keeps no POSIX permission bits (capability probe)'); return; }
+  const f = path.join(root, 'a.json');
+  fs.writeFileSync(f, 'old');
+  fs.chmodSync(f, 0o640);
+  writeFileAtomic(f, 'new');
+  assert.equal(fs.statSync(f).mode & 0o777, 0o640);
+  assert.equal(fs.readFileSync(f, 'utf8'), 'new');
+});
+
+test('writeFileAtomic with modeFrom: the file takes the mode of the named source (the .bak of a config), not the temp default (skipped where the volume keeps no POSIX modes)', (t) => {
+  const { root } = layout(t);
+  if (!modeBitsKept(root)) { t.skip('this volume keeps no POSIX permission bits (capability probe)'); return; }
+  const src = path.join(root, 'cfg.json');
+  fs.writeFileSync(src, 'orig');
+  fs.chmodSync(src, 0o600);
+  writeFileAtomic(path.join(root, 'cfg.json.bak'), fs.readFileSync(src), src);
+  assert.equal(fs.statSync(path.join(root, 'cfg.json.bak')).mode & 0o777, 0o600);
+});
+
+test('writeFileAtomic: a NEW file keeps the default creation mode (no restrictive default is invented)', (t) => {
+  const { root } = layout(t);
+  const f = path.join(root, 'new.json');
+  writeFileAtomic(f, 'x');
+  const plain = path.join(root, 'plain.json');
+  fs.writeFileSync(plain, 'x');
+  assert.equal(fs.statSync(f).mode & 0o777, fs.statSync(plain).mode & 0o777, 'a new file got a different mode than a plain create');
+});
+
+// t161 finding 2: fs.writeSync returns a byte count and may write short without throwing; the rename then installed a truncated file. The stub makes the FIRST writeSync write
+// only half the buffer (the room's stubRmSync model); the whole buffer must still reach the file.
+test('writeFileAtomic writes the whole buffer even when a single writeSync would write short', (t) => {
+  const { root } = layout(t);
+  const f = path.join(root, 'a.json');
+  const content = 'x'.repeat(4096);
+  const realWrite = fs.writeSync;
+  let shorted = 0;
+  fs.writeSync = (fd, buf, ...rest) => {
+    const b = typeof buf === 'string' ? Buffer.from(buf) : buf;
+    if (shorted++ === 0 && b.length > 1) return realWrite(fd, b, 0, Math.floor(b.length / 2));
+    return realWrite(fd, buf, ...rest);
+  };
+  t.after(() => { fs.writeSync = realWrite; });
+  writeFileAtomic(f, content);
+  fs.writeSync = realWrite;
+  assert.equal(fs.readFileSync(f, 'utf8').length, 4096, 'the file holds a truncated write');
+});
+
+// The mode legs above skip where the volume keeps no POSIX bits (this box is Windows). These stub legs run EVERYWHERE: fs.fchmodSync records the mode it is asked to set, so the
+// rule (a replaced regular file and a modeFrom source pass their own bits; a new file sets none) is proven on every platform.
+function recordFchmod(t) {
+  const real = fs.fchmodSync;
+  const modes = [];
+  fs.fchmodSync = (fd, m) => { modes.push(m); };
+  t.after(() => { fs.fchmodSync = real; });
+  return modes;
+}
+
+test('writeFileAtomic sets the replaced file\'s own mode bits on the temp before the rename (stub, every platform)', (t) => {
+  const { root } = layout(t);
+  const f = path.join(root, 'a.json');
+  fs.writeFileSync(f, 'old');
+  const want = fs.lstatSync(f).mode & 0o7777;
+  const modes = recordFchmod(t);
+  writeFileAtomic(f, 'new');
+  assert.deepEqual(modes, [want]);
+});
+
+test('writeFileAtomic with modeFrom sets the SOURCE file\'s mode bits, not the target\'s (stub, every platform)', (t) => {
+  const { root } = layout(t);
+  const src = path.join(root, 'cfg.json');
+  fs.writeFileSync(src, 'orig');
+  const want = fs.lstatSync(src).mode & 0o7777;
+  const modes = recordFchmod(t);
+  writeFileAtomic(path.join(root, 'cfg.json.bak'), 'orig', src);
+  assert.deepEqual(modes, [want]);
+});
+
+test('writeFileAtomic for a NEW file sets no mode at all (stub, every platform)', (t) => {
+  const { root } = layout(t);
+  const modes = recordFchmod(t);
+  writeFileAtomic(path.join(root, 'new.json'), 'x');
+  assert.deepEqual(modes, []);
+});
+
+test('writeFileAtomic ignores a modeFrom that is a folder: no mode is set and the write still lands (stub, every platform)', (t) => {
+  const { root } = layout(t);
+  const dir = path.join(root, 'd');
+  fs.mkdirSync(dir);
+  const modes = recordFchmod(t);
+  writeFileAtomic(path.join(root, 'x.json'), 'x', dir);
+  assert.deepEqual(modes, []);
+  assert.equal(fs.readFileSync(path.join(root, 'x.json'), 'utf8'), 'x');
+});

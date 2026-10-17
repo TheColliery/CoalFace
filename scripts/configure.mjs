@@ -207,7 +207,7 @@ async function main() {
       if (!isGlobal && !containedWriteTarget(hit.dir, readPath + '.bak')) return refuse(readPath + '.bak'); // the backup is a write too (it sits beside the found file): a link at .bak must not carry it outside
       try {
         // 17c (d): the backup goes through the same temp-then-rename route as the config (writeFileAtomic), never a copyFileSync that follows a link at the destination after the pin.
-        writeFileAtomic(readPath + '.bak', fs.readFileSync(readPath));
+        writeFileAtomic(readPath + '.bak', fs.readFileSync(readPath), readPath); // the backup takes the mode of the config it copies, as copyFileSync did
         console.warn(`Warning: existing config is malformed — backed it up to ${readPath}.bak and rebuilding.`);
       } catch (e) {
         // 17c bounce LOW-2: a config we cannot back up is NOT overwritten. The malformed original may be the only copy the user can repair, so the run refuses, writes nothing and

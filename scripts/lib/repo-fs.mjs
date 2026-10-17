@@ -61,8 +61,17 @@ export function mkdirRepoParents(dir, root) {
 // Windows (EPERM/EBUSY/EACCES): that is a RepoWriteRefused sentence, never a raw errno. Closes: a link or hard link swapped in at the TARGET after the check (the old file is
 // replaced, never written through) and a torn write. Leaves open: the folder above the target swapped for a junction between the check and the temp's creation (the temp and the
 // rename then land through it); and the temp's own folder is the one the walk judged, not re-judged here.
-export function writeFileAtomic(target, content) {
+//
+// 17c E1 (CodeRabbit t161): (1) the rename installs the TEMP's mode (0o666 & umask), where the old in-place write kept an existing file's bits. A REPLACED regular file keeps its own
+// permission bits, and `modeFrom` names another regular file whose bits the result takes (the .bak of a config takes the config's, what copyFileSync gave it); a NEW file with no
+// source keeps the default creation mode, no restrictive default nobody asked for. (2) the whole buffer is written through the descriptor (writeFileSync on an fd loops until
+// every byte is out), because a single fs.writeSync may write short without throwing and the rename would then install a truncated file.
+function modeOf(p) {
+  try { const st = fs.lstatSync(p); return st.isFile() ? st.mode & 0o7777 : undefined; } catch { return undefined; }
+}
+export function writeFileAtomic(target, content, modeFrom = target) {
   const temp = `${target}.coalface-tmp-${process.pid}`;
+  const mode = modeOf(modeFrom);
   let fd;
   try {
     fd = fs.openSync(temp, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL);
@@ -72,7 +81,10 @@ export function writeFileAtomic(target, content) {
   }
   let renamed = false;
   try {
-    try { fs.writeSync(fd, content); } finally { fs.closeSync(fd); }
+    try {
+      if (mode !== undefined) { try { fs.fchmodSync(fd, mode); } catch { /* a volume with no POSIX bits keeps its own */ } }
+      fs.writeFileSync(fd, content);
+    } finally { fs.closeSync(fd); }
     try { fs.renameSync(temp, target); renamed = true; } catch (e) {
       throw new RepoWriteRefused(target, `it could not be replaced (${e.code}); an older copy is kept`, 'close whatever holds that file open, or make it a regular file');
     }

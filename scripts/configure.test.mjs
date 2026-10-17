@@ -15,7 +15,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const configurePath = path.join(repo, 'scripts', 'configure.mjs');
@@ -534,4 +534,29 @@ test('17c LOW-2 configure: the .bak cannot be written -> the run refuses with on
     assert.equal(fs.readFileSync(path.join(coal, 'coalface.json.bak', 'held.txt'), 'utf8'), 'keep me');
     assert.deepEqual(fs.readdirSync(coal).sort(), ['coalface.json', 'coalface.json.bak'], 'a temp was left');
   } finally { for (const d of [home, project]) fs.rmSync(d, { recursive: true, force: true }); }
+});
+
+// 17c E1 (t161 finding 1), the configure side: the .bak of a malformed config takes the mode of the config it copies (what copyFileSync gave it). A preload records every fchmodSync
+// the child makes, so the leg runs on every platform; the .bak is the first descriptor the run chmods (the config write follows it).
+test('17c E1 configure: the .bak of a malformed config is given the MODE of the config it copies', (t) => {
+  const { home, project } = sandbox();
+  t.after(() => { for (const d of [home, project]) fs.rmSync(d, { recursive: true, force: true }); });
+  const coal = path.join(project, '.claude', 'coal');
+  fs.mkdirSync(coal, { recursive: true });
+  const cfgFile = path.join(coal, 'coalface.json');
+  fs.writeFileSync(cfgFile, '{ not json');
+  const want = fs.lstatSync(cfgFile).mode & 0o7777;
+  const out = path.join(home, 'fchmod.log');
+  const preload = path.join(home, 'record-fchmod.mjs');
+  fs.writeFileSync(preload, [
+    "import fs from 'node:fs';",
+    'const real = fs.fchmodSync;',
+    'fs.fchmodSync = (fd, m) => { fs.appendFileSync(process.env.FCHMOD_LOG, String(m) + "\\n"); return real(fd, m); };',
+  ].join('\n'));
+  const r = spawnSync(process.execPath, ['--import', pathToFileURL(preload).href, configurePath, '--bandwidth', '40'], {
+    encoding: 'utf8', cwd: project, env: { ...process.env, HOME: home, USERPROFILE: home, FCHMOD_LOG: out },
+  });
+  assert.equal(r.status, 1, r.stdout + r.stderr); // a malformed config keeps the exit 1 the room has always given it
+  const seen = fs.readFileSync(out, 'utf8').split('\n').filter(Boolean).map(Number);
+  assert.deepEqual(seen, [want, want], `the .bak (first) and the rewritten config (second) must each be given the config mode: ${seen}`);
 });
