@@ -12,6 +12,7 @@ The project config write replaces a link instead of writing through it
 - **`scripts/configure.mjs` writes the config and its `.bak` by temp file and rename** (`writeFileAtomic`, `scripts/lib/repo-fs.mjs`): a link or hard link planted or swapped in at the config file or the backup is replaced, never written through; a kill mid-write cannot tear the config; a leftover temp refuses with a sentence. The folder chain is still judged before the write and stays the open residual (`SECURITY.md`).
 - **A folder at the config path is refused with one FAIL line** ("it is a folder, not a config file"), for the written path and for a found legacy config, instead of a raw `EISDIR`.
 - **A path component that is a file is named for what it is** ("a component of the path is not a folder"): `hooks/coalface-conductor.js` gains an `ENOTDIR` branch in `refusalReason` (`NOT_FOLDER_REASON`), used by the read-side report and by `configure.mjs`'s FAIL line, where it read "outside its folder (a link ...)" before. The two are exported. The plugin dist is rebuilt.
+- **A malformed config whose backup cannot be written is kept, not overwritten** (`scripts/configure.mjs`): when the `.bak` cannot be written (a folder or a held file sits at that name) the run stops with one FAIL line that names the backup path, leaves the malformed config untouched and writes nothing; it used to print "Overwriting" and replace the original. Exit code 1 either way.
 - Witnesses: hook tests 91 to 92, `repo-fs` tests 9 to 14, configure tests 28 to 33.
 
 ### Changed
