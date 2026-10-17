@@ -4,7 +4,15 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [0.14.8] - 2026-10-17
+
+The project config write replaces a link instead of writing through it
+
+### Fixed
+- **`scripts/configure.mjs` writes the config and its `.bak` by temp file and rename** (`writeFileAtomic`, `scripts/lib/repo-fs.mjs`): a link or hard link planted or swapped in at the config file or the backup is replaced, never written through; a kill mid-write cannot tear the config; a leftover temp refuses with a sentence. The folder chain is still judged before the write and stays the open residual (`SECURITY.md`).
+- **A folder at the config path is refused with one FAIL line** ("it is a folder, not a config file"), for the written path and for a found legacy config, instead of a raw `EISDIR`.
+- **A path component that is a file is named for what it is** ("a component of the path is not a folder"): `hooks/coalface-conductor.js` gains an `ENOTDIR` branch in `refusalReason` (`NOT_FOLDER_REASON`), used by the read-side report and by `configure.mjs`'s FAIL line, where it read "outside its folder (a link ...)" before. The two are exported. The plugin dist is rebuilt.
+- Witnesses: hook tests 91 to 92, `repo-fs` tests 9 to 14, configure tests 28 to 33.
 
 ### Changed
 - **Docs and internal, no shipped change:** the eleven overlay files are re-copied from the canon by blob (`scripts/lib/wave-run.mjs` `b60827c6`, `scripts/lib/wave-run.test.mjs` `bccbaa58`, `scripts/lib/release-prune.mjs` `7f33a695`, `scripts/lib/release-prune.test.mjs` `96a4cceb`, `scripts/lib/asset-upload-mode.mjs` `0022e6fa`, `scripts/lib/asset-upload-mode.test.mjs` `573349d2`, `scripts/verify-release-shape.mjs` `270e43d1`, `scripts/verify-release-shape.test.mjs` `7c2b35c4`, `scripts/release-notes.test.mjs` `f9dde432`, `scripts/lib/git-env-census.test.mjs` `c6b301cd`, `scripts/lib/git-env-census.vectors.mjs` `6dc3ad82`); `SECURITY.md` names the check-then-write race residual of the project-config write (a swapped folder or a swapped config file) and the link rule its folder walk follows; `NOTICE` is conformed to the canon template; the README badge row gains the CodeRabbit reviews badge.
