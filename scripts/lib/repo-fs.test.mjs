@@ -121,8 +121,15 @@ test('writeFileAtomic: a symlink at the target is replaced, never followed (prob
   try { fs.symlinkSync(victim, f, 'file'); } catch { t.skip('a file symlink cannot be made here (capability probe; Windows needs a privilege)'); return; }
   writeFileAtomic(f, 'new');
   assert.equal(fs.readFileSync(victim, 'utf8'), 'keep me');
-  assert.equal(fs.lstatSync(f).isSymbolicLink(), false);
-  assert.equal(fs.readFileSync(f, 'utf8'), 'new');
+  // CodeQL js/file-system-race (alert #20, CWE-367; precedent a1056f8): an lstat-by-name followed by a read-by-name is two lookups of one NAME. Here the entry's type comes from
+  // the readdir that enumerated it (no second stat of the name), and the bytes are read through ONE descriptor that is also checked to be a regular file.
+  const entry = fs.readdirSync(root, { withFileTypes: true }).find((e) => e.name === 'a.json');
+  assert.ok(entry && !entry.isSymbolicLink() && entry.isFile(), 'the target is still a link (or is not a regular file)');
+  const fd = fs.openSync(f, 'r');
+  try {
+    assert.ok(fs.fstatSync(fd).isFile());
+    assert.equal(fs.readFileSync(fd, 'utf8'), 'new');
+  } finally { fs.closeSync(fd); }
 });
 
 test('writeFileAtomic: a leftover temp of this pid refuses with a sentence, leaves the leftover and the target untouched', (t) => {
