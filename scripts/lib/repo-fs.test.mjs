@@ -21,8 +21,8 @@ test('the plain case: a missing chain inside the project is made, and a second c
   const { root } = layout(t);
   const dir = path.join(root, '.claude', 'coal');
   mkdirRepoParents(dir, root);
+  mkdirRepoParents(dir, root); // idempotent: a second call is a no-op
   assert.ok(fs.statSync(dir).isDirectory());
-  mkdirRepoParents(dir, root);
 });
 
 test('a missing parent several levels deep inside the project is made one component at a time', (t) => {
@@ -172,6 +172,15 @@ test('writeFileAtomic: a rename refused EPERM on a plain-file target keeps the o
 // 17c E1 (t161 finding 1, the mode half): the old in-place write kept an existing file's permission bits; a rename installs the TEMP's mode (0o666 & umask), so a 0o640 config became
 // 0o644 under the usual umask. A REPLACED regular target keeps its own bits; the .bak copy of a config takes the mode of the config it copies (what copyFileSync gave it); a NEW file
 // keeps the previous default (no restrictive default nobody asked for). The mode legs probe the capability (a volume that keeps no POSIX bits skips VISIBLY), one skippable leg per test.
+// CodeQL js/file-system-race (alerts #20 and #21, CWE-367): a stat by name followed by a read by name of the same path is two lookups of one name. inspect() opens ONE descriptor and
+// takes the type, the permission bits and the bytes from it; the mode legs below use it instead of a statSync + readFileSync pair.
+function inspect(p) {
+  const fd = fs.openSync(p, 'r');
+  try {
+    const st = fs.fstatSync(fd);
+    return { isFile: st.isFile(), mode: st.mode & 0o777, text: st.isFile() ? fs.readFileSync(fd, 'utf8') : null };
+  } finally { fs.closeSync(fd); }
+}
 function modeBitsKept(dir) {
   const probe = path.join(dir, 'mode-probe');
   fs.writeFileSync(probe, 'x');
@@ -185,8 +194,10 @@ test('writeFileAtomic keeps the permission bits of a replaced regular file (skip
   fs.writeFileSync(f, 'old');
   fs.chmodSync(f, 0o640);
   writeFileAtomic(f, 'new');
-  assert.equal(fs.statSync(f).mode & 0o777, 0o640);
-  assert.equal(fs.readFileSync(f, 'utf8'), 'new');
+  const got = inspect(f);
+  assert.ok(got.isFile);
+  assert.equal(got.mode, 0o640);
+  assert.equal(got.text, 'new');
 });
 
 test('writeFileAtomic with modeFrom: the file takes the mode of the named source (the .bak of a config), not the temp default (skipped where the volume keeps no POSIX modes)', (t) => {
@@ -196,7 +207,9 @@ test('writeFileAtomic with modeFrom: the file takes the mode of the named source
   fs.writeFileSync(src, 'orig');
   fs.chmodSync(src, 0o600);
   writeFileAtomic(path.join(root, 'cfg.json.bak'), fs.readFileSync(src), src);
-  assert.equal(fs.statSync(path.join(root, 'cfg.json.bak')).mode & 0o777, 0o600);
+  const bak = inspect(path.join(root, 'cfg.json.bak'));
+  assert.equal(bak.mode, 0o600);
+  assert.equal(bak.text, 'orig');
 });
 
 test('writeFileAtomic: a NEW file keeps the default creation mode (no restrictive default is invented)', (t) => {
@@ -205,7 +218,7 @@ test('writeFileAtomic: a NEW file keeps the default creation mode (no restrictiv
   writeFileAtomic(f, 'x');
   const plain = path.join(root, 'plain.json');
   fs.writeFileSync(plain, 'x');
-  assert.equal(fs.statSync(f).mode & 0o777, fs.statSync(plain).mode & 0o777, 'a new file got a different mode than a plain create');
+  assert.equal(inspect(f).mode, inspect(plain).mode, 'a new file got a different mode than a plain create');
 });
 
 // t161 finding 2: fs.writeSync returns a byte count and may write short without throwing; the rename then installed a truncated file. The stub makes the FIRST writeSync write
