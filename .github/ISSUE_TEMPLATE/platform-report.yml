@@ -1,0 +1,56 @@
+name: "Platform field report"
+description: "Report how CoalFace's fan-out contract runs on your subagent-capable AI agent (works / breaks / no-ops)"
+title: "[platform] <agent name>: <one-line result>"
+labels: ["platform-report"]
+body:
+  - type: dropdown
+    id: agent
+    attributes:
+      label: AI agent
+      options:
+        - Claude Code
+        - Google Antigravity
+        - Cursor
+        - Windsurf
+        - GitHub Copilot
+        - Cline
+        - Gemini CLI
+        - Goose
+        - Amp
+        - Codex CLI
+        - Other (name it below)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: CoalFace version + agent version
+      placeholder: "CoalFace vX.Y.Z · Cursor 2.4"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: What were you testing?
+      options:
+        - Skill discovery (the agent sees the coalface skill)
+        - Scout + partition (spot list, dependency graph, invariants)
+        - Spawning waves through the platform's subagent tool
+        - Anchor-edit returns + the QC/apply path
+        - Bandwidth / AIMD backoff (429 handling, wave width)
+        - Journal + re-spawn-on-remainder recovery
+        - Sequential-pipeline degrade (a platform without fan-out)
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: What happened
+      description: "What worked, what didn't — paste the receipt (spots · workers · waves · effective width) where possible."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected (if different)
