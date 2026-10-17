@@ -513,3 +513,25 @@ test('17c (b) configure: a DIRECTORY at the FOUND legacy config path is refused 
     assert.deepEqual(fs.readdirSync(project), ['.coalface.json'], 'something was created beside it');
   } finally { for (const d of [home, project]) fs.rmSync(d, { recursive: true, force: true }); }
 });
+
+// 17c bounce LOW-2: a malformed config whose backup cannot be written is NOT overwritten. A non-empty FOLDER at the .bak name makes the backup's rename fail on every platform
+// (the 14a pin passes it: it resolves to itself), so the leg needs no privilege and no second process.
+test('17c LOW-2 configure: the .bak cannot be written -> the run refuses with one FAIL line naming the backup, the malformed original is kept byte for byte, nothing is written', () => {
+  const { home, project } = sandbox();
+  try {
+    const coal = path.join(project, '.claude', 'coal');
+    fs.mkdirSync(path.join(coal, 'coalface.json.bak'), { recursive: true });
+    fs.writeFileSync(path.join(coal, 'coalface.json.bak', 'held.txt'), 'keep me');
+    fs.writeFileSync(path.join(coal, 'coalface.json'), '{ not json');
+    const r = run(['--bandwidth', '40'], { cwd: project, home });
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    const fails = r.stderr.split(/\r?\n/).filter((l) => l.startsWith('FAIL '));
+    assert.equal(fails.length, 1, r.stderr);
+    assert.ok(fails[0].includes('coalface.json.bak'), `the FAIL line does not name the backup: ${fails[0]}`);
+    assert.match(fails[0], /left untouched/);
+    assert.doesNotMatch(r.stderr, /Overwriting|\n\s+at /);
+    assert.equal(fs.readFileSync(path.join(coal, 'coalface.json'), 'utf8'), '{ not json', 'the malformed original was overwritten');
+    assert.equal(fs.readFileSync(path.join(coal, 'coalface.json.bak', 'held.txt'), 'utf8'), 'keep me');
+    assert.deepEqual(fs.readdirSync(coal).sort(), ['coalface.json', 'coalface.json.bak'], 'a temp was left');
+  } finally { for (const d of [home, project]) fs.rmSync(d, { recursive: true, force: true }); }
+});

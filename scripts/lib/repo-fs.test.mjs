@@ -145,3 +145,19 @@ test('writeFileAtomic: a rename that fails (the target is a non-empty folder) re
   assert.equal(fs.readFileSync(path.join(f, 'inner.txt'), 'utf8'), 'keep me');
   assert.deepEqual(fs.readdirSync(root), ['a.json'], 'the temp was left behind');
 });
+
+// 17c bounce LOW-3: the "no in-place fallback" property for the one case where a fallback is tempting, a held plain-file target (Windows: EPERM/EBUSY/EACCES from the rename).
+// fs.renameSync is stubbed to throw once, so the leg runs on every platform; the model is stubRmSync in git-test-env.test.mjs.
+test('writeFileAtomic: a rename refused EPERM on a plain-file target keeps the old bytes, removes the temp, throws "could not be replaced" and never writes in place', (t) => {
+  const { root } = layout(t);
+  const f = path.join(root, 'a.json');
+  fs.writeFileSync(f, 'old');
+  const real = fs.renameSync;
+  let calls = 0;
+  fs.renameSync = () => { calls += 1; throw Object.assign(new Error('EPERM'), { code: 'EPERM' }); };
+  t.after(() => { fs.renameSync = real; });
+  refused(() => writeFileAtomic(f, 'new'), /could not be replaced/);
+  assert.equal(calls, 1, 'the rename is tried once, never retried in place');
+  assert.equal(fs.readFileSync(f, 'utf8'), 'old', 'the target was written in place');
+  assert.deepEqual(fs.readdirSync(root), ['a.json'], 'the temp was left behind');
+});

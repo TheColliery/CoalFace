@@ -209,8 +209,12 @@ async function main() {
         // 17c (d): the backup goes through the same temp-then-rename route as the config (writeFileAtomic), never a copyFileSync that follows a link at the destination after the pin.
         writeFileAtomic(readPath + '.bak', fs.readFileSync(readPath));
         console.warn(`Warning: existing config is malformed — backed it up to ${readPath}.bak and rebuilding.`);
-      } catch {
-        console.warn('Warning: existing config is malformed. Overwriting.');
+      } catch (e) {
+        // 17c bounce LOW-2: a config we cannot back up is NOT overwritten. The malformed original may be the only copy the user can repair, so the run refuses, writes nothing and
+        // leaves the original byte for byte; the FAIL line names the backup path and how to recover.
+        const why = e instanceof RepoWriteRefused ? e.message : `${readPath}.bak: the backup could not be written (${e && e.code ? e.code : e.message}) -- free that path and re-run`;
+        console.error(`FAIL ${why}; the malformed config ${readPath} was left untouched and nothing was written`);
+        return;
       }
     }
   }
