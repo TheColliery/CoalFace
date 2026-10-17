@@ -1,6 +1,6 @@
 # Admission control — the MACHINE bound, by a live reading
 
-> Loaded on-demand from WAVES (step 4, P29). Three bounds compose, each answering a different question: the WALLET bounds **dollars** (§ Wallet) · `bandwidth` bounds **speed** (AIMD, agent-process width) · this bound asks **the machine**: is there room right now for the next apply-time DOMAIN-GATE run (main's own step-7 build/test, or a depth-1 nested conductor's own for its scope) or the next wave of heavy local work? It is separate from worker-wave width, which is `floor(platform width × bandwidth%)` alone.
+> Loaded on-demand from WAVES (step 4, P29). Three bounds compose, each answering a different question: the WALLET bounds **dollars**, ~solo only on cheaper worker tiers (§ Wallet) · `bandwidth` bounds **speed** (AIMD, agent-process width) · this bound asks **the machine**: is there room right now for the next apply-time DOMAIN-GATE run (main's own step-7 build/test, or a depth-1 nested conductor's own for its scope) or the next wave of heavy local work? It is separate from worker-wave width, which is `max(1, floor(platform width × bandwidth%))` alone (never above the platform width).
 
 ## Why a third bound
 
@@ -10,11 +10,12 @@ Board #89's exhibit: 10 lanes flew without a single file collision — the parti
 
 `node <skill dir>/scripts/machine-reading.mjs --cpu-max <admitCpuBusyMaxPct> --mem-min <admitMemFreeMinPct> [--running <n>] [--json]`, run by the agent before each domain-gate run and before each wave of heavy local work. Each call is one fresh reading and keeps no state. Exit 0 = BREATHE (start), 1 = WAIT (hold, read again later), 64 = usage error, 2 = could not read.
 
-- **CPU:** busy % from a delta of `os.cpus()` times over a short sample. Where Linux cgroup v2 holds a quota (`cpu.max`), busy % of that quota from `cpu.stat` usage over the same sample. The output names its source: `cgroup`, `host` or `unmeasured`.
-- **Memory:** free % from `process.availableMemory()` (it sees a container limit; `os.freemem()` when absent) over `process.constrainedMemory()` when that is above 0, else `os.totalmem()`.
+- **CPU:** busy % from a delta of `os.cpus()` times over a short sample, judged over the k busiest logical CPUs where k = `os.availableParallelism()` (the CPUs this process may use): on a box confined by an affinity mask or a cpuset a saturated usable core reads busy, and on an unconfined box k is every CPU, so the reading is the whole-machine mean. Every logical CPU counts the same: a hybrid box (performance and efficiency cores) is not weighted by core class, a limit that waits for phase 2 (CWK2-025 finding 1). Where Linux cgroup v2 holds a quota (`cpu.max`), busy % of that quota from `cpu.stat` usage over the same sample. The output names its source: `cgroup`, `host` or `unmeasured`.
+- **Memory:** free % from `process.availableMemory()` (it sees a container limit) over `process.constrainedMemory()` when that is a real limit, else `os.totalmem()`. A `constrainedMemory` of 0, at or above 2**63 (libuv returns UINT64_MAX for a cgroup with no limit) or above `os.totalmem()` is NO limit. Where `process.availableMemory` is absent (Node before 22.0.0) the axis is unmeasured; `os.freemem()` is never the fallback, because on macOS it counts free pages only.
 - **GPU:** not read (no portable API); printed `N/A`.
-- **Unmeasured never blocks.** An axis the machine cannot report (an empty CPU list, a container that hides its limit) reads as unmeasured and never holds a run on its own. Where `node` itself cannot run, the whole reading is unmeasured: run one unit at a time and never wait for it.
+- **Unmeasured never blocks.** An axis the machine cannot report (an empty CPU list, a container that hides its limit) reads as unmeasured and never holds a run on its own. Where `node` itself cannot run, the whole reading is unmeasured: run one unit at a time and never wait for it. When every axis reads unmeasured, only `--running 0` is admitted and a second unit WAITs (reason `every axis unmeasured`); with one axis measured the rule is unchanged.
 - **At least one unit always runs.** `--running 0` admits the first unit regardless of the reading, so a queue never sticks. Pass the number of units you already hold for the second and later.
+- **A WAIT line names its reasons** and the thresholds it crossed, e.g. `WAIT ... held: cpu 92% at or above 80%; mem free 5% below 10%`; a BREATHE line is unchanged.
 - **WAIT queues, never denies.** A held run completes in full once the box breathes (P29, the same shape as P19's transient backoff).
 - **The platform's own cap stays.** A Workflow's own process cap is the vendor's and is not ours to lift.
 

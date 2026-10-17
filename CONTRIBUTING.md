@@ -25,7 +25,7 @@ node scripts/verify.mjs         # gate: files · manifest/marketplace · descrip
 node scripts/test.mjs           # zero-dependency test suite (node --test, explicit file list)
 ```
 
-CI runs the same two gates (`verify` → `test`) on Linux/Windows/macOS — deliberately **without** a build step, so a stale committed `plugin/` fails loud instead of being silently rebuilt.
+CI runs the same two gates (`verify` → `test`) on Linux/Windows/macOS — deliberately **without** a build step, so a stale committed `plugin/` fails loud instead of being silently rebuilt. A separate `front-door-links` workflow fetches every outward link of the front-door docs (README, SECURITY, CONTRIBUTING and the like) when one of them changes and weekly; run it locally with `node scripts/front-door-links.mjs README.md SECURITY.md`.
 
 ### Development Rules
 
@@ -52,7 +52,7 @@ CoalFace is **cross-agent** — the contract runs on any platform with concurren
 | `skills/coalface/references/` | On-demand depth: `contract-template.md` (the 8-point worker contract) · `taxonomy.md` (per-domain units/invariants/gates) · `receipt.md` (receipt + heads-up formats) · `admission-control.md` (the MACHINE bound derivation) · `workflow-engine.md` (Workflow-tool wave/AIMD notes). |
 | `hooks/coalface-conductor.js` · `hooks/ag-conductor.js` · `hooks/hooks.json` | Phoenix-pure SessionStart conductor (Claude Code), the Antigravity PreInvocation adapter, + the wiring both share. |
 | `commands/` | `update.md` (the `/coalface:update` self-update procedure — agent-side, the hook only schedules) · `stats.md` (the `/coalface:stats` measurement command, one of the flock's 5 Standard Systems). |
-| `scripts/` | The three gates are listed under **Developing & Testing** above; `configure.mjs` is the settings CLI (`--help` for its own reference). `lib/` holds the shared core logic each of those consumes — one `.test.mjs` per module (`ls scripts/lib/` for the current set). |
+| `scripts/` | The three gates are listed under **Developing & Testing** above; `configure.mjs` is the settings CLI (`--help` for its own reference). `lib/` holds the shared core logic each of those consumes — most modules have a `.test.mjs` beside them (`ls scripts/lib/` for the current set); a few are tested from `scripts/` (`machine-reading`, `front-door-links`). |
 | `plugin/` | Generated Claude Code plugin distribution — never hand-edit. |
 | `platform-configs/.coalface.json` | Commented factory default configuration. |
 
@@ -60,7 +60,7 @@ CoalFace is **cross-agent** — the contract runs on any platform with concurren
 
 ## 🚀 Releasing (Maintainers)
 
-Bump version in `.claude-plugin/plugin.json` ➡️ finalize the `CHANGELOG.md` entry (a one-line summary before its first `### ` section, then Keep-a-Changelog sections; a line that names a file the release deleted cites it with the tag it last lived in, `vX.Y.Z:path` (a real tag and a path that existed at that tag; the gate checks it with git, and prints a named SKIP in a clone without that tag), because a bare path to a deleted file fails the pointer gate in the top entry) ➡️ ensure `verify.mjs` and `test.mjs` pass ➡️ commit ➡️ create a signed git tag (`vX.Y.Z`) ➡️ push `--follow-tags`. The tag-push workflow is the sole GitHub Release creator from here — it derives the title and body from that CHANGELOG entry (stable tags only; a beta tag stays history-only, the one launch-form pre-release Release is hand-cut per the org's [RELEASE-PATTERN](https://github.com/TheColliery/.github/blob/main/RELEASE-PATTERN.md)). A maintainer's own job ends at the push: read the workflow run, then GET the Release it made and re-read the title/body against the entry.
+Bump version in `.claude-plugin/plugin.json` ➡️ finalize the `CHANGELOG.md` entry (a one-line summary before its first `### ` section, then Keep-a-Changelog sections; a line that names a file the release deleted cites it with the tag it last lived in, `vX.Y.Z:path` (a real tag and a path that existed at that tag; the gate checks it with git, and prints a named SKIP in a clone without that tag), because a bare path to a deleted file fails the pointer gate in the top entry) ➡️ ensure `verify.mjs` and `test.mjs` pass ➡️ commit ➡️ create a signed git tag (`vX.Y.Z`) ➡️ push `--follow-tags`. The tag-push workflow is the sole GitHub Release creator from here — it derives the title and body from that CHANGELOG entry (stable tags only; a beta tag stays history-only, the one launch-form pre-release Release is posted by a `workflow_dispatch` with `launch_form=true` per the org's [RELEASE-PATTERN](https://github.com/TheColliery/.github/blob/main/RELEASE-PATTERN.md)). A maintainer's own job ends at the push: read the workflow run, then GET the Release it made and re-read the title/body against the entry.
 
 ---
 

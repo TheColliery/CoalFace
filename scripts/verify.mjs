@@ -41,8 +41,10 @@ try {
   if (/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(pj.version || '')) ok(`plugin.json version '${pj.version}' is semver`);
   else fail(`plugin.json version '${pj.version}' not semver`);
   const hj = fs.readFileSync(path.join(repo, 'hooks', 'hooks.json'), 'utf8');
-  if (hj.includes('${CLAUDE_PLUGIN_ROOT}/hooks/coalface-conductor.js')) ok('hooks.json wires SessionStart via ${CLAUDE_PLUGIN_ROOT}/hooks');
-  else fail('hooks.json does not wire the conductor under ${CLAUDE_PLUGIN_ROOT}/hooks');
+  // CWK2-027: the exec form (Claude Code 2.1.299 hooks reference): command "node", the script path in args, no shell string to quote.
+  const entry = (((JSON.parse(hj).hooks || {}).SessionStart || [])[0] || {}).hooks?.[0] || {};
+  if (entry.type === 'command' && entry.command === 'node' && Array.isArray(entry.args) && entry.args[0] === '${CLAUDE_PLUGIN_ROOT}/hooks/coalface-conductor.js') ok('hooks.json wires SessionStart in exec form via ${CLAUDE_PLUGIN_ROOT}/hooks');
+  else fail('hooks.json does not wire the conductor in exec form (type "command", command "node", args ["${CLAUDE_PLUGIN_ROOT}/hooks/coalface-conductor.js"])');
 } catch (e) { fail(`plugin manifest: ${e.message}`); }
 
 console.log('marketplace.json:');
@@ -370,7 +372,7 @@ try {
 
 // CWK-133 / CWK-136 / 09a: the git-spawn census proves SAFETY, not presence. Every git child under scripts/ and hooks/ takes its env from gitEnv() or
 // gitTestEnv() imported by that name from scripts/lib/git-env.mjs, or from a literal of named keys (scripts/lib/git-env-census.mjs is the shared canon
-// census, adopted by blob id; scripts/lib/git-spawn-room.mjs holds this room's two pins). Imported dynamically, inside this block (node/runtime.md
+// census, adopted by blob id; scripts/lib/git-spawn-room.mjs holds this room's pin, scripts/secret-gate.mjs). Imported dynamically, inside this block (node/runtime.md
 // section 1), so an absent lib is a named FAIL here.
 try {
   const { roomCensus } = await import('./lib/git-spawn-room.mjs');

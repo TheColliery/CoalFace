@@ -19,7 +19,7 @@
 //     against, one level over. So the walk is IMPORTED across the CJS/ESM boundary via
 //     the SAME bridge scripts/verify.mjs already crosses for AGENT_DIR_ORDER
 //     (`await import(pathToFileURL(...).href)`, cjs-module-lexer resolving
-//     `module.exports` into real named exports) — `findProjectCfg` is now exported
+//     `module.exports` into real named exports) — `findProjectHit` is now exported
 //     alongside it for exactly this. No local re-walk of candidate dirs here.
 //   - parse via OUR parseJsonc(content) (jsonc.mjs), which already carries the
 //     proto-pollution guard verify.mjs's own config check relies on — the same file,
@@ -38,6 +38,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { CONFIG_SCHEMA, validateValue } from './lib/config-schema.mjs';
 import { parseJsonc } from './lib/jsonc.mjs';
+import { mkdirRepoParents, writeFileAtomic, RepoWriteRefused } from './lib/repo-fs.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -97,13 +98,13 @@ async function main() {
   }
 
   // The bridge (see the file header): this room's config WALK is not re-implemented
-  // here. `findProjectCfg('claude')` is the IDENTICAL search hooks/coalface-conductor.js
+  // here. `findProjectHit('claude')` is the IDENTICAL search hooks/coalface-conductor.js
   // itself runs for `readCfg('claude')` — own agent dir first, then the fixed
   // AGENT_DIR_ORDER fallback, then the LEGACY root dotfile, stopping at home. Running
   // configure.mjs under Claude Code is the only supported entry today (same assumption
   // the hook's own `main()` makes at its one call site), so 'claude' is hardcoded here
   // exactly as it is there.
-  const { findProjectCfg, AGENT_DIR_ORDER, physical } = await import(pathToFileURL(path.join(repo, 'hooks', 'coalface-conductor.js')).href);
+  const { findProjectHit, containedWriteTarget, refusalReason, NOT_FOLDER_REASON, AGENT_DIR_ORDER, physical } = await import(pathToFileURL(path.join(repo, 'hooks', 'coalface-conductor.js')).href);
 
   // --global targets ~/.claude/.coalface.json (readCfg's own hardcoded global home);
   // default targets the project config. The hook merges the two per key
@@ -113,19 +114,19 @@ async function main() {
   const isGlobal = globalIdx !== -1;
   if (isGlobal) args.splice(globalIdx, 1);
 
-  // The ONE spelling of cwd for this whole run (CWK-125): findProjectCfg returns paths built from physical(startDir)
-  // (the .native spelling) and legacyPaths.includes(readPath) below is a STRING compare, so a raw process.cwd()
+  // The ONE spelling of cwd for this whole run (CWK-125): findProjectHit returns paths built from physical(startDir)
+  // (the .native spelling), and the write level is built from it, so a raw process.cwd()
   // spelled as a Windows 8.3 alias (the runner profile path, RUNNER~1) never matched and a legacy config was written back IN
   // PLACE, never migrated (CoalBoard 5733c20: a CI red on a runner whose username is long enough to alias).
   const cwd = physical(process.cwd());
-  const legacyPath = path.join(cwd, '.coalface.json');
   const globalPath = path.join(os.homedir(), '.claude', '.coalface.json');
-  const foundProjectPath = isGlobal ? null : findProjectCfg('claude');
+  const hit = isGlobal ? null : findProjectHit('claude'); // the walk the hook reads with, plus the level the file sits at
+  const foundProjectPath = hit ? hit.file : null;
   const readPath = isGlobal ? globalPath : foundProjectPath;
   // Both LEGACY shapes the hook reads at this level (UMB-133): the root dotfile and the
   // nested `.<agent>/.coalface.json`. A config found at either migrates on this write.
-  const legacyPaths = [legacyPath, ...AGENT_DIR_ORDER.map((d) => path.join(cwd, '.' + d, '.coalface.json'))];
-  const readIsLegacy = !isGlobal && readPath !== null && legacyPaths.includes(readPath);
+  // 16e R7: read from the walk's own verdict (hit.legacy), so a legacy config found at a PARENT level migrates at that level too, not only one at cwd.
+  const readIsLegacy = !isGlobal && !!hit && hit.file !== null && hit.legacy;
   // WRITE goes back to wherever the config was found, EXCEPT a config found at a
   // LEGACY shape (root dotfile or nested) migrates on this write — to the FIRST agent dir the project
   // ALREADY HAS on disk (never a bare .claude planted into a project that only uses
@@ -134,7 +135,42 @@ async function main() {
   // a mere read; this is a CLI script the user/agent explicitly runs).
   const writePath = isGlobal
     ? globalPath
-    : (readPath === null || readIsLegacy) ? ownDirDefault(cwd, AGENT_DIR_ORDER) : readPath;
+    : readPath === null ? ownDirDefault(cwd, AGENT_DIR_ORDER) : readIsLegacy ? ownDirDefault(hit.dir, AGENT_DIR_ORDER) : readPath;
+
+  // 14a unit 1 (E2-4 class): the project config sits in a folder a cloned repo supplies, so a link planted at the file or at a folder above it would send the read, the .bak
+  // copy and the write outside the project. Every project path this run touches is pinned to its literal location BEFORE anything is read or written (the check lives in
+  // hooks/coalface-conductor.js beside the read-side twin): the config found by the walk is checked against the level the walk found it at, the write target against the level it
+  // will be created under (cwd for a new config, the found level for a migrated one). A refused path writes nothing, removes nothing, and ends the run with one clean FAIL line. The global file is the
+  // user's own and is not a project path. Residue, named: check and use are two acts, so a link swapped in between is not caught (microseconds).
+  // 17c (a): the reason comes from the conductor's refusalReason, the one place that names it (a file in the chain is not "a link").
+  const refuse = (p) => {
+    const why = refusalReason(p);
+    const text = why === NOT_FOLDER_REASON
+      ? `${NOT_FOLDER_REASON} -- make that path a real folder inside the project (remove the file that sits there) and re-run`
+      : why === 'unreadable'
+        ? 'it could not be inspected (permission denied) -- fix the permissions on that path and re-run'
+        : 'it resolves outside its folder (a link at the file or at a folder above it)';
+    console.error(`FAIL ${p}: ${text}; nothing was written`);
+    process.exitCode = 1;
+  };
+  const writeLvl = readPath === null ? cwd : (hit && hit.dir);
+  if (!isGlobal) {
+    if (readPath !== null && !containedWriteTarget(hit.dir, readPath)) return refuse(readPath);
+    if (!containedWriteTarget(writeLvl, writePath)) return refuse(writePath);
+  }
+
+  // 17c (b): a DIRECTORY at the config path (the file it would write, or the legacy file it found) is refused with a reason, never a raw EISDIR. A link is the pin's, above.
+  if (!isGlobal) {
+    for (const p of new Set([writePath, readPath])) {
+      let st = null;
+      try { st = p === null ? null : fs.lstatSync(p); } catch {}
+      if (st && st.isDirectory()) {
+        console.error(`FAIL ${p}: it is a folder, not a config file -- remove or rename that folder and re-run; nothing was written`);
+        process.exitCode = 1;
+        return;
+      }
+    }
+  }
 
   let cfg = {};
   let hadComments = false;
@@ -168,11 +204,17 @@ async function main() {
       // partial failure the user must notice — flag the non-zero exit even though the
       // run continues from defaults (the old config is backed up where possible).
       process.exitCode = 1;
+      if (!isGlobal && !containedWriteTarget(hit.dir, readPath + '.bak')) return refuse(readPath + '.bak'); // the backup is a write too (it sits beside the found file): a link at .bak must not carry it outside
       try {
-        fs.copyFileSync(readPath, readPath + '.bak');
+        // 17c (d): the backup goes through the same temp-then-rename route as the config (writeFileAtomic), never a copyFileSync that follows a link at the destination after the pin.
+        writeFileAtomic(readPath + '.bak', fs.readFileSync(readPath), readPath); // the backup takes the mode of the config it copies, as copyFileSync did
         console.warn(`Warning: existing config is malformed — backed it up to ${readPath}.bak and rebuilding.`);
-      } catch {
-        console.warn('Warning: existing config is malformed. Overwriting.');
+      } catch (e) {
+        // 17c bounce LOW-2: a config we cannot back up is NOT overwritten. The malformed original may be the only copy the user can repair, so the run refuses, writes nothing and
+        // leaves the original byte for byte; the FAIL line names the backup path and how to recover.
+        const why = e instanceof RepoWriteRefused ? e.message : `${readPath}.bak: the backup could not be written (${e && e.code ? e.code : e.message}) -- free that path and re-run`;
+        console.error(`FAIL ${why}; the malformed config ${readPath} was left untouched and nothing was written`);
+        return;
       }
     }
   }
@@ -201,8 +243,20 @@ async function main() {
   }
 
   try {
-    fs.mkdirSync(path.dirname(writePath), { recursive: true });
-    fs.writeFileSync(writePath, JSON.stringify(cfg, null, 2) + '\n', 'utf8');
+    // CWK2-042: the parent folder is made only after the chain from the write root is judged (a link or a file on the way is refused with a sentence, nothing is made beyond a
+    // checked component). The user-global config has no project root and keeps the plain recursive make.
+    try { mkdirRepoParents(path.dirname(writePath), isGlobal ? null : writeLvl); } catch (e) {
+      if (!(e instanceof RepoWriteRefused)) throw e;
+      console.error(`FAIL ${e.message}`);
+      process.exitCode = 1;
+      return;
+    }
+    try { writeFileAtomic(writePath, JSON.stringify(cfg, null, 2) + '\n'); } catch (e) {
+      if (!(e instanceof RepoWriteRefused)) throw e;
+      console.error(`FAIL ${e.message}`);
+      process.exitCode = 1;
+      return;
+    }
     // Move-on-CONFIG-WRITE-only (no-old-version-leftover): the legacy file (root or
     // nested) is removed only AFTER the new-home write above succeeded, and only when this write
     // actually migrated it. Best-effort — a failed delete here still leaves a
@@ -227,7 +281,7 @@ async function main() {
 // order, so a project probes .claude before .agents before .gemini exactly like the
 // hook's own read path does) — never a bare `.claude` guess. Falls back to `.claude`
 // only when the project has NONE of the three yet, because configure.mjs's one
-// supported entry today is Claude Code itself (same assumption as `findProjectCfg`'s
+// supported entry today is Claude Code itself (same assumption as `findProjectHit`'s
 // hardcoded 'claude' above).
 function ownDirDefault(root, agentDirOrder) {
   for (const d of agentDirOrder) {

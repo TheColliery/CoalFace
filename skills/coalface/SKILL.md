@@ -6,7 +6,7 @@ description: >-
   mandatory SCOUT surveys the worksite, deterministic PARTITION merges overlapping/tiny
   spots, workers return anchor-edit orders as TEXT (propose-not-execute), QC checks
   scope+spec at collection, main = SINGLE WRITER (pre-swarm snapshot + domain gate), RECEIPT
-  shows tokens-vs-solo. Wallet caps DOLLAR cost at ~solo via cheap tiers (raw tokens run
+  shows tokens-vs-solo. Wallet: ~solo DOLLAR cost only on cheaper worker tiers (raw tokens run
   HIGHER — fan-out ×N the per-sub baseline), not raw tokens. Modes: coalfaceMode auto
   (default, rides the contract at/above autoFanoutFloor units) | on (scout every prompt) |
   off. Manual "/coalface" or "swarm this" convenes it in any mode except off. Cross-agent
@@ -17,12 +17,12 @@ description: >-
 
 # CoalFace
 
-> **Honest frame:** ad-hoc fan-out makes the same promises with NO guarantee; CoalFace enforces them by STRUCTURE instead — bounded ($, Wallet below) · full width (floor/width-bounded) · netted (QC + single-writer + snapshot). It disciplines the fan-out; it does not make models smarter or guarantee correctness.
+> **Honest frame:** ad-hoc fan-out makes the same promises with NO guarantee; CoalFace enforces them by STRUCTURE instead — bounded ($ ~solo on cheap tiers, Wallet) · full width (floor/width-bounded) · netted (QC + single-writer + snapshot).
 
 You are the **CONDUCTOR** (the session main). Workers are **LEAVES** (P1) — spawn them via a spawn-tool-less agent type where the platform offers one (Claude Code: `Explore`-class); they read + produce + RETURN.
 
 ## Activation
-`coalfaceMode` (def `auto`): **auto** — you judge when a prompt warrants fan-out; ANY fan-out of ≥ `autoFanoutFloor` units (def 4) rides this contract instead of ad-hoc spawning (below it stays ad-hoc). **on** — scout EVERY prompt; everything decomposable fans out; only non-decomposable work runs solo. **off** — CoalFace fully out; native fan-out untouched. Manual `/coalface` convenes it in any mode except off.
+`coalfaceMode` (def `auto`): **auto** — you judge when a prompt warrants fan-out; ANY fan-out of ≥ `autoFanoutFloor` units (def 4) rides this contract instead of ad-hoc spawning. **on** — scout EVERY prompt; everything decomposable fans out; only non-decomposable work runs solo. **off** — CoalFace fully out; native fan-out untouched. Manual `/coalface` convenes it in any mode except off.
 
 **Consent — 2, numbered G1–G2. Everything else in this contract (scout, partition, waves, apply, rollback, receipt) runs on the ONE standing consent below — never a fresh ask.**
 | # | Ask before proceeding |
@@ -52,7 +52,7 @@ or clean.
 | P3 | Size a swarm from the prompt alone — scout first, always | P17 | Skip-and-flag an ALL-OR-NOTHING unit — one failure there is a full rollback |
 | P4 | Let N workers re-read the same files — shared-digest, scout pays once | P18 | Ship past a red domain gate — full rollback to the snapshot |
 | P5 | Fan out a job under the min-unit floor — merge it or don't fan out | P19 | Surface a 429 to the user as a failure — transient, retried from the journal |
-| P6 | Resolve a partition overlap by model judgment — it's a rule-table | P20 | State the wallet guarantee in tokens — dollars only; raw tokens run higher |
+| P6 | Resolve a partition overlap by model judgment — it's a rule-table | P20 | State a wallet claim in tokens — dollars, on cheaper tiers only; tokens run higher |
 | P7 | Turn the heads-up into a question-box — non-blocking only | P21 | Drop a SENSITIVE unit (crypto/auth/payment/migration) below main-tier |
 | P8 | Ask before starting in `auto`/`on` — the command is the consent (G1/G2 are the only asks) | P22 | Default error-not-allowed work to CoalFace — CoalBoard wins |
 | P9 | Return line-number diffs — anchor-edits only (lines shift after apply) | P23 | Let a worker choose what the locked spec/invariants already chose |
@@ -97,11 +97,11 @@ or clean.
 
 **1 · SCOUT (mandatory, P3).** Survey the worksite FIRST. Scout sub(s) return: the SPOT LIST (each with its file/range or unit id) · the DEPENDENCY GRAPH between spots · the INVARIANTS to lock · the DOMAIN GATE to run at the end · the recommended SWARM-MODE · the SHARED-DIGEST (paid once by the scout, shipped in every contract, P4).
 
-**2 · PARTITION (deterministic, P5/P6).** Interval-intersection check on the spot ranges: OVERLAPPING spots merge into one unit or chain as a dependency; a unit smaller than spawn overhead merges with a neighbor (the min-unit floor). Granularity honesty: "finer = faster" saturates — beyond N ≈ 2-4× wave width overhead dominates → pick near-optimum inside the floor and the width ceiling. Unit count sizes the swarm.
+**2 · PARTITION (deterministic, P5/P6).** Interval-intersection check on the spot ranges: OVERLAPPING spots merge into one unit or chain as a dependency; a unit smaller than spawn overhead merges with a neighbor (the min-unit floor). Only the min-unit floor merges independent spots; wave width bounds each wave, never the unit count (`references/taxonomy.md`). Unit count sizes the swarm.
 
 **3 · HEADS-UP (conditional, non-blocking, P7).** Job dwarfs the prompt → the one-liner above, then proceed.
 
-**4 · WAVES.** Worker-wave width = floor(platform width × `bandwidth`%) — `maxLocalWorkers` never enters this number. Separately, before each step-7 apply-time domain-gate run (main's own build/test, or a depth-1 nested conductor's own — never a worker's) and each wave of heavy local work, run `node <skill dir>/scripts/machine-reading.mjs --cpu-max <admitCpuBusyMaxPct> --mem-min <admitMemFreeMinPct>` with the merged config values, each a plain integer, anything else treated as exit 64 and never put on the command line. BREATHE starts the run; WAIT holds it; read again. `--running <n>` = units you hold; with 0 the first always runs. The platform's own cap stays. `maxLocalWorkers` 0 = no count, the reading decides; positive = the user's own ceiling. No `node` or exit 2 = unmeasured; exit 64 = fix the value; either way one unit at a time, never block. A project config may only TIGHTEN the thresholds (lower CPU max, raise mem min): take the stricter of global and project (`references/admission-control.md`, P29). Spawn wave by wave; each worker gets the work-contract (`references/contract-template.md`) carrying its scope + the shared-digest + the locked invariants. Model: a main-EQUIVALENT model is the default on every platform; on Claude Code, CoalTipple delegate-down tiering is an OPTIONAL enhancement (degrade-safe absent; sensitive units stay main-tier, P21). 429/quota/zombie handling per F5/F6/F7/F8, P14/P15/P19. **AIMD:** a 429 SHRINKS the next wave (multiplicative); clear waves re-GROW it additively back toward the set `bandwidth`%.
+**4 · WAVES.** Worker-wave width = max(1, floor(platform width × `bandwidth`%)), never above the platform width — `maxLocalWorkers` never enters this number. Separately, before each step-7 apply-time domain-gate run (main's own build/test, or a depth-1 nested conductor's own — never a worker's) and each wave of heavy local work, run `node <skill dir>/scripts/machine-reading.mjs --cpu-max <admitCpuBusyMaxPct> --mem-min <admitMemFreeMinPct>` with the merged config values, each a plain integer, anything else treated as exit 64 and never put on the command line. BREATHE starts the run; WAIT holds it and prints `held: <reasons>`; read again. `--running <n>` = units you hold; with 0 the first always runs. `maxLocalWorkers` 0 = no count, the reading decides; positive = the user's own ceiling. No `node`, exit 2 or an axis the machine cannot read (memory without `process.availableMemory()`) = unmeasured, and with every axis unmeasured only `--running 0` runs; exit 64 = fix the value; either way one unit at a time, never block. A project config may only TIGHTEN the thresholds (lower CPU max, raise mem min): take the stricter of global and project (`references/admission-control.md`, P29). Spawn wave by wave; each worker gets the work-contract (`references/contract-template.md`) carrying its scope + the shared-digest + the locked invariants. Model: a main-EQUIVALENT model is the default on every platform; on Claude Code, CoalTipple delegate-down tiering is an OPTIONAL enhancement (degrade-safe absent; sensitive units stay main-tier, P21). 429/quota/zombie handling per F5/F6/F7/F8, P14/P15/P19. **AIMD:** a 429 SHRINKS the next wave (multiplicative); clear waves re-GROW it additively back toward the set `bandwidth`%.
 
 **5 · RETURN = ORDERS AS TEXT (propose-not-execute, P1/P9/P10).** Edits → ANCHOR-EDITS (`old-text → new-text`, exact-match, position-independent). Non-edit domains → the completed unit as text (a translated paragraph, a record, a report section). Side-effects fire only at step 7's sequential apply — already covered by Activation's standing consent, no fresh ask here.
 
@@ -109,7 +109,7 @@ or clean.
 
 **7 · APPLY — you are the SINGLE WRITER.** SNAPSHOT (P16) → apply accepted orders SEQUENTIALLY, topological order (anchor-miss: F2; ALL-OR-NOTHING units: F3/P17) → DOMAIN GATE (code → build+test · corpus → corpus rules · docs → lint+links · data → schema-validate · research → citations; red: F4/P18) → report via the receipt.
 
-**8 · RECEIPT (always).** Spots found · workers used · waves · effective width · tokens vs the solo-baseline estimate · quarantined items + why · test-uncovered flags. Format + layman wording: `references/receipt.md`. The receipt + heads-up speak the USER'S language; technical terms stay verbatim.
+**8 · RECEIPT (always).** Spots found · workers used · waves · effective width · machine holds · tokens vs the solo-baseline estimate · quarantined items + why · test-uncovered flags. Format + layman wording: `references/receipt.md`. The receipt + heads-up speak the USER'S language; technical terms stay verbatim.
 
 ## Swarmability taxonomy (the scout classifies; no worksite "breaks")
 | Worksite shape | Mode |
@@ -124,10 +124,10 @@ or clean.
 Per-domain unit/invariant/gate tables + mode detail: `references/taxonomy.md`.
 
 ## Wallet (the solo-baseline DOLLAR invariant, P20)
-The WHOLE swarm (scout + workers + apply) fits inside the estimated main-SOLO **dollar** cost — NOT its token count (P20). Guards keep the overhead *bounded* (not ≤ solo tokens): (1) the SHARED-DIGEST (the scout pays once, distributes); (2) the MIN-UNIT floor (P5 — a job too small to clear it says *don't fan out*); (3) P13 (no retry storms). `bandwidth` is ORTHOGONAL: how FAST the same budget burns, never how much.
+The swarm fits the estimated main-SOLO **dollar** cost only if workers run cheaper than main (CoalTipple delegate-down, or a cheaper user-set model); main-equivalent workers can exceed it, and no budget stop exists. Never a token claim (P20). Guards keep overhead *bounded*: (1) the SHARED-DIGEST (the scout pays once, distributes); (2) the MIN-UNIT floor (P5 — a job too small to clear it says *don't fan out*); (3) P13 (no retry storms). `bandwidth` is ORTHOGONAL: how FAST the same budget burns, never how much.
 
 ## Journal (per-worker-return)
-Journal each worker's assigned scope at spawn and its returned order on landing — a returned order is safe the moment it lands. A dead/stopped/silent worker → re-spawn one fresh worker on the un-done REMAINDER from the journal (P14). The journal also feeds the receipt and any partial report.
+Journal each worker's assigned scope at spawn and its returned order on landing — a returned order is safe the moment it lands. A dead/stopped/silent worker → re-spawn one fresh worker on the un-done REMAINDER from the journal (P14).
 
 ## Composition (rules that bind first, bind here)
 - **CoalBoard WINS on error-not-allowed** (security/crypto, DB/financial migrations, high-precision, P22): critical work goes to consensus, not throughput; CoalFace may serve as the board's apply-hand after.
@@ -137,7 +137,7 @@ Journal each worker's assigned scope at spawn and its returned order on landing 
 - **Engine:** a platform Workflow/orchestration engine present → ride it; else native subagent waves. Riding Claude Code's `Workflow` tool → **read `references/workflow-engine.md` first** (P28: waves not `parallel(all-N)` · scattered nulls = one retry pass, a run of ≥3 = quota death → STOP + return the remainder · continuation-run over `resumeFromRunId`).
 
 ## Nested conductor (depth note, P2)
-A depth-1 sub may itself conduct (scout → contract → QC → apply for its scope), spawning its workers at depth-2. Beyond depth-2 a spawn FLATTENS into an independent, unreapable top-level session — workers are structural leaves. The wallet slices DOWN the chain (you allocate the sub a slice; it splits that across its workers); receipts flow UP.
+A depth-1 sub may itself conduct (scout → contract → QC → apply for its scope), spawning its workers at depth-2. The wallet slices DOWN the chain (you allocate the sub a slice; it splits that across its workers); receipts flow UP.
 
 ## Platforms (cross-agent, P24)
 Spawn via the platform's NATIVE subagent tool (Claude Code `Agent`/`Task` · each platform its own). Any platform with concurrent subagents runs the full contract; width sizes to the local cap via `bandwidth`; an unknown platform gets the conservative default. NO fan-out at all → degrade to a sequential pipeline under the same contract (scout → units in order → QC → apply). On a platform/version you have not actually run a swarm on, treat width/nesting behavior as UNVERIFIED — degrade conservatively and say so.

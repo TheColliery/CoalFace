@@ -7,16 +7,89 @@ All notable changes to CoalFace are documented here. Format follows
 ## [Unreleased]
 
 ### Fixed
-- **The pointer gate reads code fences with one shared scanner** (tilde fences and indented fences included), and a `vX.Y.Z:path` citation in the top entry is checked with `git cat-file -e` against that tag (internal gate; no shipped change).
-- **A `vX.Y.Z:path` citation in a clone without that tag is a named SKIP, not a FAIL** (internal gate; no shipped change).
+- **A config that `configure.mjs` replaces keeps its permission bits** (`writeFileAtomic`, `scripts/lib/repo-fs.mjs`): the rename used to install the temp file's default mode (0666 under the umask), so a 0600 config became 0644 on POSIX; the temp is now set to the replaced file's bits before the rename, and the `.bak` of a malformed config takes the bits of the config it copies. A config created for the first time gets the default mode for new files. The POSIX-bit tests skip visibly on a volume that keeps no such bits (Windows) and run on CI's Linux and macOS legs (CodeRabbit t161).
+- **The config and its `.bak` are written in full before they replace the file:** a short write can no longer leave a truncated file in place (CodeRabbit t161).
+
+## [0.14.8] - 2026-10-17
+
+The project config write replaces a link instead of writing through it
+
+### Fixed
+- **`scripts/configure.mjs` writes the config and its `.bak` by temp file and rename** (`writeFileAtomic`, `scripts/lib/repo-fs.mjs`): a symlink or junction already at the config file or the backup is refused by the up-front pin before anything is written, and a hard link there, or a link swapped in after the check, is replaced by the rename, never written through; a kill mid-write cannot tear the config; a leftover temp refuses with a sentence. The folder chain is still judged before the write and stays the open residual (`SECURITY.md`).
+- **A folder at the config path is refused with one FAIL line** ("it is a folder, not a config file"), for the written path and for a found legacy config, instead of a raw `EISDIR`.
+- **A path component that is a file is named for what it is** ("a component of the path is not a folder"): `hooks/coalface-conductor.js` gains an `ENOTDIR` branch in `refusalReason` (`NOT_FOLDER_REASON`), used by the read-side report and by `configure.mjs`'s FAIL line, where it read "outside its folder (a link ...)" before. The two are exported. The plugin dist is rebuilt.
+- **A malformed config whose backup cannot be written is kept, not overwritten** (`scripts/configure.mjs`): when the `.bak` cannot be written (a folder or a held file sits at that name) the run stops with one FAIL line that names the backup path, leaves the malformed config untouched and writes nothing; it used to print "Overwriting" and replace the original. Exit code 1 either way.
+- Witnesses: hook tests 91 to 92, `repo-fs` tests 9 to 15, configure tests 28 to 34.
 
 ### Changed
+- **Docs and internal, no shipped change:** the eleven overlay files are re-copied from the canon by blob (`scripts/lib/wave-run.mjs` `b60827c6`, `scripts/lib/wave-run.test.mjs` `bccbaa58`, `scripts/lib/release-prune.mjs` `7f33a695`, `scripts/lib/release-prune.test.mjs` `96a4cceb`, `scripts/lib/asset-upload-mode.mjs` `0022e6fa`, `scripts/lib/asset-upload-mode.test.mjs` `573349d2`, `scripts/verify-release-shape.mjs` `270e43d1`, `scripts/verify-release-shape.test.mjs` `7c2b35c4`, `scripts/release-notes.test.mjs` `f9dde432`, `scripts/lib/git-env-census.test.mjs` `c6b301cd`, `scripts/lib/git-env-census.vectors.mjs` `6dc3ad82`); `SECURITY.md` names the check-then-write race residual of the project-config write (a swapped folder or a swapped config file) and the link rule its folder walk follows; `NOTICE` is conformed to the canon template; the README badge row gains the CodeRabbit reviews badge.
+- **Docs and internal, no shipped change:** `.github/workflows/front-door-links.yml` is re-copied from the canon by blob (`f0cc9ec0`): its job is renamed from `check` to `front-door-links`, so its status-check context no longer shares a name with `link-check.yml`'s `check` job.
+
+## [0.14.7] - 2026-10-16
+
+The receipt gains a Machine line and the test hygiene findings are closed
+
+### Changed
+- **The receipt block has a `Machine` line** (`skills/coalface/references/receipt.md`): domain-gate and heavy local runs held or queued by the machine reading, or "none". The field note added at 0.14.6 asked for it as its own line and the block above had none (E1 t133 finding 6).
+- **`findProjectCfg` is removed from `hooks/coalface-conductor.js`'s exports.** No importer existed (`scripts/configure.mjs` walks with `findProjectHit`); no behaviour changes.
+- **Test hygiene (internal; no shipped change):** the `removeTree` retry leg skips visibly, alone, where the volume lets a held directory go, and both wall-clock bounds are replaced by a call count on a stub (t133 findings 1 and 2); the room's half of the child-sandbox finding, `holdCwd` and the two pinned files of `scripts/lib/suite-run.test.mjs` now run in a throwaway HOME and TEMP (finding 3); `scripts/machine-reading.test.mjs` checks the sandbox at the spawn instead of counting spreads (finding 5); the test of `gitTestEnv` strips and plants keys case-insensitively; a leg reads `platform-configs/hooks.json` and holds the Antigravity entry to its own command-string schema, so the exec form of the Claude Code manifest cannot leak into it (`scripts/lib/hooks.test.mjs`).
+- **The canon's `front-door-links` is adopted by blob** (the outward-link check of the front-door docs): `.github/workflows/front-door-links.yml` `7c582bd7`, `scripts/front-door-links.mjs` `3793a056`, `scripts/lib/front-door-links.mjs` `7df59db6`, `scripts/front-door-links.test.mjs` `3cff2b30`; the test is in the suite roster (internal; no shipped change).
+
+## [0.14.6] - 2026-10-16
+
+The self-update nudge now follows updateMode, and the docs match the code
+
+### Fixed
+- **The self-update nudge branches on `updateMode`** (`hooks/coalface-conductor.js`, the update command already documented it): `auto` runs the `/coalface:update` web-check when due and then only OFFERS the update, never applies it unasked; `ask` offers the check; `remind` is one line that a check is due, with no check asked for; `off` stays silent. The stamp is still written only when due - test: `scripts/lib/hooks.test.mjs`.
+- **Worker-wave width has a floor of one.** `skills/coalface/SKILL.md` step 4, `references/admission-control.md` and the README state it as `max(1, floor(platform width × bandwidth%))`, never above the platform width; a platform with no fan-out still degrades to the sequential pipeline - test: none (prose; no code computes the width). The same SKILL.md edit removes one Journal sentence, "The journal also feeds the receipt and any partial report", a purpose statement that commands nothing; its content still lives in `references/receipt.md`.
+- **The receipt no longer shows `4/6 — machine cap`.** `references/receipt.md` says machine admission (`maxLocalWorkers` and the machine reading) holds domain-gate and heavy local runs, is its own line, and never sets the effective width - test: none (prose).
+
+### Changed
+- **The README `Docs:` line points at the published page,** `https://docs.thecolliery.org/tools/coalface`, and the "publishing soon" note is gone.
+
+## [0.14.5] - 2026-10-16
+
+Step 2 of the skill no longer caps the unit count at the wave width
+
+### Changed
+- **Rail change, stated as one: PARTITION no longer tells the agent to hold units to about 2-4x the wave width.** `skills/coalface/SKILL.md` step 2 read "Don't slice finer than ~2-4x the wave width: overhead dominates", which on a flat 100-spot worksite at width 8 capped the partition near 16 to 32 units and contradicted the flat-worksite rule in `references/taxonomy.md` (worker count = unit count). It now reads one rule: the min-unit floor, not the wave width, is the only reason to merge independent spots, and width bounds each wave, never the unit count. `references/taxonomy.md` Granularity honesty and the README bullet now state the 2-4x figure as an observation about wall-clock, not a cap. The README's measured benchmark data is unchanged (E1 t113 finding 1).
+
+## [0.14.4] - 2026-10-15
+
+The machine reading no longer misreads memory or confined CPUs
+
+### Fixed
+- **A memory limit that is not a limit no longer sets the denominator.** `skills/coalface/scripts/machine-reading.mjs` reads a `process.constrainedMemory()` of 0, at or above 2**63 (libuv returns UINT64_MAX for a cgroup with no limit) or above `os.totalmem()` as no limit and reads the free share over the machine total; where `process.availableMemory` is absent (Node before 22.0.0) the memory axis is unmeasured and `os.freemem()` is never the fallback, because on macOS it counts free pages only (nodejs.org/docs/latest-v22.x/api/process.html, read 2026-10-15) - test: scripts/machine-reading.test.mjs.
+- **A process confined to fewer CPUs than the machine has reads busy when its CPUs are saturated.** The CPU share is judged over the k busiest logical CPUs, k = `os.availableParallelism()`; an unconfined box keeps the whole-machine weighted mean exactly. Witness on this box with an affinity mask of 2 CPUs and 8 busy threads: the old reading was `BREATHE` at 24.1%, the new one `WAIT` at 100%. A hybrid box (performance and efficiency cores) is not weighted by core class: a `shortcut:` comment in the source and the admission reference name that limit, which waits for phase 2 (CWK2-025 finding 1) - test: scripts/machine-reading.test.mjs.
+
+### Changed
+- **A WAIT line names its reasons.** `WAIT ... held: cpu 92% at or above 80%; mem free 5% below 10%`; a BREATHE line and the `--json` keys are unchanged. The agent reads the exit code, not the text.
+- **When every axis is unmeasured, only the first unit runs.** `--running 0` is admitted; a second unit WAITs with the reason `every axis unmeasured`. One measured axis keeps the old rule. Before, a machine that could not be read at all admitted every unit.
+- **The SessionStart directive states the wallet claim as conditional.** The `auto` and `on` directives now say the swarm's dollar cost stays near solo only on cheaper worker tiers, as the README and SKILL already did.
+- **`skills/coalface/SKILL.md` step 4, `references/admission-control.md` and the README Waves row describe the new reading.**
+- **The hook manifest check also requires `"type": "command"`** (`scripts/verify.mjs`), and the conductor is spawned in its exec form by one test (internal gate; no shipped change).
+- **`CONTRIBUTING.md` says the launch-form Release is posted by a `workflow_dispatch` with `launch_form=true`**, not hand-cut (docs; no shipped change).
+
+## [0.14.3] - 2026-10-15
+
+A planted link can no longer redirect the project config
+
+### Security
+- **The project config is read and written only inside its own folder.** A link planted at the config file or at a folder above it (a junction on Windows, a symlink on POSIX) made the conductor read a file outside the project, and made `scripts/configure.mjs` read, back up and write outside it. `hooks/coalface-conductor.js` now accepts a project config only when its real path is exactly its folder's real path plus the literal path the walk built; a refused file counts as absent and the report names it with the reason "it resolves outside its folder" (a permission-denied file keeps "unreadable"); the Antigravity adapter shares the read. `scripts/configure.mjs` pins the config it finds, the file it writes and the `.bak` copy before anything is read or written, and on a refusal prints one FAIL line and writes nothing. Witnesses: hook tests 71 to 85, configure tests 16 to 25. Named residue: check and use are two acts, a hard link cannot be told from a file, and a differently cased existing folder on a case-insensitive volume is refused.
+
+### Changed
+- **The conductor is wired in exec form** (CWK2-027): `hooks/hooks.json` now sets `"command": "node"` with the script path in `"args"` instead of a shell string with escaped quotes. Claude Code 2.1.299 takes this form; the vendor hooks reference (code.claude.com/docs/en/hooks, read 2026-10-15) says path placeholders such as `${CLAUDE_PLUGIN_ROOT}` are substituted into `command` and into each `args` element as plain strings, with no shell, and that node plus a script path works on every platform. CoalWash ships the same shape in v1.12.2. `scripts/verify.mjs` now checks it; `platform-configs/hooks.json` is the Antigravity template with its own schema and is unchanged.
+- **The wallet's dollar invariant is stated as conditional** (`skills/coalface/SKILL.md` Wallet and description, `README.md`): the swarm fits inside the estimated solo dollar cost only when worker tiers are cheaper than main (CoalTipple delegate-down, or a cheaper model the user sets); with the default main-equivalent workers it can exceed solo dollars, and no budget stop exists. The benchmark figures are unchanged.
 - **The release canon is adopted by blob id for three files** (`scripts/verify-release-shape.test.mjs`, `scripts/secret-gate.test.mjs`, `.coderabbit.yaml`), with the git-spawn census pins re-pinned to the new blobs. Fixture git no longer waits on an editor, a prompt or a signer, and never signs with the operator's key (internal release tooling and tests; no shipped change).
 - **The release canon is re-adopted at `.github` `690c2de` (`scripts/release-notes.mjs` included, superseding its first adoption above), and the hold on `scripts/release-notes.test.mjs` is lifted.** Adopted at the canon blob, `scripts/release-notes.test.mjs` (`7e779ef8`, canon, later than `690c2de`), `scripts/release-notes.mjs` (`f8d998d8`), `scripts/lib/release-shape.mjs` (`bfb29332`), `scripts/lib/release-shape.test.mjs` (`771a7e60`) and `.coderabbit.yaml` (`0d5a8860`); `scripts/verify-release-shape.test.mjs` is `fa8a730d`. Neither release-notes file carries a census pin (internal release tooling and tests; no shipped change).
 - **The secret scanner, the gate and both hooks are re-synced byte for byte:** `scripts/lib/secret-scan.mjs` (`270a21a2`, unchanged) and `scripts/secret-scan.test.mjs` (`a0319dcd`) from Bankfire `bd328f2`, `scripts/secret-gate.mjs` (`856956a1`) and `scripts/secret-gate.test.mjs` (`2f066650`) from the `.github` canon, and `.githooks/pre-commit` and `.githooks/pre-push` whole at `1979bcaf`. The gate and the hooks now state what the scan does not catch (a credential inside a URL or connection string, an HTTP authentication header whose token is not provider-shaped, a key split across lines), and `SECURITY.md` says the same (internal gate; no shipped change).
-- **The git-spawn census is the flock's shared one, adopted by blob id** (`scripts/lib/git-env-census.mjs` `13f8d95c`, its test `972d9ca8` and its vectors file `8147dd7a`, from `.github`), and the room's own lexer census is removed. `gitTestEnv` is re-exported from `scripts/lib/git-env.mjs` so the census trusts it by name; the room's one pin (`scripts/secret-gate.mjs`, which keeps `GIT_INDEX_FILE` on purpose) lives in `scripts/lib/git-spawn-room.mjs` and are measured by `scripts/git-env-census-room.test.mjs` (internal gate; no shipped change).
-- **The claude.ai ZIP workflow is re-copied from the canon** (`.github/workflows/claude-ai-zips.yml`, blob `686f200a`): while no stable Release exists, a newer pre-release tag re-points the one launch-form Release (draft, empty its assets, move its tag) instead of staying tag-only (internal release tooling; no shipped change).
+- **The git-spawn census is the flock's shared one, adopted by blob id** (`scripts/lib/git-env-census.mjs` `13f8d95c`, its test `972d9ca8` and its vectors file `8147dd7a`, from `.github`), and the room's own lexer census is removed. `gitTestEnv` is re-exported from `scripts/lib/git-env.mjs` so the census trusts it by name; the room's one pin (`scripts/secret-gate.mjs`, which keeps `GIT_INDEX_FILE` on purpose) lives in `scripts/lib/git-spawn-room.mjs` and is measured by `scripts/git-env-census-room.test.mjs` (internal gate; no shipped change).
+- **The claude.ai ZIP workflow is re-copied from the canon** (`.github/workflows/claude-ai-zips.yml`, blob `686f200a`): while no stable Release exists, a `workflow_dispatch` with the newer pre-release tag and `launch_form=true` re-points the one launch-form Release (draft, empty its assets, move its tag); a tag push alone re-points nothing (internal release tooling; no shipped change).
 - **The test runner is the flock's wave runner and judges the suite by the TAP:** each test file runs as its own `node --test --test-reporter=tap` child through `scripts/lib/wave-run.mjs` (`3119cb7d`, with its test `fd578cfd` and the `scripts/lib/stdout-sync.mjs` preload `27bd81af`) and admits files by the live machine reading (`scripts/lib/machine-reading.mjs`, `1c550b66`, byte-equal to the skill's own copy), all adopted by blob id, under the heap cap, a clock per test, a clock per file and a whole-run deadline, and a file that exits 0 before its tests register is VACUOUS and the run is red. `scripts/test-expect.json` holds a count floor for every roster file but one and, for `scripts/git-env-census-room.test.mjs`, the expected test names, so a test that vanishes from a file that still exits 0 turns the run red (`scripts/lib/suite-run.mjs`; testing.md's TAP-names rule). The unreleased single `node --test` child with `--test-force-exit` that preceded it is removed (internal gate; no shipped change).
+
+### Fixed
+- **The pointer gate reads code fences with one shared scanner** (tilde fences and indented fences included), and a `vX.Y.Z:path` citation in the top entry is checked with `git cat-file -e` against that tag (internal gate; no shipped change).
+- **A `vX.Y.Z:path` citation in a clone without that tag is a named SKIP, not a FAIL** (internal gate; no shipped change).
 
 ## [0.14.2] - 2026-10-04
 

@@ -55,3 +55,7 @@ conductor's consented sequential apply, and is never auto-retried (retry = doing
 Real sites mix shapes (a flat sweep + one chained pair + a glossary). The scout tags each
 spot with its shape; the partition orders waves so locked invariants come first, chains run
 in order, and the flat bulk fills the width. One receipt covers the lot.
+
+## Granularity honesty
+
+Granularity honesty: "finer = faster" saturates — wall-clock ≈ ceil(N / width) × unit-time, so beyond roughly 2-4× the wave width finer slices add spawn overhead and no wall-clock. That is an OBSERVATION, not a cap: the rule SKILL.md step 2 states is one rule, the min-unit floor. Merge a unit that is below the floor into a neighbour; never merge independent spots that clear it just because there are many (mode 1 keeps worker count = unit count, and a spot is the QC and rollback grain). Width bounds each wave, not the unit count. The benchmark's cheapest arm (2 workers x 3 spots on a 6-spot job, `TheColliery/.github/benchmarks/CoalFace/RESULTS.md`) traded spawn overhead for parallelism on spots far below the floor (about 27 tokens a spot against a per-worker baseline of about 25,000), so even 3 spots stayed under it. Under the floor-only rule that job is not fanned out at all (F14, run it solo); above the floor each spot stays its own unit.

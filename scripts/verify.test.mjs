@@ -425,8 +425,8 @@ test('verify.mjs: a new [Unreleased] top entry citing a path that resolves to no
 });
 
 // THE CONVENTION for a Removed/Changed line that names a file the release deleted: cite it with the tag it last lived in,
-// `v0.13.0:scripts/lib/admission-control.mjs`. The gate reads that as a path into another revision (its first segment,
-// `v0.13.0:scripts`, is not a top-level directory of this tree), so it is neither resolved nor reported.
+// `v0.13.0:scripts/lib/admission-control.mjs`. The gate reads that as a path into another revision: it is not resolved
+// against this tree, it is checked against the tag (a typo FAILs, a tag missing from a shallow clone is a named SKIP).
 test('verify.mjs: a top entry naming a deleted file with the tag form (vX.Y.Z:path) PASSES; the bare path FAILs and the message states the convention', () => {
   const ok = verifyTagged('Removed `v0.0.1:scripts/verify.mjs`, the cores formula.');
   assert.equal(ok.status, 0, `the tag form is skipped, got:\n${ok.stdout}${ok.stderr}`);
@@ -505,3 +505,26 @@ test('verify.mjs: a vX.Y.Z:path citation with no .git at all stays skipped, exit
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+// 15b item 7 (E1 t105, CoalHearth's class in this room): the gate pins the exec form of hooks/hooks.json, command "node" + args, AND the entry's type. An entry with no type, or a
+// "prompt" entry (a hook whose decision is a model's judgment, hooks-safety.md section 9), must FAIL; the plugin/ twin is changed in step so only the shape is under test.
+for (const [label, mutate] of [
+  ['with no type', (e) => { delete e.type; }],
+  ['of type "prompt"', (e) => { e.type = 'prompt'; }],
+]) {
+  test(`verify.mjs: a hooks.json SessionStart entry ${label} FAILs the exec-form check (the control keeps type command and passes it)`, (t) => {
+    const tmp = mkTmpRepoCopy();
+    t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+    const control = runVerify(tmp);
+    assert.match(control.stdout, /ok {3}hooks\.json wires SessionStart in exec form/);
+    for (const rel of [['hooks', 'hooks.json'], ['plugin', 'hooks', 'hooks.json']]) {
+      const p = path.join(tmp, ...rel);
+      const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+      mutate(j.hooks.SessionStart[0].hooks[0]);
+      fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
+    }
+    const r = runVerify(tmp);
+    assert.notEqual(r.status, 0, r.stdout);
+    assert.match(r.stdout, /FAIL hooks\.json does not wire the conductor in exec form/);
+  });
+}

@@ -26,7 +26,7 @@ name: Coverage
 # PRIOR report standing (stale, never corrupt), the same class as codeql.yml. The
 # comparison baseline comes from the push-to-main run, so both triggers are needed.
 #
-# Every step is gated on scripts/test.mjs existing (a gate local to this workflow; this repository's
+# Every step after the checkout is gated on scripts/test.mjs existing (a gate local to this workflow; this repository's
 # ci.yml runs its steps unconditionally): a bare "Use this template" click has no scripts/ yet, and
 # this job then skips cleanly, never red.
 
@@ -59,7 +59,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Set up Node (skips cleanly until scripts/test.mjs exists)
         if: hashFiles('scripts/test.mjs') != ''
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
       - name: Run tests with coverage (skips cleanly until scripts/test.mjs exists)
