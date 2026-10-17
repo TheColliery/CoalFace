@@ -10,7 +10,7 @@
   "scripts/lib/config-keys.test.mjs": 27,
   "scripts/lib/pointer-check.test.mjs": 60,
   "scripts/lib/git-test-env.test.mjs": 12,
-  "scripts/lib/repo-fs.test.mjs": 23,
+  "scripts/lib/repo-fs.test.mjs": 24,
   "scripts/lib/git-env-census.test.mjs": 231,
   "scripts/lib/git-env.test.mjs": 3,
   "scripts/lib/test-child-env.test.mjs": 4,

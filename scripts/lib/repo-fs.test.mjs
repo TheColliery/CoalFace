@@ -273,3 +273,19 @@ test('writeFileAtomic ignores a modeFrom that is a folder: no mode is set and th
   assert.deepEqual(modes, []);
   assert.equal(fs.readFileSync(path.join(root, 'x.json'), 'utf8'), 'x');
 });
+
+// rev-e1 LOW-1: a volume that keeps no POSIX bits may refuse fchmod (the swallow is deliberate: the write must still land). The stub makes fchmodSync throw on every platform, so the
+// leg proves the swallowed failure path that the leg above never reaches.
+test('writeFileAtomic: a refused fchmod does not stop the write: the file is replaced, no temp is left (stub, every platform)', (t) => {
+  const { root } = layout(t);
+  const f = path.join(root, 'a.json');
+  fs.writeFileSync(f, 'old');
+  const real = fs.fchmodSync;
+  let calls = 0;
+  fs.fchmodSync = () => { calls += 1; throw Object.assign(new Error('EPERM'), { code: 'EPERM' }); };
+  t.after(() => { fs.fchmodSync = real; });
+  writeFileAtomic(f, 'new');
+  assert.equal(calls, 1, 'the stub was not reached (the file has no mode to apply)');
+  assert.equal(fs.readFileSync(f, 'utf8'), 'new');
+  assert.deepEqual(fs.readdirSync(root), ['a.json'], 'a temp was left');
+});
