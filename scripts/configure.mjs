@@ -38,7 +38,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { CONFIG_SCHEMA, validateValue } from './lib/config-schema.mjs';
 import { parseJsonc } from './lib/jsonc.mjs';
-import { mkdirRepoParents, writeFileAtomic, RepoWriteRefused } from './lib/repo-fs.mjs';
+import { mkdirRepoParents, writeFileAtomic, RepoWriteRefused, readConfigBounded } from './lib/repo-fs.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -177,10 +177,17 @@ async function main() {
   let rawConfig = null;
   if (readPath !== null) {
     try {
-      let content = fs.readFileSync(readPath, 'utf8');
+      let content = readConfigBounded(readPath);
       if (content.charCodeAt(0) === 0xfeff) content = content.slice(1);
       rawConfig = content;
-    } catch {}
+    } catch (e) {
+      // An oversize config is a named refusal before anything is parsed or written. Any other read failure stays silent, as before.
+      if (e.code === 'ECONFIGTOOLARGE') {
+        console.error(`FAIL ${readPath}: config is larger than 1 MiB, so it is not read; nothing was written`);
+        process.exitCode = 1;
+        return;
+      }
+    }
   }
   if (rawConfig !== null) {
     try {

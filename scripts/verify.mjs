@@ -9,6 +9,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { validateConfig } from './lib/config-schema.mjs';
 import { stripJsonc } from './lib/jsonc.mjs';
+import { readConfigBounded } from './lib/repo-fs.mjs';
 import { DESC_CAP, descriptionCapCheck } from './lib/desc-cap.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -105,7 +106,7 @@ try {
 
 console.log('config (factory vs schema):');
 try {
-  let c = fs.readFileSync(path.join(repo, 'platform-configs', '.coalface.json'), 'utf8');
+  let c = readConfigBounded(path.join(repo, 'platform-configs', '.coalface.json'));
   if (c.charCodeAt(0) === 0xFEFF) c = c.slice(1);
   const cfg = JSON.parse(stripJsonc(c));
   const errors = validateConfig(cfg);

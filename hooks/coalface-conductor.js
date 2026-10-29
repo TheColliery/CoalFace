@@ -27,7 +27,7 @@ function lc(s) { return String(s == null ? '' : s).toLowerCase(); }
 // change (a pending flock question, named in the coder's return, never resolved here).
 function parseJsonc(text) {
   try {
-    const clean = String(text).replace(/"(?:\\.|[^"\\])*"|\/\/.*|\/\*[\s\S]*?\*\//g, (m) => (m[0] === '"' ? m : ''));
+    const clean = String(text).replace(/"(?:\\[\s\S]|[^"\\])*(?:"|\\?$)|\/\/.*|\/\*[\s\S]*?(\*\/|$)/g, (m, close) => (m[0] === '"' || (m[1] === '*' && close !== '*/') ? m : ''));
     const p = JSON.parse(clean, (k, v) => (k === '__proto__' || k === 'constructor' || k === 'prototype' ? undefined : v));
     return { cfg: (p && typeof p === 'object' && !Array.isArray(p)) ? p : {}, reason: null };
   } catch { return { cfg: {}, reason: 'malformed JSON' }; }
@@ -40,12 +40,45 @@ function parseJsonc(text) {
 // parse failure). Branches on the fs error's CODE, never its message (node/runtime.md
 // §7: `error.message` is not a stable API). Any OTHER fs error (a race, an exotic code)
 // stays silent -- unchanged behaviour, never a fourth reason invented for it.
+// The largest config read. The library carries the same number (scripts/lib/repo-fs.mjs), and the
+// witness test keeps the two equal. An oversize config reads as the defaults, silently.
+const MAX_CONFIG_BYTES = 1024 * 1024;
+
+// One descriptor: the file type and the size are judged on it, then the same descriptor is read.
+function readBoundedConfig(file) {
+  const fd = fs.openSync(file, 'r');
+  try {
+    const st = fs.fstatSync(fd);
+    if (!st.isFile()) {
+      const e = new Error('not a regular file');
+      e.code = st.isDirectory() ? 'EISDIR' : 'ENOTFILE';
+      throw e;
+    }
+    if (st.size > MAX_CONFIG_BYTES) {
+      const e = new Error('config is larger than the bound');
+      e.code = 'ECONFIGTOOLARGE';
+      throw e;
+    }
+    const buf = Buffer.alloc(st.size);
+    let got = 0;
+    while (got < st.size) {
+      const n = fs.readSync(fd, buf, got, st.size - got, got);
+      if (n === 0) break;
+      got += n;
+    }
+    return buf.subarray(0, got).toString('utf8');
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 function readConfigFile(file) {
   let text;
   try {
-    text = fs.readFileSync(file, 'utf8');
+    text = readBoundedConfig(file);
   } catch (e) {
     if (e && e.code === 'EISDIR') return { cfg: {}, reason: 'a directory' };
+    if (e && e.code === 'ECONFIGTOOLARGE') return { cfg: {}, reason: null };
     // r5 bounce 1 / M1 -- Windows reports an ACL-denied read as EPERM, not EACCES (libuv;
     // chmod cannot deny a read on NTFS, which is why the capability probe below falls
     // back to an icacls-based one). Both are the same user-facing fact -- unreadable.

@@ -1657,3 +1657,20 @@ test('17c (a): refusalReason names "not a folder" for ENOTDIR, keeps "unreadable
     assert.strictEqual(refusalReason('x'), 'it resolves outside its folder');
   } finally { fs.realpathSync.native = real; }
 });
+
+// Size bound: a project config over 1 MiB is not read. The file names a floor of 5, so a read would show
+// ">= 5 units"; the default floor 4 showing instead proves the oversize file was refused, and no UNREADABLE line
+// is written for it (the refusal is silent, like any unreadable-but-not-denied read).
+test('case 67: a project config over 1 MiB is read as the defaults, silently (the floor it names is not honoured)', () => {
+  const { home, cwd } = sandbox();
+  try {
+    muteUpdate(home);
+    const target = path.join(cwd, '.claude', 'coal', 'coalface.json');
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, JSON.stringify({ autoFanoutFloor: 5 }).padEnd(1024 * 1024 + 1, ' '), 'utf8');
+    const r = run(cwd, home);
+    assertGraceful(r);
+    assert.deepStrictEqual(linesStarting(r.stdout, 'UNREADABLE:'), [], 'an oversize config is refused silently, not reported as unreadable');
+    assert.match(r.stdout, />= 4 units/, 'the oversize config contributes nothing: the default floor 4 stands, not the 5 it names');
+  } finally { clean(home, cwd); }
+});

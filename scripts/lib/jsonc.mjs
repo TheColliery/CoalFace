@@ -3,8 +3,10 @@
 // backslash, e.g. "C:\\", must terminate its string correctly instead of leaking escape
 // state into the next token). Shared by verify.mjs.
 
+// An unclosed string, a dangling backslash or an unclosed block comment is kept to the end of the
+// input in one match, so the strip stays linear and a malformed config still fails JSON.parse.
 export function stripJsonc(content) {
-  return content.replace(/"(?:\\.|[^"\\])*"|\/\/.*|\/\*[\s\S]*?\*\//g, (m) => (m[0] === '"' ? m : ''));
+  return content.replace(/"(?:\\[\s\S]|[^"\\])*(?:"|\\?$)|\/\/.*|\/\*[\s\S]*?(\*\/|$)/g, (m, close) => (m[0] === '"' || (m[1] === '*' && close !== '*/') ? m : ''));
 }
 
 // Prototype-pollution guard (OWASP Node.js): a poisoned project .coalface.json (e.g.

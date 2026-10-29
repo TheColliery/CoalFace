@@ -15,6 +15,42 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+// The largest config any reader loads. A project or global config over this size is refused
+// before anything parses it. The conductor hook carries its own copy of the number, and the
+// witness test keeps the two equal.
+export const MAX_CONFIG_BYTES = 1024 * 1024;
+
+// Reads a config through ONE descriptor: the file type and the size are judged on that
+// descriptor (fstat), then the same descriptor is read, so nothing is read that was not judged.
+// A directory keeps EISDIR, a non-file gets ENOTFILE, and an oversize file is refused with
+// ECONFIGTOOLARGE and a message that names the file.
+export function readConfigBounded(file) {
+  const fd = fs.openSync(file, 'r');
+  try {
+    const st = fs.fstatSync(fd);
+    if (!st.isFile()) {
+      const e = new Error(`${file}: not a regular file`);
+      e.code = st.isDirectory() ? 'EISDIR' : 'ENOTFILE';
+      throw e;
+    }
+    if (st.size > MAX_CONFIG_BYTES) {
+      const e = new Error(`${file}: config is larger than 1 MiB (${MAX_CONFIG_BYTES} bytes), so it is not read`);
+      e.code = 'ECONFIGTOOLARGE';
+      throw e;
+    }
+    const buf = Buffer.alloc(st.size);
+    let got = 0;
+    while (got < st.size) {
+      const n = fs.readSync(fd, buf, got, st.size - got, got);
+      if (n === 0) break;
+      got += n;
+    }
+    return buf.subarray(0, got).toString('utf8');
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 // A relative path escapes its root when its FIRST SEGMENT is `..` (or it is absolute, a different drive on Windows). A lexical `startsWith('..')` would also refuse a real
 // child folder named `..cfg`, so the test is on the segment.
 export function escapesRoot(rel) {
