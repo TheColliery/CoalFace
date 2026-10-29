@@ -16,7 +16,7 @@
   "scripts/lib/test-child-env.test.mjs": 4,
   "scripts/lib/wave-run.test.mjs": 39,
   "scripts/lib/suite-run.test.mjs": 14,
-  "scripts/secret-scan.test.mjs": 47,
+  "scripts/secret-scan.test.mjs": 101,
   "scripts/secret-gate.test.mjs": 18,
   "scripts/build-plugin.test.mjs": 10,
   "scripts/verify.test.mjs": 22,
