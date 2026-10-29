@@ -33,13 +33,6 @@ function parseJsonc(text) {
   } catch { return { cfg: {}, reason: 'malformed JSON' }; }
 }
 
-// UMB-174 (b): read + parse ONE candidate config file, returning { cfg, reason }. The
-// read and the parse are two separate failure sites -- a DIRECTORY or a permission
-// failure happens at fs.readFileSync, before parseJsonc ever sees any text, so they are
-// caught here and never reach parseJsonc's own catch (which only ever sees a genuine
-// parse failure). Branches on the fs error's CODE, never its message (node/runtime.md
-// §7: `error.message` is not a stable API). Any OTHER fs error (a race, an exotic code)
-// stays silent -- unchanged behaviour, never a fourth reason invented for it.
 // The largest config read. The library carries the same number (scripts/lib/repo-fs.mjs), and the
 // witness test keeps the two equal. An oversize config reads as the defaults, silently.
 const MAX_CONFIG_BYTES = 1024 * 1024;
@@ -72,6 +65,14 @@ function readBoundedConfig(file) {
   }
 }
 
+// UMB-174 (b): read + parse ONE candidate config file, returning { cfg, reason }. The
+// read and the parse are two separate failure sites -- readBoundedConfig opens the file,
+// judges its type and size on the descriptor (a DIRECTORY or a non-file, an oversize file),
+// and only then reads it, so a DIRECTORY or a permission failure is caught here, before
+// parseJsonc ever sees any text, and never reaches parseJsonc's own catch (which only ever
+// sees a genuine parse failure). Branches on the fs error's CODE, never its message
+// (node/runtime.md §7: `error.message` is not a stable API). Any OTHER fs error (a race,
+// an exotic code) stays silent -- unchanged behaviour, never a fourth reason invented for it.
 function readConfigFile(file) {
   let text;
   try {
