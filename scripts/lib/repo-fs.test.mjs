@@ -226,7 +226,7 @@ test('writeFileAtomic: a NEW file keeps the default creation mode (no restrictiv
 test('writeFileAtomic writes the whole buffer even when a single writeSync would write short', (t) => {
   const { root } = layout(t);
   const f = path.join(root, 'a.json');
-  const content = 'x'.repeat(4096);
+  const content = Buffer.from('x'.repeat(4096));
   const realWrite = fs.writeSync;
   let shorted = 0;
   fs.writeSync = (fd, buf, ...rest) => {
@@ -237,6 +237,7 @@ test('writeFileAtomic writes the whole buffer even when a single writeSync would
   t.after(() => { fs.writeSync = realWrite; });
   writeFileAtomic(f, content);
   fs.writeSync = realWrite;
+  assert.ok(shorted > 1, 'the short write was reached and the loop wrote the rest');
   assert.equal(fs.readFileSync(f, 'utf8').length, 4096, 'the file holds a truncated write');
 });
 

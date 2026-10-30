@@ -24,7 +24,7 @@ function run(args, { cwd, home }) {
   return spawnSync(process.execPath, [configurePath, ...args], {
     encoding: 'utf8',
     cwd,
-    env: { ...process.env, HOME: home, USERPROFILE: home },
+    env: { ...process.env, HOME: home, USERPROFILE: home, TEMP: home, TMP: home, TMPDIR: home },
   });
 }
 
@@ -553,7 +553,7 @@ test('17c E1 configure: the .bak of a malformed config is given the MODE of the 
     'fs.fchmodSync = (fd, m) => { fs.appendFileSync(process.env.FCHMOD_LOG, String(m) + "\\n"); return real(fd, m); };',
   ].join('\n'));
   const r = spawnSync(process.execPath, ['--import', pathToFileURL(preload).href, configurePath, '--bandwidth', '40'], {
-    encoding: 'utf8', cwd: project, env: { ...process.env, HOME: home, USERPROFILE: home, FCHMOD_LOG: out },
+    encoding: 'utf8', cwd: project, env: { ...process.env, HOME: home, USERPROFILE: home, TEMP: home, TMP: home, TMPDIR: home, FCHMOD_LOG: out },
   });
   assert.equal(r.status, 1, r.stdout + r.stderr); // a malformed config keeps the exit 1 the room has always given it
   const seen = fs.readFileSync(out, 'utf8').split('\n').filter(Boolean).map(Number);
