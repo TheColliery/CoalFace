@@ -19,13 +19,18 @@ export const DIST_ITEMS = [
   'skills',
   'hooks',
   'commands',
+  // AG reads the root plugin.json and the root hooks.json of the folder it installs, and resolves the logo inside it.
+  'plugin.json',
+  'hooks.json',
+  'assets',
 ];
 
 // TEXT_EXTS grounded in what actually ships under DIST_ITEMS today (skills/hooks/
 // commands: .js — CJS throughout; .md; .claude-plugin/plugin.json). No .mjs/.cjs
 // ships under DIST_ITEMS in this room. Non-text/unlisted extensions stay strict
 // byte-compare — the mechanism must not silently normalize a future binary asset.
-const TEXT_EXTS = new Set(['.js', '.json', '.md']);
+// .svg joins because the AG logo is text: a CRLF checkout would false-flag it "stale in plugin/" otherwise (board #59).
+const TEXT_EXTS = new Set(['.js', '.json', '.md', '.svg']);
 
 // Byte-compare two files, EOL-agnostic on TEXT_EXTS only (board #47's
 // `.gitattributes` eol=lf conform can still leave a stale core.autocrlf checkout

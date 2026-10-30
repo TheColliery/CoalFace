@@ -22,6 +22,7 @@ const TESTS = [
   'scripts/machine-reading.test.mjs',
   'scripts/lib/jsonc.test.mjs',
   'scripts/lib/jsonc-linear.test.mjs',
+  'scripts/agy-validate.test.mjs',
   'scripts/lib/hooks.test.mjs',
   'scripts/lib/desc-cap.test.mjs',
   'scripts/lib/claude-ai-trim.test.mjs',

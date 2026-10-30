@@ -1,0 +1,8 @@
+{
+  "name": "coalface",
+  "displayName": "CoalFace",
+  "description": "CoalFace — fan-out discipline for swarm work. When a task splits into many units, it runs the fan-out as a disciplined factory: a scout survey, a deterministic partition, workers that return edit orders as text, QC at collection, and a single-writer apply behind a snapshot. Zero-dependency, offline by default, no API keys.",
+  "version": "0.14.9",
+  "logo": "assets/logo.svg",
+  "author": "HetCreep"
+}

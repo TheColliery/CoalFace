@@ -5,6 +5,7 @@
   "scripts/machine-reading.test.mjs": 30,
   "scripts/lib/jsonc.test.mjs": 3,
   "scripts/lib/jsonc-linear.test.mjs": 5,
+  "scripts/agy-validate.test.mjs": 3,
   "scripts/lib/hooks.test.mjs": 93,
   "scripts/lib/desc-cap.test.mjs": 7,
   "scripts/lib/claude-ai-trim.test.mjs": 9,
