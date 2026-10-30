@@ -4,12 +4,12 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
-## [0.14.10] - 2026-10-31
+## [0.15.0] - 2026-10-31
 
 An Antigravity manifest, hooks file and logo now ship with the plugin
 
-### Changed
-- **The plugin carries an Antigravity manifest, hooks file and logo** (root `plugin.json`, root `hooks.json`, `assets/logo.svg`, all carried into `plugin/` by the build). The root `plugin.json` names the plugin `coalface` with `displayName` "CoalFace", its description, `version` 0.14.10, `logo` `assets/logo.svg` and `author` HetCreep. The root `hooks.json` registers a `PreInvocation` command for `hooks/ag-conductor.js` with a 30-second timeout. Antigravity's own validator reads the built plugin with no error and no missing-logo note; its only warnings are for `commands/` and `hooks/hooks.json`, which the Claude Code route still needs. The Claude Code manifest and hooks are unchanged. — test: `scripts/agy-validate.test.mjs`
+### Added
+- **The plugin carries an Antigravity manifest, hooks file and logo** (root `plugin.json`, root `hooks.json`, `assets/logo.svg`, all carried into `plugin/` by the build). The root `plugin.json` names the plugin `coalface` with `displayName` "CoalFace", its description, `version` 0.15.0, `logo` `assets/logo.svg` and `author` HetCreep. The root `hooks.json` registers a `PreInvocation` command for `hooks/ag-conductor.js` with a 30-second timeout. Antigravity's own validator reads the built plugin with no error and no missing-logo note; its only warnings are for `commands/` and `hooks/hooks.json`, which the Claude Code route still needs. The Claude Code manifest and hooks are unchanged. — test: `scripts/agy-validate.test.mjs`
 
 ## [0.14.9] - 2026-10-29
 
