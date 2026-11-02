@@ -10,7 +10,7 @@ CoalFace is verified under the same framework as **[CoalMine](https://github.com
 
 **Scope:** the shipped `plugin/` skill and its conductor hooks (`coalface-conductor.js`, `ag-conductor.js`), the build/verify scripts under `scripts/`, and the swarm-discipline mechanisms (snapshot/rollback, worker isolation, QC gating) described below.
 
-**What to expect:** an acknowledgement, triage against the scope above, and coordinated disclosure timing agreed with you before any public detail — all inside the advisory thread, never a public issue. We acknowledge a report within 5 days, send an assessment within 10 days, and disclose publicly once the fix ships, or at 90 days at most. During an absence announced on the maintainer's GitHub profile, the 5 days count from the first day back.
+**What to expect:** an acknowledgement, triage against the scope above, and a disclosure date we coordinate with you within the limits stated next, with no public detail before it — all inside the advisory thread, never a public issue. We acknowledge a report within 5 days, send an assessment within 10 days, and disclose publicly once the fix ships, or at 90 days at most. During an absence announced on the maintainer's GitHub profile, the 5 days count from the first day back.
 
 - [GHSA-23px-57gh-x4p4](https://github.com/TheColliery/CoalFace/security/advisories/GHSA-23px-57gh-x4p4): the hooks slowed sharply on a malformed project config; fixed in 0.14.9.
 
