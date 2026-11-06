@@ -9,14 +9,11 @@ All notable changes to CoalFace are documented here. Format follows
 The admission reading takes its thresholds from the config itself, never from a command line
 
 ### Security
-- **The two admission thresholds no longer travel through the agent's command line.** A value from a cloned repository's config used to be copied into a shell line; it now reaches the machine reading only through a small engine, `skills/coalface/scripts/admission.mjs`, that reads both keys itself, keeps only an in-range integer, and runs the reading with an argument list and no shell. A value that is not an in-range integer is ignored and the default stands. A project file may only tighten admission, and the engine applies that rule in code.
-- **The config walk of the admission engine matches the conductor's** (the same agent-dir order, the same containment for a link at the config, the same size bound), and a test keeps the two walks on one fixture table.
+- **The two admission thresholds no longer travel through the agent's command line.** The skill's instructions had the agent place both values, read from a config a cloned repository can supply, on a shell line (from 0.14.1, plain integers only, a rule in prose). They now reach the machine reading only through a small engine, `skills/coalface/scripts/admission.mjs`, that reads both keys itself, keeps only an in-range integer, and runs the reading with an argument list and no shell. A value that is not an in-range integer is ignored and the default stands. A project file may only tighten admission, and the engine applies that rule in code.
+- **The admission engine's config walk follows the conductor's** on Claude Code, with the same containment for a link at the config and the same size bound; a test compares the walks on one fixture table and compares the bound. On Antigravity it keeps the fixed order `.claude`, `.agents`, `.gemini` (`references/admission-control.md`).
 
 ### Changed
 - The skill's instructions name the engine, and no instruction places a config value on a command line; a test keeps any shipped instruction from doing that.
-
-### Fixed
-- **A stricter project value is no longer merged by the agent.** The engine takes the stricter of the global and project values itself (`references/admission-control.md`, `README.md`).
 
 ## [0.15.0] - 2026-10-31
 
