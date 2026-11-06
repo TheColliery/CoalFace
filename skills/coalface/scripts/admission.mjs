@@ -8,22 +8,24 @@
 // the default stands. A project file may only TIGHTEN: CPU max = min(global-or-default, project); mem min = max(global-or-
 // default, project). A link at the config, or at a folder above it under its level, is not read (the containment the hook
 // applies: the literal location only).
-// The walk is the hook's (hooks/coalface-conductor.js findProjectHit): the same agent-dir order, nearest level first, the
-// walk stops at home, the same 1 MiB bound, the same JSONC strip and prototype guard. It is FORKED here because the skill
+// The walk is the hook's (hooks/coalface-conductor.js findProjectHit): nearest level first, the walk stops at home, the
+// same 1 MiB bound, the same JSONC strip and prototype guard. The agent-dir order is the hook's on Claude Code; named
+// divergence: this script cannot tell which agent runs it, so on Antigravity a project with both a .claude and an .agents
+// config reads .claude's, where the hook reads .agents'. It is FORKED here because the skill
 // folder ships without hooks/ (the claude.ai ZIP, a file-copy install). The parity test in scripts/admission.test.mjs keeps
 // both walks on one fixture table.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { DEFAULTS } from './machine-reading.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const READER = path.join(HERE, 'machine-reading.mjs');
 const AGENT_DIRS = ['claude', 'agents', 'gemini']; // the conductor's AGENT_DIR_ORDER, the same three
 const KEY_RANGE = { admitCpuBusyMaxPct: [1, 100], admitMemFreeMinPct: [0, 99] };
-const MAX_CONFIG_BYTES = 1024 * 1024;
+export const MAX_CONFIG_BYTES = 1024 * 1024;
 const READER_TIMEOUT_MS = 120000;
 const EXIT_ERROR = 2;
 const EXIT_USAGE = 64;
@@ -54,6 +56,7 @@ function readConfig(file) {
         got += n;
       }
       text = buf.subarray(0, got).toString('utf8');
+      if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
     } finally {
       fs.closeSync(fd);
     }
@@ -128,6 +131,10 @@ export function readThresholds({ cwd = process.cwd(), home = os.homedir() } = {}
 }
 
 function main(argv) {
+  if (argv.includes('--help') || argv.includes('-h')) {
+    process.stdout.write('admission: reads the two thresholds from the config, then reads the machine now.\nusage: node admission.mjs [--running N] [--json]\n  Exit 0 = BREATHE, 1 = WAIT, 2 = could not read, 64 = usage error.\n');
+    return;
+  }
   // The thresholds are the engine's to pass, never the caller's: a caller that tries to set them is a usage error.
   if (argv.some((a) => a === '--cpu-max' || a === '--mem-min')) {
     process.stderr.write('admission: --cpu-max and --mem-min come from the config, not the command line (read it: references/admission-control.md)\n');
@@ -148,7 +155,12 @@ function main(argv) {
   process.exitCode = r.status;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// Both sides real: node realpaths the module, argv[1] keeps a link's spelling, and a missed match here exits 0 unread.
+function runAsMain() {
+  try { return fs.realpathSync.native(process.argv[1]) === fs.realpathSync.native(fileURLToPath(import.meta.url)); } catch { return false; }
+}
+
+if (process.argv[1] && runAsMain()) {
   try {
     main(process.argv.slice(2));
   } catch (e) {

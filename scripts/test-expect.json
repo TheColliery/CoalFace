@@ -6,7 +6,7 @@
   "scripts/lib/jsonc.test.mjs": 3,
   "scripts/lib/jsonc-linear.test.mjs": 5,
   "scripts/agy-validate.test.mjs": 3,
-  "scripts/admission.test.mjs": 18,
+  "scripts/admission.test.mjs": 21,
   "scripts/shell-slot-class.test.mjs": 2,
   "scripts/lib/hooks.test.mjs": 93,
   "scripts/lib/desc-cap.test.mjs": 7,

@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { MAX_CONFIG_BYTES as REPO_BOUND } from './lib/repo-fs.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const skill = path.join(repo, 'skills', 'coalface', 'scripts');
@@ -146,6 +147,33 @@ test('the thresholds come from the config, so a caller that passes them gets a u
   const r = runEngine(s, ['--cpu-max', '99', '--json']);
   assert.equal(r.status, 64, `exit ${r.status}, expected the usage error 64: ${r.stderr}`);
   assert.equal(r.stdout, '', 'a reading was printed for a refused call');
+});
+
+test('the engine runs through a linked install and prints a reading', (t) => {
+  const s = sandbox(t);
+  const real = path.join(s.root, 'real');
+  fs.mkdirSync(real);
+  fs.copyFileSync(engine, path.join(real, 'admission.mjs'));
+  fs.copyFileSync(reader, path.join(real, 'machine-reading.mjs'));
+  const link = path.join(s.root, 'link');
+  try { fs.symlinkSync(real, link, 'junction'); } catch { t.skip('a directory link cannot be made here (capability probe)'); return; }
+  const r = spawnSync(process.execPath, [path.join(link, 'admission.mjs'), '--json'], {
+    cwd: s.proj, env: envFor(s.home), encoding: 'utf8', timeout: SPAWN_TIMEOUT_MS, windowsHide: true,
+  });
+  assertThresholds(r, DEFAULT, 'linked install');
+});
+
+test('a config that opens with a byte-order mark is read', (t) => {
+  const s = sandbox(t);
+  writeGlobal(s, {});
+  fs.writeFileSync(path.join(s.home, '.claude', '.coalface.json'), String.fromCharCode(0xfeff) + JSON.stringify({ admitCpuBusyMaxPct: 50 }));
+  assertThresholds(runEngine(s), { cpuMaxPct: 50, memMinPct: 10 }, 'BOM global');
+});
+
+test('the engine holds the repository size bound and spawns with no shell', async () => {
+  const m = await import(pathToFileURL(engine).href);
+  assert.equal(m.MAX_CONFIG_BYTES, REPO_BOUND, 'the forked bound drifted');
+  assert.equal(/\bshell\s*:/.test(fs.readFileSync(engine, 'utf8')), false, 'the reader must be spawned with no shell option');
 });
 
 // PARITY (one fixture table, both walks): the engine's walk picks the same config file the hook's walk picks, at the same level.
