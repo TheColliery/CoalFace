@@ -49,14 +49,15 @@ The clean `plugin/` distribution is generated from source by `node scripts/build
 
 CoalFace is evaluated against [NVIDIA SkillSpector](https://github.com/NVIDIA/skillspector), run locally through `uvx` (`uvx --from git+https://github.com/NVIDIA/skillspector.git skillspector scan <plugin> --format json`; no install), static stage only (`--no-llm`, the documented false-positive-prone baseline).
 
-* **Scan:** 2026-10-31, CoalFace v0.15.0 dist (`plugin/`, commit `03146f2`, the `v0.15.0` tag), SkillSpector v2.12.0 (self-reported; pinned to commit `d501c0d`, upstream's untagged HEAD of 2026-10-28).
-* **Score:** 99/100 (CRITICAL static). **19 findings, none a defect**, each read at its source line. The report JSON is not shipped.
+* **Scan:** 2026-11-06, CoalFace v0.15.1 dist (`plugin/`, commit `e338724`, the `v0.15.1` tag), SkillSpector v2.13.4 pinned to commit `5482446` (`54824463814a0be01360792523ec7245a69190fc`).
+* **Score:** 100/100 (CRITICAL static). **20 findings, none a defect**, each read at its source line. The report JSON is not shipped.
 * **Finding classes:**
   * RA1 Self-Modification ×16—the string "self-update" in comments, directive text, the `/coalface:update` command, `plugin.json` and the SKILL.md config section. The hook only schedules a throttled check with no network; the command offers `claude plugin update` and never applies it.
   * AS1 ×1—a comment in `hooks/ag-conductor.js` naming a file-copy install location; the file never reads or writes that path.
   * AR1 ×1—the SKILL.md row "queue it, never refuse", about workers above the admission cap, not model refusals.
+  * RA2 ×1—a comment in the conductor listing config paths a user might mistype; the code it describes only checks whether those paths exist, and stores nothing across sessions.
   * BH1 ×1—the scanner's note that `hooks/hooks.json` registers a lifecycle hook.
-* **Coverage:** partial, 13 of 16 files fully inspected. `hooks/ag-conductor.js` and `skills/coalface/scripts/machine-reading.mjs` reached the scanner's parser span limit and `hooks/hooks.json` is opaque to it, so those three were read by hand.
+* **Coverage:** partial, 12 of 17 files fully inspected. `hooks/ag-conductor.js`, `skills/coalface/scripts/admission.mjs`, `skills/coalface/scripts/machine-reading.mjs` and the root `hooks.json` reached the scanner's parser span limit and `hooks/hooks.json` is opaque to it, so those five were read by hand.
 
 Earlier scans are in this file's git history. Scanning is event-driven (this repository's own version bump, or a genuinely new attack surface); this record names the last scan actually run.
 
