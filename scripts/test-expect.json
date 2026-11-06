@@ -30,7 +30,7 @@
   "scripts/front-door-links.test.mjs": 5,
   "scripts/decide-upload.test.mjs": 6,
   "scripts/prune-release-zips.test.mjs": 10,
-  "scripts/release-notes.test.mjs": 24,
+  "scripts/release-notes.test.mjs": 32,
   "scripts/verify-release-shape.test.mjs": 17,
   "scripts/lib/asset-upload-mode.test.mjs": 5,
   "scripts/lib/release-prune.test.mjs": 7,
