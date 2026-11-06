@@ -109,7 +109,11 @@ function main() {
   const marker = path.join(markerDir, `ag-conductor-${hashKey(key)}.marker`);
   try {
     fs.mkdirSync(markerDir, { recursive: true, mode: 0o700 });
-    if (fs.lstatSync(markerDir).isSymbolicLink()) return; // dir-symlink residual -> fail-closed (see above)
+    const st = fs.lstatSync(markerDir);
+    if (st.isSymbolicLink() || !st.isDirectory()) return; // dir-symlink residual -> fail-closed (see above)
+    // A PRE-EXISTING folder keeps its own mode and owner (mkdirSync applies 0o700 only on create): trust it only when this
+    // user owns it and no other user can write it. Skipped where there is no POSIX owner (Windows).
+    if (typeof process.getuid === 'function' && (st.uid !== process.getuid() || (st.mode & 0o022) !== 0)) return;
     // CWK-122: mode: 0o600 (adopted from CoalMine's coalmine-conductor.js, same marker
     // shape) restricts the marker to owner-read/write on a POSIX volume -- a no-op on
     // Windows/NTFS, where every file reports the same broad mode regardless of what is

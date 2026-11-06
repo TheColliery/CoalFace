@@ -425,6 +425,78 @@ test('case 21: AG a pre-planted SYMLINK at the marker subdir -> fail-closed sile
   }
 });
 
+// 29cv: an existing marker folder is trusted only when this user owns it and no other user can write it. The stat fields
+// come from a preload, so the decision (not the filesystem) is the subject and it is witnessed on every platform; the
+// real-filesystem leg below runs where the volume honors POSIX mode bits (probed, never by platform).
+const STAT_PRELOAD = [
+  "const fs = require('node:fs');",
+  "const path = require('node:path');",
+  "const want = path.resolve(process.env.CF_TEST_STAT_DIR);",
+  "const realLstat = fs.lstatSync;",
+  "fs.lstatSync = function (p, o) {",
+  "  const st = realLstat.call(fs, p, o);",
+  "  if (typeof p !== 'string' || path.resolve(p) !== want) return st;",
+  "  const uid = Number(process.env.CF_TEST_STAT_UID), mode = Number(process.env.CF_TEST_STAT_MODE);",
+  "  return new Proxy(st, { get: (t, k) => (k === 'uid' ? uid : k === 'mode' ? mode : typeof t[k] === 'function' ? t[k].bind(t) : t[k]) });",
+  "};",
+  "process.getuid = () => 0;",
+].join('\n');
+function runWithStat(s, { uid, mode }) {
+  const dir = path.join(s.tmp, 'coalface');
+  fs.mkdirSync(dir, { recursive: true });
+  const preload = path.join(s.home, 'stat-preload.cjs');
+  fs.writeFileSync(preload, STAT_PRELOAD);
+  return spawnSync(process.execPath, ['--require', preload, AG_HOOK], {
+    cwd: s.cwd,
+    env: { ...process.env, HOME: s.home, USERPROFILE: s.home, TEMP: s.tmp, TMP: s.tmp, TMPDIR: s.tmp, CLAUDE_CONFIG_DIR: '',
+      CF_TEST_STAT_DIR: dir, CF_TEST_STAT_UID: String(uid), CF_TEST_STAT_MODE: String(mode) },
+    input: agEvent({ session_id: 'sess-29cv' }),
+    encoding: 'utf8',
+    timeout: 20000,
+  });
+}
+test('29cv: AG marker folder owned by another user is refused: no marker, no directive', () => {
+  const s = agSandbox();
+  try {
+    const r = runWithStat(s, { uid: 4242, mode: 0o40700 });
+    assertGraceful(r);
+    assert.strictEqual(r.stdout, '', 'a folder another user owns -> refused, no emit');
+    assert.strictEqual(markersIn(s.tmp).length, 0, 'no marker written into a folder another user owns');
+  } finally { clean(s.home); }
+});
+test('29cv: AG marker folder another user can write (group or other write bit) is refused', () => {
+  const s = agSandbox();
+  try {
+    const r = runWithStat(s, { uid: 0, mode: 0o40777 });
+    assertGraceful(r);
+    assert.strictEqual(r.stdout, '', 'a group- or world-writable folder -> refused, no emit');
+    assert.strictEqual(markersIn(s.tmp).length, 0, 'no marker written into a writable folder');
+  } finally { clean(s.home); }
+});
+test('29cv: AG marker folder owned by this user and private (0700) still writes the marker and emits once', () => {
+  const s = agSandbox();
+  try {
+    const r = runWithStat(s, { uid: 0, mode: 0o40700 });
+    assertGraceful(r);
+    assert.ok(r.stdout.includes('injectSteps'), 'the directive is emitted for a folder this user owns privately');
+    assert.strictEqual(markersIn(s.tmp).length, 1, 'one marker written');
+  } finally { clean(s.home); }
+});
+test('29cv: AG marker folder this user made world-writable is refused where the volume honors POSIX mode bits', (t) => {
+  if (typeof process.getuid !== 'function') { t.skip('no POSIX owner on this platform: the owner and mode check is not in force'); return; }
+  const s = agSandbox();
+  try {
+    const dir = path.join(s.tmp, 'coalface');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.chmodSync(dir, 0o777);
+    if ((fs.statSync(dir).mode & 0o777) !== 0o777) { t.skip('this volume does not honor POSIX mode bits: cannot exercise a writable folder'); return; }
+    const r = agRun(s, agEvent({ session_id: 'sess-29cv-real' }));
+    assertGraceful(r);
+    assert.strictEqual(r.stdout, '', 'a world-writable marker folder -> refused, no emit');
+    assert.strictEqual(markersIn(s.tmp).length, 0, 'no marker written into a world-writable folder');
+  } finally { clean(s.home); }
+});
+
 // CWK-122: the marker is created with { flag: 'wx', mode: 0o600 } (adopted from
 // CoalMine's coalmine-conductor.js, same shape). Mode bits are a VOLUME property, never
 // a platform one (node/runtime.md §4 -- "never key case-folding on process.platform",
