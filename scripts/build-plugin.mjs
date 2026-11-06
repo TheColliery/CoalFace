@@ -26,8 +26,9 @@ export const DIST_ITEMS = [
 ];
 
 // TEXT_EXTS grounded in what actually ships under DIST_ITEMS today (skills/hooks/
-// commands: .js — CJS throughout; .md; .claude-plugin/plugin.json). No .mjs/.cjs
-// ships under DIST_ITEMS in this room. Non-text/unlisted extensions stay strict
+// commands: .js — CJS throughout; .md; .claude-plugin/plugin.json). The skill folder's
+// .mjs scripts (machine-reading.mjs, admission.mjs) ship too, byte-compared, which is
+// what node runs in the installed copy. Non-text/unlisted extensions stay strict
 // byte-compare — the mechanism must not silently normalize a future binary asset.
 // .svg joins because the AG logo is text: a CRLF checkout would false-flag it "stale in plugin/" otherwise (board #59).
 const TEXT_EXTS = new Set(['.js', '.json', '.md', '.svg']);

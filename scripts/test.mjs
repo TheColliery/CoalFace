@@ -23,6 +23,9 @@ const TESTS = [
   'scripts/lib/jsonc.test.mjs',
   'scripts/lib/jsonc-linear.test.mjs',
   'scripts/agy-validate.test.mjs',
+  // 29ch: the admission thresholds come from the config itself (the engine), and no shipped line hands a value to a shell.
+  'scripts/admission.test.mjs',
+  'scripts/shell-slot-class.test.mjs',
   'scripts/lib/hooks.test.mjs',
   'scripts/lib/desc-cap.test.mjs',
   'scripts/lib/claude-ai-trim.test.mjs',
