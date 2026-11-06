@@ -107,6 +107,16 @@ Copy-Item -Recurse CoalFace/skills/coalface "$env:USERPROFILE\.gemini\config\ski
 Remove-Item -Recurse -Force CoalFace   # optional cleanup
 ```
 
+Same steps on macOS and Linux:
+
+```sh
+git clone https://github.com/TheColliery/CoalFace.git --depth 1
+# global (all workspaces):
+cp -R CoalFace/skills/coalface "$HOME/.gemini/config/skills/coalface"
+# — or per-project: copy into <your-repo>/.agents/skills/coalface instead
+rm -rf CoalFace   # optional cleanup
+```
+
 Start a new Antigravity session; `coalface` appears in the skills list, and `/coalface` convenes it manually.
 
 **Auto conductor on AG (wired — live AG validation pending):** AG 2.0 shipped a real hook engine, so the standing `auto` directive can now ride Antigravity too. Keep the clone (the adapter is [`hooks/ag-conductor.js`](hooks/ag-conductor.js), which requires its sibling [`hooks/coalface-conductor.js`](hooks/coalface-conductor.js)) — or copy the `hooks/` folder wherever you keep the skill — then copy [`platform-configs/hooks.json`](platform-configs/hooks.json) to `<workspace>/.agents/hooks.json` (per project) or `~/.gemini/config/hooks.json` (global) and replace `__COALFACE_DIR__` with the directory holding `hooks/`. The directive rides the first `PreInvocation` of a session (AG never fires `SessionStart`), at most once per session; delivery into the agent is not yet live-validated (the **wired** tier — defined in the Compatibility table; the adapter emits the current `injectSteps` contract, re-derived 2026-07-23 — the pilot-era `additionalContext` key was a dead letter) — so manual `/coalface` remains the reliable floor. `/coalface:update` stays Claude-Code-only (the self-update nudge is deliberately not ported — its payload is a CC plugin command; on AG, update by re-copying).

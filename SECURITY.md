@@ -49,7 +49,7 @@ The clean `plugin/` distribution is generated from source by `node scripts/build
 
 CoalFace is evaluated against [NVIDIA SkillSpector](https://github.com/NVIDIA/skillspector), run locally through `uvx` (`uvx --from git+https://github.com/NVIDIA/skillspector.git skillspector scan <plugin> --format json`; no install), static stage only (`--no-llm`, the documented false-positive-prone baseline).
 
-* **Scan:** 2026-11-06, CoalFace v0.15.1 dist (`plugin/`, commit `e338724`, the `v0.15.1` tag), SkillSpector v2.13.4 pinned to commit `5482446` (`54824463814a0be01360792523ec7245a69190fc`).
+* **Scan:** 2026-11-06, CoalFace v0.15.2 dist (`plugin/`, commit `d2af2c3`, the `v0.15.2` tag), SkillSpector v2.13.4 pinned to commit `5482446` (`54824463814a0be01360792523ec7245a69190fc`).
 * **Score:** 100/100 (CRITICAL static). **20 findings, none a defect**, each read at its source line. The report JSON is not shipped.
 * **Finding classes:**
   * RA1 Self-Modification ×16—the string "self-update" in comments, directive text, the `/coalface:update` command, `plugin.json` and the SKILL.md config section. The hook only schedules a throttled check with no network; the command offers `claude plugin update` and never applies it.
