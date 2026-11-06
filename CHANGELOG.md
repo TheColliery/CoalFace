@@ -4,6 +4,13 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.15.2] - 2026-11-07
+
+The Antigravity hook refuses a marker folder on a shared temp root that another user owns or can write
+
+### Security
+- **The Antigravity hook's once-per-session marker folder must belong to the current user and must not be writable by others.** The hook keeps its marker in a private folder under the system temp directory. When that folder already existed, the hook used whatever owner and permissions it found there. It now trusts a pre-existing folder only when the current user owns it and no other user can write it; otherwise it writes no marker and emits no directive, the same fail-closed path a failed marker write takes. The check applies on POSIX systems only.
+
 ## [0.15.1] - 2026-11-06
 
 The admission reading takes its thresholds from the config itself, never from a command line
