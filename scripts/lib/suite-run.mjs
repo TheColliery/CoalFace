@@ -18,7 +18,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { STATUS, parseTap, classifyFile, summarize, nodeOptionsWithHeap, runWaves, withStdoutSync } from './wave-run.mjs';
+import { STATUS, parseTap, classifyFile, summarize, nodeOptionsWithHeap, runWaves, withStdoutSync, skippedLines } from './wave-run.mjs';
 import { testChildEnv } from './test-child-env.mjs';
 
 const MAX_LISTED = 5;
@@ -203,6 +203,7 @@ export async function cli({ repo, tests, dirs, expectFile, argv, limits, env = p
   const unlisted = Object.entries(suite.extras).map(([f, list]) => `${f} ${list.length}`);
   if (unlisted.length) out(`test runner: test name(s) the manifest does not list (not a failure; print them with --names): ${unlisted.join(', ')}`);
   if (suite.summary) {
+    for (const line of skippedLines(suite.results)) out(line); // a skipped leg is named, never only counted (the summary stays last)
     out(suite.summary.line);
     const t = testTotals(suite.results);
     out(`test runner: ${t.tests} test(s) · pass ${t.pass} · skipped ${t.skipped} (per test, summed over the files that reported)`);

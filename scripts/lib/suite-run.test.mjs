@@ -190,3 +190,15 @@ test('a pinned file that hangs before its first test is killed at the file clock
   assert.equal(after.status, STATUS.PASS, 'the next pinned file was not starved into NOT-RUN');
   assert.equal(run.exitCode, 1);
 });
+
+// 29da: a skipped test is named on stdout, one SKIPPED line per skipped leg, before the summary line (the canon's CLI prints the same, skippedLines in wave-run.mjs).
+test('cli: a skipped leg beside a real pass prints its SKIPPED line before the summary line -- RED before 2026-11-07c', async (t) => {
+  const dir = scratch(t);
+  plant(dir, 'skip.test.mjs', "test('runs', () => {});\ntest('platform leg', { skip: 'not on this platform' }, () => {});\n");
+  const r = await cliIn(dir, { tests: ['skip.test.mjs'], expect: { floors: { 'skip.test.mjs': 2 }, names: {} } });
+  assert.equal(r.code, 0, r.out.join('\n') + r.err.join('\n'));
+  const skipAt = r.out.findIndex((l) => l === 'SKIPPED skip.test.mjs: "platform leg"');
+  const summaryAt = r.out.findIndex((l) => l.startsWith('wave-run:'));
+  assert.ok(skipAt >= 0, `no SKIPPED line on stdout: ${r.out.join(' | ')}`);
+  assert.ok(summaryAt > skipAt, 'the SKIPPED line comes before the summary line');
+});
