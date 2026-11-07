@@ -102,7 +102,8 @@ claude plugin install coalface@coalface
 ```powershell
 git clone https://github.com/TheColliery/CoalFace.git --depth 1
 # global (all workspaces):
-Copy-Item -Recurse CoalFace/skills/coalface "$env:USERPROFILE\.gemini\config\skills\coalface"
+New-Item -ItemType Directory -Force "$env:USERPROFILE\.gemini\config\skills\coalface" | Out-Null
+Copy-Item -Recurse -Force CoalFace/skills/coalface/* "$env:USERPROFILE\.gemini\config\skills\coalface"
 # — or per-project: copy into <your-repo>\.agents\skills\coalface instead
 Remove-Item -Recurse -Force CoalFace   # optional cleanup
 ```
@@ -112,7 +113,8 @@ Same steps on macOS and Linux:
 ```sh
 git clone https://github.com/TheColliery/CoalFace.git --depth 1
 # global (all workspaces):
-cp -R CoalFace/skills/coalface "$HOME/.gemini/config/skills/coalface"
+mkdir -p "$HOME/.gemini/config/skills/coalface"
+cp -R CoalFace/skills/coalface/. "$HOME/.gemini/config/skills/coalface/"
 # — or per-project: copy into <your-repo>/.agents/skills/coalface instead
 rm -rf CoalFace   # optional cleanup
 ```
