@@ -24,7 +24,7 @@
   "scripts/secret-gate.test.mjs": 18,
   "scripts/build-plugin.test.mjs": 10,
   "scripts/verify.test.mjs": 22,
-  "scripts/build-claude-ai-zips.test.mjs": 8,
+  "scripts/build-claude-ai-zips.test.mjs": 18,
   "scripts/configure.test.mjs": 35,
   "scripts/link-check.test.mjs": 36,
   "scripts/front-door-links.test.mjs": 5,

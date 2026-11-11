@@ -13,7 +13,13 @@
 // not recognized as a skill) and checks every archive's layout before upload.
 // Canonical exemplar: CoalMine (board #40).
 //
-// REPRODUCIBLE, AND REFUSING WHAT IT CANNOT PACKAGE (09g, CoalMine issue 42 M1-M3). A symlink or any entry that is neither a regular file nor a folder is REFUSED, never
+// THE ENTRY GUARD (2026-11-12a, CoalLedger's r33/r34 INSPECT fixes, taken into the canon): the build runs only as the entry point, never on import, which would run it against the importer's
+// cwd and set the importer's own exit code (LOW-3). The compare is on REAL paths (MED-3): import.meta.url is the loader's realpath of the entry while process.argv[1] is only path.resolve'd,
+// so a lexical compare through a junction or a symlinked folder never matches and the guard fails OPEN (the script silently does nothing). Both sides go through fs.realpathSync.native
+// (never the plain call, which does not expand a Windows 8.3 short name); where either cannot be resolved the PLAIN resolved paths are compared, the house entry guard (release-notes.mjs).
+// CoalLedger's own copy failed CLOSED there (an unresolvable path read as not the entry); the canon compares plain paths instead, so a build of an entry whose real path cannot be read still runs.
+//
+// REPRODUCIBLE, AND REFUSING WHAT IT CANNOT PACKAGE (09g, CoalMine issue 42 M1-M3). A junction or symlink directly under plugin/skills is refused by name too (29e (a)). A symlink or any entry that is neither a regular file nor a folder is REFUSED, never
 // followed (copyFileSync would read the link's target into a public asset); an entry whose name starts with a dot is not staged at any depth (a nested .DS_Store); a name with a
 // control character is refused. When SOURCE_DATE_EPOCH is set (whole seconds, 1980 or later: the reproducible-builds variable, which the workflow sets to the tag commit's time) every
 // staged file and folder gets that mtime, because zip stores mtimes and a time of the build would make every rebuild a different archive. The zip step then zips a sorted list.
@@ -77,7 +83,9 @@ function replaceDescriptionField(text, newValue) {
   let end = i + 1;
   const v = lines[i].slice('description:'.length).trim();
   if (/^[>|][-+]?$/.test(v)) {
-    while (end < lines.length && /^\s+\S/.test(lines[end])) end++;
+    // A blank line inside a block scalar does not end it (CoalLedger T-43): the scan carries blanks through, ends after the last indented line,
+    // and stops at the next top-level field, so no tail of the old description is left in the frontmatter of a shipped SKILL.md.
+    for (let j = i + 1; j < lines.length && /^(\s|$)/.test(lines[j]); j++) if (/\S/.test(lines[j])) end = j + 1;
   }
   const escaped = newValue.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   const newLines = [...lines.slice(0, i), `description: "${escaped}"`, ...lines.slice(end)];
@@ -101,9 +109,30 @@ async function main() {
     return;
   }
   fs.rmSync(outDir, { recursive: true, force: true });
-  const skills = fs.readdirSync(pluginSkills, { withFileTypes: true }).filter((e) => e.isDirectory()).sort(byCodeUnit);
+  // Each entry of plugin/skills is read by lstat, never by its Dirent alone: a junction reads as a link, so a filter on isDirectory() drops it with exit 0.
+  // A dot name is not a skill: it is not staged, and the run names it on a `skipped <name>` line; a plain file is not a skill; a folder is one; a symlink,
+  // junction or special entry is refused by name below, never skipped and never followed.
+  const skills = [];
+  for (const entry of fs.readdirSync(pluginSkills, { withFileTypes: true }).sort(byCodeUnit)) {
+    if (entry.name.startsWith('.')) { console.log(`skipped ${entry.name}`); continue; } // named, never silent: a dot folder is not a skill
+    const st = fs.lstatSync(path.join(pluginSkills, entry.name));
+    if (st.isDirectory()) skills.push({ name: entry.name, refused: false });
+    else if (st.isSymbolicLink() || !st.isFile()) skills.push({ name: entry.name, refused: true });
+  }
+  // An EMPTY plugin/skills is a failure too (CoalLedger T-43): the loop below would never run and the workflow would attach no asset, reported as a success.
+  if (skills.length === 0) {
+    console.error(`FAIL: ${pluginSkills} holds no skill directories -- nothing to stage; run node scripts/build-plugin.mjs first.`);
+    process.exitCode = 1;
+    return;
+  }
   let failed = 0;
   for (const skill of skills) {
+    if (skill.refused) {
+      console.error(`FAIL ${skill.name}: is neither a regular file nor a folder (a symlink or junction is refused, not followed or skipped)`);
+      failed++;
+      process.exitCode = 1;
+      continue;
+    }
     try {
       const srcDir = path.join(pluginSkills, skill.name);
       const destDir = path.join(outDir, skill.name);
@@ -125,7 +154,33 @@ async function main() {
   console.log(`Done: ${skills.length - failed}/${skills.length} skill(s) staged into ${outDir}, ${failed} failed`);
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exitCode = 1;
-});
+// dev:ino of what a path names, or null where the volume gives none (stat fails, or answers ino 0: a zero id would make any two files one)
+function fileIdentity(p) {
+  try {
+    const s = fs.statSync(p, { bigint: true });
+    return s.ino === 0n ? null : `${s.dev}:${s.ino}`;
+  } catch {
+    return null;
+  }
+}
+
+function isMainModule(url) {
+  if (!process.argv[1]) return false;
+  const self = fileURLToPath(url);
+  try {
+    return fs.realpathSync.native(self) === fs.realpathSync.native(process.argv[1]);
+  } catch {
+    // the real path cannot be resolved: compare file identity (stat follows a link, so a symlinked temp folder still matches); where stat gives no identity (it fails, or a volume answers ino 0) the
+    // plain paths are the last resort
+    const a = fileIdentity(self);
+    const b = fileIdentity(process.argv[1]);
+    return a !== null && b !== null ? a === b : path.resolve(self) === path.resolve(process.argv[1]);
+  }
+}
+
+if (isMainModule(import.meta.url)) {
+  main().catch((e) => {
+    console.error(e);
+    process.exitCode = 1;
+  });
+}
