@@ -23,7 +23,7 @@
   "scripts/secret-scan.test.mjs": 105,
   "scripts/secret-gate.test.mjs": 18,
   "scripts/build-plugin.test.mjs": 10,
-  "scripts/verify.test.mjs": 22,
+  "scripts/verify.test.mjs": 23,
   "scripts/build-claude-ai-zips.test.mjs": 18,
   "scripts/configure.test.mjs": 35,
   "scripts/link-check.test.mjs": 36,

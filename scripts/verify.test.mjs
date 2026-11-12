@@ -9,20 +9,69 @@ import { gitTestEnv } from './lib/git-env.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-function mkTmpRepoCopy() {
+// 29eo PART 2 (CW-060): the copy holds the TRACKED files only. Copying the gitignored scratchpad/ (about 75 MB in this room) made each of the callers below
+// slower and was never part of what verify.mjs checks. The list comes from git itself, through gitTestEnv (the GIT_* family stripped, so a hook's GIT_DIR never
+// reaches this spawn), with a timeout. dist-claude-ai/ is untracked, so it is never copied either: board #40's race (build-claude-ai-zips.test.mjs writes and
+// removes it at the repo root while test files run in parallel) cannot reach this copy.
+function trackedFiles(root) {
+  const r = spawnSync('git', ['ls-files', '-z'], {
+    cwd: root, encoding: 'utf8', timeout: 60000, killSignal: 'SIGKILL', windowsHide: true,
+    maxBuffer: 64 * 1024 * 1024, env: gitTestEnv(path.dirname(root)),
+  });
+  if (r.status !== 0) throw new Error(`git ls-files failed in ${root}: ${r.stderr}`);
+  return r.stdout.split('\0').filter((p) => p.length > 0);
+}
+function mkTmpRepoCopy(root = repo) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'coalface-verify-test-'));
-  for (const name of fs.readdirSync(repo)) {
-    if (name === '.git') continue;
-    // board #40: dist-claude-ai/ is a gitignored, CI-generated build artifact that
-    // build-claude-ai-zips.test.mjs writes + removes at the repo root while node:test
-    // runs test FILES in parallel by default -- copying it here raced that other
-    // test's own rmSync, an intermittent ENOENT with no relation to this gate at all.
-    // Excluded the same way .git already is: it is never part of what verify.mjs checks.
-    if (name === 'dist-claude-ai') continue;
-    fs.cpSync(path.join(repo, name), path.join(tmp, name), { recursive: true });
+  for (const rel of trackedFiles(root)) {
+    const src = path.join(root, rel);
+    if (!fs.existsSync(src)) continue; // tracked but deleted from the working tree: not part of the copy
+    const dst = path.join(tmp, rel);
+    fs.mkdirSync(path.dirname(dst), { recursive: true });
+    fs.copyFileSync(src, dst);
   }
   return tmp;
 }
+
+// 29eo PART 2 (CW-060): the copy holds the TRACKED files and nothing else. A fixture repository under the temp folder (so the leg holds on every runner) with a tracked file,
+// a tracked file in a subfolder, an untracked file and a gitignored scratchpad: the copy's listing must equal the fixture's git ls-files, exactly.
+function listFiles(dir) {
+  const out = [];
+  const walk = (d) => {
+    for (const name of fs.readdirSync(d)) {
+      const p = path.join(d, name);
+      if (fs.lstatSync(p).isDirectory()) walk(p);
+      else out.push(path.relative(dir, p).split(path.sep).join('/'));
+    }
+  };
+  walk(dir);
+  return out.sort();
+}
+test('29eo: the repo copy holds the tracked files and nothing else (a fixture repository: an untracked file and a gitignored scratchpad are left out)', (t) => {
+  const fx = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'coalface-verify-fx-')));
+  t.after(() => fs.rmSync(fx, { recursive: true, force: true }));
+  const put = (rel, body = 'x') => {
+    const p = path.join(fx, rel);
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, body);
+  };
+  put('.gitignore', 'scratchpad/\n');
+  put('tracked.md');
+  put('sub/tracked.js');
+  put('untracked.md');
+  put('scratchpad/probe.txt');
+  const g = (args) => {
+    const r = spawnSync('git', args, { cwd: fx, encoding: 'utf8', timeout: 60000, killSignal: 'SIGKILL', env: gitTestEnv(path.dirname(fx)) });
+    assert.strictEqual(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`);
+    return r;
+  };
+  g(['init', '-q']);
+  g(['add', '--', '.gitignore', 'tracked.md', 'sub/tracked.js']);
+  const expected = g(['ls-files', '-z']).stdout.split('\0').filter(Boolean).sort();
+  const copy = mkTmpRepoCopy(fx);
+  t.after(() => fs.rmSync(copy, { recursive: true, force: true }));
+  assert.deepStrictEqual(listFiles(copy), expected, 'the copy must hold exactly the fixture\'s tracked files');
+});
 
 function runVerify(tmp) {
   // r34b FOLD R1 -- verify.mjs's own git spawns (check-ignore et al.) inherited no ceiling; a
