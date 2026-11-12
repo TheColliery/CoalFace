@@ -203,7 +203,7 @@ export async function cli({ repo, tests, dirs, expectFile, argv, limits, env = p
   const unlisted = Object.entries(suite.extras).map(([f, list]) => `${f} ${list.length}`);
   if (unlisted.length) out(`test runner: test name(s) the manifest does not list (not a failure; print them with --names): ${unlisted.join(', ')}`);
   if (suite.summary) {
-    for (const line of skippedLines(suite.results)) out(line); // a skipped leg is named, never only counted (the summary stays last)
+    for (const line of skippedLines(suite.results)) out(line); // a skipped leg is named, never only counted (before the summary line; the totals line follows it)
     out(suite.summary.line);
     const t = testTotals(suite.results);
     out(`test runner: ${t.tests} test(s) · pass ${t.pass} · skipped ${t.skipped} (per test, summed over the files that reported)`);
