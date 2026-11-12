@@ -58,6 +58,28 @@ function hashKey(s) {
   return h.toString(36);
 }
 
+// 29eo: the marker folder shrinks. After the hook creates a NEW marker it sweeps this hook's own markers older than 7 days. A conversation still live after 7 days loses
+// its marker and gets the directive once more: the accepted cost of a bounded folder. Each guard is one line of the filter; the test file holds one test per guard.
+const MARKER_NAME = /^ag-conductor-[0-9a-z]+\.marker$/; // the alphabet hashKey writes
+const STALE_MARKER_MS = 7 * 24 * 60 * 60 * 1000;
+
+function sweepStaleMarkers(dir, now = Date.now()) {
+  try {
+    if (!fs.lstatSync(dir).isDirectory()) return; // a link (or anything else) is never swept through
+    const real = fs.realpathSync.native(dir);
+    for (const name of fs.readdirSync(real)) {
+      try {
+        if (!MARKER_NAME.test(name)) continue;
+        const p = path.join(real, name);
+        const st = fs.lstatSync(p);
+        if (!st.isFile()) continue; // a link or a folder is never removed
+        if (now - st.mtimeMs <= STALE_MARKER_MS) continue;
+        fs.unlinkSync(p);
+      } catch { /* this entry only: fail-silent (Phoenix #4) */ }
+    }
+  } catch { /* fail-silent (Phoenix #4) */ }
+}
+
 function main() {
   let payload = {};
   try {
@@ -107,6 +129,7 @@ function main() {
   // (manual /coalface still works; the auto nudge is lost only on a broken tmp or a repeat).
   const markerDir = path.join(os.tmpdir(), 'coalface');
   const marker = path.join(markerDir, `ag-conductor-${hashKey(key)}.marker`);
+  let fresh = false;
   try {
     fs.mkdirSync(markerDir, { recursive: true, mode: 0o700 });
     const st = fs.lstatSync(markerDir);
@@ -120,7 +143,9 @@ function main() {
     // requested. The markerDir itself already carries mode: 0o700 (line above); this
     // closes the matching gap on the FILE inside it.
     fs.writeFileSync(marker, '', { flag: 'wx', mode: 0o600 });
+    fresh = true;
   } catch { return; } // EEXIST (already ran) OR any write failure -> fail-closed, no emit
+  if (fresh) sweepStaleMarkers(markerDir); // 29eo: only on the call that created a new marker
 
   const { cfg, notices } = loadCfg('agents', true); // this adapter only ever runs under Antigravity; probeStrays=true (UMB-133)
   let msg = directiveFor(cfg);
@@ -138,5 +163,10 @@ function main() {
   console.log(JSON.stringify({ injectSteps: [{ ephemeralMessage: msg }] })); // the one sanctioned AG stdout (current PreInvocation output contract)
 }
 
-try { main(); } catch { /* Phoenix #4: fail-silent, never crash the host */ }
+module.exports = { sweepStaleMarkers, MARKER_NAME, STALE_MARKER_MS };
+
+// Run only as the hook; a require() (a test that calls the sweep below) runs nothing.
+if (require.main === module) {
+  try { main(); } catch { /* Phoenix #4: fail-silent, never crash the host */ }
+}
 // No process.exit() — Phoenix #4 (it would truncate the sanctioned stdout write above).

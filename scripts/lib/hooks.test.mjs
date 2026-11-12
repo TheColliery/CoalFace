@@ -534,6 +534,164 @@ test('case 22a: AG marker file is created with mode 0600 on a volume that honors
   } finally { clean(s.home); }
 });
 
+// ---------------------------------------------------------------------------
+// 29eo PART 1: the AG hook wrote one marker per conversation and nothing removed one. A sweep of the hook's OWN markers older than 7 days runs when the hook has just
+// created a NEW marker. Every guard of the sweep has a test that fails when that guard alone is removed; the parent-folder check was dropped (see the return): with
+// readdir names and an lstat that excludes links it cannot fire in one process.
+// ---------------------------------------------------------------------------
+const DAY_MS = 24 * 60 * 60 * 1000;
+const agRequire = createRequire(import.meta.url);
+const AG = agRequire(AG_HOOK); // a require runs nothing (the hook's require.main gate)
+
+// ONE sandbox folder for TEMP, TMP, TMPDIR, HOME and USERPROFILE; the CLAUDE_* variables removed. The marker folder is <root>/coalface.
+function oneSandbox() {
+  const root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'cf-29eo-')));
+  const cwd = path.join(root, 'ws');
+  fs.mkdirSync(cwd);
+  return { root, cwd, markers: path.join(root, 'coalface') };
+}
+// The hook as Antigravity starts it per model call: a PreInvocation payload with the conversation id and the workspace.
+function runAg(s, conversationId) {
+  const env = { ...process.env, HOME: s.root, USERPROFILE: s.root, TEMP: s.root, TMP: s.root, TMPDIR: s.root, CLAUDE_CONFIG_DIR: '' };
+  for (const k of ['CLAUDE_PROJECT_DIR', 'CLAUDE_PLUGIN_ROOT', 'CLAUDE_PLUGIN_DATA']) delete env[k];
+  return spawnSync(process.execPath, [AG_HOOK, 'PreInvocation'], {
+    cwd: s.cwd,
+    env,
+    input: JSON.stringify({ hook_event_name: 'PreInvocation', conversationId, workspacePaths: [s.cwd] }),
+    encoding: 'utf8',
+    timeout: 20000,
+  });
+}
+function plant(s, name, { ageDays = 0, body = '' } = {}) {
+  fs.mkdirSync(s.markers, { recursive: true, mode: 0o700 });
+  const p = path.join(s.markers, name);
+  fs.writeFileSync(p, body);
+  if (ageDays) {
+    const t = (Date.now() - ageDays * DAY_MS) / 1000;
+    fs.utimesSync(p, t, t);
+  }
+  return p;
+}
+function listing(dir) {
+  try { return fs.readdirSync(dir).sort(); } catch { return []; }
+}
+function oldLink(p, ageDays) {
+  const t = (Date.now() - ageDays * DAY_MS) / 1000;
+  fs.lutimesSync(p, t, t); // the link's own time, not its target's
+}
+function unlinkIfLink(p) {
+  try { if (fs.lstatSync(p).isSymbolicLink()) fs.unlinkSync(p); } catch { /* absent */ }
+}
+
+test('29eo: AG two conversations: only the marker older than 7 days goes; the foreign file, the folder and the young marker stay (the whole listing, not one path)', () => {
+  const s = oneSandbox();
+  try {
+    plant(s, 'ag-conductor-aaaa1.marker', { ageDays: 8 });
+    plant(s, 'ag-conductor-bbbb2.marker', { ageDays: 1 });
+    plant(s, 'notes.txt', { ageDays: 8, body: 'foreign' });
+    fs.mkdirSync(path.join(s.markers, 'ag-conductor-cccc3.marker')); // a folder named like a marker
+    const before = listing(s.markers);
+    const markerA = `ag-conductor-${hashKey('conv-A')}.marker`;
+    const markerB = `ag-conductor-${hashKey('conv-B')}.marker`;
+
+    const rA = runAg(s, 'conv-A');
+    assertGraceful(rA);
+    const expA = before.filter((n) => n !== 'ag-conductor-aaaa1.marker').concat(markerA).sort();
+    assert.deepStrictEqual(listing(s.markers), expA, 'after conversation A');
+    assert.ok(JSON.parse(rA.stdout.trim()).injectSteps, 'stdout is the directive JSON only');
+
+    const rB = runAg(s, 'conv-B');
+    assertGraceful(rB);
+    assert.deepStrictEqual(listing(s.markers), expA.concat(markerB).sort(), 'after conversation B');
+    assert.ok(JSON.parse(rB.stdout.trim()).injectSteps, 'stdout is the directive JSON only');
+  } finally { clean(s.root); }
+});
+
+test('29eo: AG a link named like a marker is never removed and its target stays (probed; skipped visibly where the box cannot make a file link)', (t) => {
+  const s = oneSandbox();
+  const outside = path.join(s.root, 'outside.txt');
+  fs.writeFileSync(outside, 'keep me');
+  fs.mkdirSync(s.markers, { recursive: true, mode: 0o700 });
+  const link = path.join(s.markers, 'ag-conductor-dddd4.marker');
+  try {
+    try { fs.symlinkSync(outside, link, 'file'); } catch (e) { t.skip(`a file link cannot be made here (${e.code}): the link leg is not measured on this box`); return; }
+    oldLink(link, 8);
+    const r = runAg(s, 'conv-link');
+    assertGraceful(r);
+    assert.ok(listing(s.markers).includes('ag-conductor-dddd4.marker'), 'the link stays');
+    assert.strictEqual(fs.readFileSync(outside, 'utf8'), 'keep me', 'the target stays');
+  } finally { unlinkIfLink(link); clean(s.root); }
+});
+
+test('29eo: AG a second run of the same conversation sweeps nothing (the sweep runs only when the hook created a NEW marker)', () => {
+  const s = oneSandbox();
+  try {
+    assertGraceful(runAg(s, 'conv-same'));
+    plant(s, 'ag-conductor-eeee5.marker', { ageDays: 8 });
+    const r = runAg(s, 'conv-same');
+    assertGraceful(r);
+    assert.ok(listing(s.markers).includes('ag-conductor-eeee5.marker'), 'a stale marker survives a run that created no marker');
+  } finally { clean(s.root); }
+});
+
+test('29eo sweep (name guard): a regular file that does not match the marker name stays, however old; a marker-named file older than 7 days goes', () => {
+  const s = oneSandbox();
+  try {
+    plant(s, 'notes.txt', { ageDays: 30 });
+    plant(s, 'ag-conductor-XYZ.marker', { ageDays: 30 }); // not the lowercase base-36 alphabet hashKey writes
+    plant(s, 'ag-conductor-abc123.marker.bak', { ageDays: 30 });
+    plant(s, 'ag-conductor-abc123.marker', { ageDays: 30 });
+    AG.sweepStaleMarkers(s.markers, Date.now());
+    assert.deepStrictEqual(listing(s.markers), ['ag-conductor-XYZ.marker', 'ag-conductor-abc123.marker.bak', 'notes.txt']);
+  } finally { clean(s.root); }
+});
+
+test('29eo sweep (age guard): a marker younger than 7 days stays; one older than 7 days goes', () => {
+  const s = oneSandbox();
+  try {
+    plant(s, 'ag-conductor-young1.marker', { ageDays: 1 });
+    plant(s, 'ag-conductor-old001.marker', { ageDays: 8 });
+    AG.sweepStaleMarkers(s.markers, Date.now());
+    assert.deepStrictEqual(listing(s.markers), ['ag-conductor-young1.marker']);
+  } finally { clean(s.root); }
+});
+
+test('29eo sweep (regular-file guard): a link named like a marker is not removed, its target stays (probed; skipped visibly where the box cannot make a file link)', (t) => {
+  const s = oneSandbox();
+  const outside = path.join(s.root, 'outside.txt');
+  fs.writeFileSync(outside, 'keep me');
+  fs.mkdirSync(s.markers, { recursive: true, mode: 0o700 });
+  const link = path.join(s.markers, 'ag-conductor-ffff6.marker');
+  try {
+    try { fs.symlinkSync(outside, link, 'file'); } catch (e) { t.skip(`a file link cannot be made here (${e.code}): the regular-file guard is not measured on this box`); return; }
+    oldLink(link, 8);
+    AG.sweepStaleMarkers(s.markers, Date.now());
+    assert.ok(listing(s.markers).includes('ag-conductor-ffff6.marker'), 'the link stays');
+    assert.strictEqual(fs.readFileSync(outside, 'utf8'), 'keep me', 'the target stays');
+  } finally { unlinkIfLink(link); clean(s.root); }
+});
+
+test('29eo sweep (folder guard): a link to a folder holding a stale marker is not swept through (probed; skipped visibly where the box cannot make a folder link)', (t) => {
+  const s = oneSandbox();
+  const elsewhere = path.join(s.root, 'elsewhere');
+  fs.mkdirSync(elsewhere);
+  fs.writeFileSync(path.join(elsewhere, 'ag-conductor-gggg7.marker'), '');
+  const t8 = (Date.now() - 8 * DAY_MS) / 1000;
+  fs.utimesSync(path.join(elsewhere, 'ag-conductor-gggg7.marker'), t8, t8);
+  const dirLink = path.join(s.root, 'coalface-link');
+  try {
+    try { fs.symlinkSync(elsewhere, dirLink, 'junction'); } catch (e) { t.skip(`a folder link cannot be made here (${e.code}): the folder guard is not measured on this box`); return; }
+    AG.sweepStaleMarkers(dirLink, Date.now());
+    assert.deepStrictEqual(listing(elsewhere), ['ag-conductor-gggg7.marker'], 'the folder behind the link is untouched');
+  } finally {
+    // a folder link: unlink on POSIX; a Windows junction refuses unlink, so rmdir (the link only, never its target)
+    if (fs.lstatSync(dirLink, { throwIfNoEntry: false })?.isSymbolicLink()) {
+      try { fs.unlinkSync(dirLink); } catch { fs.rmdirSync(dirLink); }
+    }
+    clean(s.root);
+  }
+});
+
 // The CURRENT documented AG payload shape (re-derived 2026-07-23): common fields are
 // camelCase protojson — conversationId + workspacePaths[] + transcriptPath. No `cwd`,
 // no `session_id` (those stay covered above as defensive legacy fallbacks).
