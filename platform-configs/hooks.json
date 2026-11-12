@@ -15,7 +15,9 @@
 // PreInvocation fires per MODEL CALL, not per user prompt):
 //   PreInvocation -> ag-conductor.js : the standing fan-out-discipline directive,
 //                    injected at most ONCE per session (a per-session tmp marker
-//                    guards against re-injecting on every model call).
+//                    guards against re-injecting on every model call); a session
+//                    that outlives its marker's seven days can get it once more,
+//                    after another session's first call sweeps the old marker.
 // Fail-silent, zero-dep, no network, no child process; the only output is the
 // sanctioned {"injectSteps":[{"ephemeralMessage":...}]} JSON (the current AG contract;
 // input payload is camelCase protojson: conversationId, workspacePaths[], transcriptPath).

@@ -4,6 +4,13 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.15.4] - 2026-11-12
+
+The Antigravity hook sweeps its own conversation markers older than seven days
+
+### Fixed
+- **The Antigravity hook's per-conversation marker folder grew without limit.** The hook writes one marker file per Antigravity conversation under the system temp folder and never removed one, so the folder kept a file for every conversation ever started. When it creates a new marker, the hook now removes its own marker files older than seven days; it removes only regular files with its own name, never a link or a folder, and never through a link. The cost: a conversation still open after seven days can get the standing directive once more, after another conversation's first call has removed its old marker.
+
 ## [0.15.3] - 2026-11-12
 
 The machine reading runs when its skill folder is reached through a link
