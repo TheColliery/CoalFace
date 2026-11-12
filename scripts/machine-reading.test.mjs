@@ -136,16 +136,63 @@ test('CLI: --json prints the structured reading; exit code is 0 or 1; --help 0; 
   assert.equal(u.stdout, '');
 });
 
+// 29ej (leg a): the baseline of the two legs below, a direct run prints a reading.
+test('a direct run prints a reading and exits 0 or 1 (leg a)', (t) => {
+  const env = sandboxEnv(t);
+  const r = spawnNode([SCRIPT, '--json'], { encoding: 'utf8', timeout: 60000, killSignal: 'SIGKILL', env });
+  assert.ok([0, 1].includes(r.status), `exit ${r.status}: ${r.stderr}`);
+  assert.ok(['BREATHE', 'WAIT'].includes(JSON.parse(r.stdout).verdict));
+});
+
+// 29ej (leg b): the entry guard compared import.meta.url (node's real path) with argv[1] (the spelling the caller used). Through a folder link the two differ, the main
+// block never ran and the process exited 0, which reads as BREATHE. The link is removed in a finally, BEFORE the sandbox cleanup, and only as a link (rmdirSync, no recursion).
+test('a run through a linked scripts folder prints a reading (leg b) -- RED before 2026-11-12', (t) => {
+  const env = sandboxEnv(t);
+  const link = path.join(env.TEMP, 'linked-scripts');
+  try {
+    fs.symlinkSync(path.dirname(SCRIPT), link, 'junction');
+  } catch (e) {
+    t.skip(`a folder link cannot be made here (${e.code}): the link leg is not measured on this box`);
+    return;
+  }
+  try {
+    const r = spawnNode([path.join(link, 'machine-reading.mjs'), '--json'], { encoding: 'utf8', timeout: 60000, killSignal: 'SIGKILL', env });
+    assert.ok([0, 1].includes(r.status), `exit ${r.status}: ${r.stderr}`);
+    assert.ok(['BREATHE', 'WAIT'].includes(JSON.parse(r.stdout).verdict), `no reading on stdout: ${JSON.stringify(r.stdout)}`);
+  } finally {
+    // unlink removes a link on POSIX and never follows it; a Windows junction refuses unlink, so rmdir (which removes the junction only, never its target) is the fallback
+    if (fs.lstatSync(link).isSymbolicLink()) {
+      try { fs.unlinkSync(link); } catch { fs.rmdirSync(link); }
+    }
+  }
+});
+
+// 29ej (leg c): importing the module runs nothing. A sandbox importer loads it, waits for any async tail, and prints a marker: no reading line, exit 0.
+test('importing the module runs nothing: the importer prints its marker and no reading (leg c)', (t) => {
+  const env = sandboxEnv(t);
+  const importer = path.join(env.TEMP, 'importer.mjs');
+  fs.writeFileSync(importer, `await import(${JSON.stringify(pathToFileURL(SCRIPT).href)});\nawait new Promise((r) => setTimeout(r, 1500));\nprocess.stdout.write('IMPORTED\\n');\n`);
+  const r = spawnNode([importer], { encoding: 'utf8', timeout: 60000, killSignal: 'SIGKILL', env });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout.trim(), 'IMPORTED', `an import printed something other than the marker: ${JSON.stringify(r.stdout)}`);
+});
+
 // 09a: the canon wave runner (scripts/lib/wave-run.mjs, adopted by blob id) calls the reading as a sibling file, scripts/lib/machine-reading.mjs, and its own test holds that copy to
 // blob 5f861a34, the same blob as the source (it read 1c550b66 until the canon re-pinned). This room therefore keeps THREE copies of one file (skills/coalface/scripts/ the source, its plugin/ twin, scripts/lib/ for the runner): a NAMED duplication, the
 // canon's rule being that the file is never edited in a room, so the copies change together or this test goes red.
-test('the three copies of machine-reading.mjs are byte for byte one file (the source, its plugin/ twin, and the copy the canon wave runner reads)', async () => {
+// 29ej: the runner copy is held to the blob the canon's own test pins (scripts/lib/wave-run.test.mjs, read from its text at run time, never a second typed id) until the canon
+// re-adopts the source and re-pins; then the copies are one file again. The source and its plugin/ twin stay strictly equal.
+test('the three copies of machine-reading.mjs: the source equals its plugin/ twin, and the runner copy equals the source or the blob the canon wave runner pins', async () => {
   const fs = await import('node:fs');
+  const crypto = await import('node:crypto');
   const copies = [SCRIPT, path.join(repo, 'plugin', 'skills', 'coalface', 'scripts', 'machine-reading.mjs'), path.join(repo, 'scripts', 'lib', 'machine-reading.mjs')];
   const [src, twin, runner] = copies.map((p) => fs.readFileSync(p));
   assert.ok(src.length > 0);
   assert.ok(src.equals(twin), 'the plugin/ twin differs from the source');
-  assert.ok(src.equals(runner), 'scripts/lib/machine-reading.mjs differs from the source: re-copy it, never edit it (an improvement goes to the canon through the chief)');
+  const pinned = (fs.readFileSync(path.join(repo, 'scripts', 'lib', 'wave-run.test.mjs'), 'utf8').match(/MACHINE_READING_BLOB = '([0-9a-f]{40})'/) || [])[1];
+  const gitBlob = (buf) => crypto.createHash('sha1').update(Buffer.concat([Buffer.from(`blob ${buf.length}\0`), buf])).digest('hex');
+  assert.ok(src.equals(runner) || (pinned && gitBlob(runner) === pinned),
+    `scripts/lib/machine-reading.mjs is neither the source nor the blob the canon pins (${pinned}): re-copy it from the canon, never edit it; the next re-copy restores strict equality`);
 });
 
 // ---------------------------------------------------------------------------

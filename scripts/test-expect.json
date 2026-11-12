@@ -2,7 +2,7 @@
  "note": "Per-file expectations for scripts/test.mjs (scripts/lib/suite-run.mjs). floors: the file must report at least this many tests (a ratchet: raise it with the file, lower it only on purpose). names: the file must report each listed top-level test name. Every roster file has exactly one entry. Keep: node scripts/test.mjs --counts, --names <file>.",
  "floors": {
   "scripts/lib/config-schema.test.mjs": 7,
-  "scripts/machine-reading.test.mjs": 30,
+  "scripts/machine-reading.test.mjs": 33,
   "scripts/lib/jsonc.test.mjs": 3,
   "scripts/lib/jsonc-linear.test.mjs": 5,
   "scripts/agy-validate.test.mjs": 3,
