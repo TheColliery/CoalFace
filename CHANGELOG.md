@@ -4,6 +4,13 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.15.5] - 2026-11-12
+
+The Antigravity hook drops a redundant check that always passed
+
+### Changed
+- **The Antigravity hook's marker sweep no longer sits behind a flag that is always set at that point.** The sweep ran only when a flag was true, and the flag was always true where it was tested, so the check guarded nothing. The check is removed and the sweep runs at the same place; behaviour is unchanged.
+
 ## [0.15.4] - 2026-11-12
 
 The Antigravity hook sweeps its own conversation markers older than seven days
