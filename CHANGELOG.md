@@ -4,6 +4,13 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.15.3] - 2026-11-12
+
+The machine reading runs when its skill folder is reached through a link
+
+### Fixed
+- **The machine reading ran nothing when it was started through a link.** Run directly through a junction or a symbolic link to the skill folder (`node <skill dir>/scripts/machine-reading.mjs`, the call the script's own header names), the reading exited 0 without printing a verdict, and exit 0 reads as BREATHE. The admission gate, `admission.mjs`, was not affected: it starts the reading by its real path. The reading now runs in that case, and it compares the real paths of the script on both sides, falling back to file identity where a real path cannot be resolved.
+
 ## [0.15.2] - 2026-11-07
 
 The Antigravity hook refuses a marker folder on a shared temp root that another user owns or can write
