@@ -129,7 +129,6 @@ function main() {
   // (manual /coalface still works; the auto nudge is lost only on a broken tmp or a repeat).
   const markerDir = path.join(os.tmpdir(), 'coalface');
   const marker = path.join(markerDir, `ag-conductor-${hashKey(key)}.marker`);
-  let fresh = false;
   try {
     fs.mkdirSync(markerDir, { recursive: true, mode: 0o700 });
     const st = fs.lstatSync(markerDir);
@@ -143,9 +142,8 @@ function main() {
     // requested. The markerDir itself already carries mode: 0o700 (line above); this
     // closes the matching gap on the FILE inside it.
     fs.writeFileSync(marker, '', { flag: 'wx', mode: 0o600 });
-    fresh = true;
   } catch { return; } // EEXIST (already ran) OR any write failure -> fail-closed, no emit
-  if (fresh) sweepStaleMarkers(markerDir); // 29eo: only on the call that created a new marker
+  sweepStaleMarkers(markerDir); // 29eo: reached only on the call that created a new marker (every other path returned above)
 
   const { cfg, notices } = loadCfg('agents', true); // this adapter only ever runs under Antigravity; probeStrays=true (UMB-133)
   let msg = directiveFor(cfg);
