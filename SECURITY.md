@@ -52,7 +52,7 @@ CoalFace is evaluated against [NVIDIA SkillSpector](https://github.com/NVIDIA/sk
 * **Scan:** 2026-11-06, CoalFace v0.15.2 dist (`plugin/`, commit `d2af2c3`, the `v0.15.2` tag), SkillSpector v2.13.4 pinned to commit `5482446` (`54824463814a0be01360792523ec7245a69190fc`).
 * **Score:** 100/100 (CRITICAL static). **20 findings, none a defect**, each read at its source line. The report JSON is not shipped.
 * **Finding classes:**
-  * RA1 Self-Modification ×16—the string "self-update" in comments, directive text, the `/coalface:update` command, `plugin.json` and the SKILL.md config section. The hook only schedules a throttled check with no network; the command offers `claude plugin update` and never applies it.
+  * RA1 Self-Modification ×16—the string "self-update" in comments, directive text, the `/coalface:update` command, `plugin.json` and the SKILL.md config section. The hook only schedules a throttled check with no network; the command tells the agent to offer `claude plugin update` and never apply it unasked; no hook enforces that, and the user runs the update.
   * AS1 ×1—a comment in `hooks/ag-conductor.js` naming a file-copy install location; the file never reads or writes that path.
   * AR1 ×1—the SKILL.md row "queue it, never refuse", about workers above the admission cap, not model refusals.
   * RA2 ×1—a comment in the conductor listing config paths a user might mistype; the code it describes only checks whether those paths exist, and stores nothing across sessions.

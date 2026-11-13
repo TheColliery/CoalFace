@@ -14,6 +14,7 @@ A scout sub surveys the worksite and returns:
 - **INVARIANTS:** `fmt` is no longer called anywhere; `formatTime` is exported from the same module.
 - **DOMAIN GATE:** the project's build and test command.
 - **SWARM-MODE:** fan out.
+- **SHARED-DIGEST:** the module's export line and the six call sites, read once and shipped in every contract (P4).
 
 ## 2 · PARTITION (step 2)
 
@@ -32,8 +33,7 @@ Width is `max(1, floor(platform width × bandwidth%))`. With a platform width of
 Each worker returns anchor-edits, not file writes:
 
 ```text
-old: fmt(start)
-new: formatTime(start)
+fmt(start) -> formatTime(start)
 ```
 
 Nothing is written to the tree by a worker.
@@ -48,7 +48,7 @@ Both units pass. Nothing is quarantined.
 
 ## 7 · APPLY, single writer (step 7)
 
-The conductor is the single writer. It takes a pre-swarm snapshot first, then applies the accepted orders one at a time, in topological order. Afterwards it runs the domain gate: build and test. Both are green, so the swarm is kept. A red gate would roll the snapshot back.
+The conductor is the single writer. It takes a pre-swarm snapshot first, then applies the accepted orders one at a time, in topological order. Before the domain gate it runs `node "<skill dir>/scripts/admission.mjs" --running 0` (step 4); with no unit held, the reading admits the first run. Then it runs the domain gate: build and test. Both are green, so the swarm is kept. A red gate would roll the snapshot back.
 
 ## 8 · RECEIPT (step 8, `references/receipt.md`)
 

@@ -30,7 +30,7 @@ You are the **CONDUCTOR** (the session main). Workers are **LEAVES** (P1) — sp
 | # | Ask before proceeding |
 |---|---|
 | G1 | Filing a self error-report at an issue tracker (see Self error-report) — offered, never automatic |
-| G2 | `/coalface:update` applies a self-update only when the user runs it; the agent checks and offers |
+| G2 | `/coalface:update` checks and offers; the user runs `claude plugin update` to apply it |
 
 Standing consent (P8): the command IS the consent. ONE valve: job MUCH bigger than the prompt implies → a one-line NON-BLOCKING heads-up ("found N spots, ~est X — starting; Esc to stop") — never a question-box, never a third gate.
 

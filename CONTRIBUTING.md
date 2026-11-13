@@ -25,7 +25,7 @@ node scripts/verify.mjs         # gate: files · manifest/marketplace · descrip
 node scripts/test.mjs           # zero-dependency test suite (node --test, explicit file list)
 ```
 
-CI runs the same two gates (`verify` → `test`) on Linux/Windows/macOS — deliberately **without** a build step, so a stale committed `plugin/` fails loud instead of being silently rebuilt. A separate `front-door-links` workflow fetches every outward link of the front-door docs (README, SECURITY, CONTRIBUTING and the like) when one of them changes and weekly; run it locally with `node scripts/front-door-links.mjs README.md SECURITY.md`. An advisory `skill-checks` workflow (NVIDIA SkillEvaluator Tier 1) runs on pull requests and on a push to `main`; it is advisory, not a required check.
+CI runs the same two gates (`verify` → `test`) on Linux/Windows/macOS — deliberately **without** a build step, so a stale committed `plugin/` fails loud instead of being silently rebuilt. A separate `front-door-links` workflow fetches every outward link of the front-door docs (README, SECURITY, CONTRIBUTING and the like) when one of them changes and weekly; run it locally with `node scripts/front-door-links.mjs README.md SECURITY.md`. An advisory `skill-checks` workflow (NVIDIA SkillEvaluator Tier 1) runs on pull requests (or by hand), not on a push to `main`: a named divergence whose reason is in the workflow file; it is advisory, not a required check.
 
 ### Development Rules
 
