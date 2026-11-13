@@ -13,6 +13,8 @@ description: >-
   (native subagent tool; no fan-out → sequential-pipeline degrade). Disciplines fan-outs
   that would happen anyway — does not make models smarter or guarantee correctness.
   Zero-dependency, offline by default, no API keys.
+metadata:
+  author: HetCreep <info@thecolliery.org>
 ---
 
 # CoalFace
