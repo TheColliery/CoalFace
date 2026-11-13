@@ -19,5 +19,6 @@ jobs:
       scan-mode: all
       llm: true
       llm-provider: nv_build
+      llm-model: nvidia/nemotron-3-ultra-550b-a55b
     secrets:
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
