@@ -2,11 +2,14 @@
 # Use the release-generated copy with reviewed workflow and image pins.
 # The image uses the default OSS validation policy for public and private repos.
 # No internal/external input is needed; report visibility is configured separately.
+# NAMED DIVERGENCE from NVIDIA/SkillEvaluator v0.9.0 ci/bundles/0.9.0/skill-checks.yml (blob 7222c6c7):
+# the `push` trigger is removed; pull_request and workflow_dispatch stay. Reason: on this skill the keyless
+# Tier 1 security scan reports findings no honest wording removes (RA1 on the "Config + self-update" heading,
+# which names its section accurately, and a partial analysis it cannot complete), so a push to main would
+# leave a standing red. Ends when the upstream rule is fixed or LLM verification is adopted: then restore `push`.
 name: Skill checks
 on:
   pull_request:
-  push:
-    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
