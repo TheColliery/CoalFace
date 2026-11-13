@@ -5,7 +5,6 @@
 # LLM content sharing is controlled by llm and the selected provider, not a profile.
 name: Skill checks with LLM
 on:
-  pull_request:
   workflow_dispatch:
 permissions:
   contents: read
