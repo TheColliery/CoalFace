@@ -30,7 +30,7 @@ You are the **CONDUCTOR** (the session main). Workers are **LEAVES** (P1) — sp
 | # | Ask before proceeding |
 |---|---|
 | G1 | Filing a self error-report at an issue tracker (see Self error-report) — offered, never automatic |
-| G2 | Applying a self-update via `/coalface:update` — checked + offered before it's applied |
+| G2 | `/coalface:update` applies a self-update only when the user runs it; the agent checks and offers |
 
 Standing consent (P8): the command IS the consent. ONE valve: job MUCH bigger than the prompt implies → a one-line NON-BLOCKING heads-up ("found N spots, ~est X — starting; Esc to stop") — never a question-box, never a third gate.
 
@@ -63,7 +63,9 @@ or clean.
 | P12 | Re-spawn on a QC reject more than once — 2nd fail escalates to the receipt | P26 | Convene on `coalfaceMode: off`, even via a manual `/coalface` |
 | P13 | Let a worker self-retry — journal + at most one re-spawn, ever | P27 | Auto-submit a self error-report, or include unapproved code/paths in one |
 | P14 | Restart a whole unit on worker death — remainder only, never loop | P28 | Ride the `Workflow` tool with `parallel(all-N)`, past ≥3 nulls, or via `resumeFromRunId` (waves; STOP; a continuation-run instead) |
-| P29 | Deny or silently drop a worker while the machine reading says WAIT — queue it, never refuse | | |
+| P29 | Drop a worker while the machine reading says WAIT — queue it instead | | |
+
+Example: `references/example.md`.
 
 ## Output locations — 7, numbered O1–O7
 | # | Where |

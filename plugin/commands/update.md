@@ -8,4 +8,4 @@ Kind-1 self-update — the **agent** verifies (online), the **hook** only schedu
 2. **Offer (consent-gated — the only token spend).** Newer available → OFFER `claude plugin update coalface@coalface` (then restart). Already current → say so in one line.
 3. **Cadence.** To change how updates are handled, set `updateMode` (`ask` | `auto` | `remind` | `off`) and `updateCheckDays` in `~/.claude/.coalface.json` (global) or your project's config (see README § Configure for the per-project agent-dir lookup order). `auto` lets this check run when due without re-asking; `off` silences it entirely.
 
-This is orthogonal to the fan-out discipline (`coalfaceMode` is its own switch) and never auto-applies — it offers, the user runs the update.
+This is orthogonal to the fan-out discipline (`coalfaceMode` is its own switch) and the agent is instructed to offer the update and never apply it unasked — it offers, the user runs the update. No hook enforces that instruction; it is the text's rule, not a machine gate.
