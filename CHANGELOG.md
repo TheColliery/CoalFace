@@ -4,6 +4,16 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.15.6] - 2026-11-14
+
+The skill gets a worked example, and its text says plainly who applies an update
+
+### Changed
+- **A worked example of one fan-out, from scout to receipt,** in `references/example.md`, loaded on demand. Each step names the `SKILL.md` section it follows, and its domain gate follows the admission reading.
+- **The update command states that the agent only offers an update and the user applies it.** No hook enforces this; it is the text's rule. The skill's update row names `claude plugin update` as the command that applies it.
+- **P29 reads as scheduling:** a worker held while the machine reading says WAIT is queued, not dropped.
+- **The skill's `metadata.author` line is added.**
+
 ## [0.15.5] - 2026-11-12
 
 The Antigravity hook drops a redundant check that always passed
