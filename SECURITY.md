@@ -4,7 +4,7 @@ CoalFace is verified under the same framework as **[CoalMine](https://github.com
 
 ## Reporting a Vulnerability
 
-Report a security issue in this repo through GitHub's private vulnerability reporting — [Security → Report a vulnerability](https://github.com/TheColliery/CoalFace/security/advisories/new) — never a public issue; enabled and verified live at press. In scope: the set under [What counts as a vulnerability](#what-counts-as-a-vulnerability) below. This is a one-person-maintained project: expect the report to be read and acknowledged, triaged against that scope, and disclosed once a fix ships as a GitHub security advisory, with no public detail before it — all inside the advisory thread. Published advisories are listed on the [Security Advisories](https://github.com/TheColliery/CoalFace/security/advisories) tab; this file does not repeat them. We acknowledge a report within 5 days, send an assessment within 10 days, and disclose publicly once the fix ships, or at 90 days at most; the disclosure date is coordinated with you within those limits. During an absence announced on the maintainer's GitHub profile, the 5 days count from the first day back. A public GitHub issue remains the right channel for an ordinary, non-security bug.
+Report a security issue in this repo through GitHub's private vulnerability reporting — [Security → Report a vulnerability](https://github.com/TheColliery/CoalFace/security/advisories/new) — never a public issue; enabled and verified live at press. In scope: the set under [What counts as a vulnerability](#what-counts-as-a-vulnerability) below. This is a one-person-maintained project: expect the report to be read and acknowledged, triaged against that scope, and disclosed once a fix ships as a GitHub security advisory, with no public detail before it — all inside the advisory thread. Published advisories are listed on the [Security Advisories](https://github.com/TheColliery/CoalFace/security/advisories) tab; this file does not repeat them, except the residual risk that GHSA-8v5c-5xrw-7q87's fix left open, which the advisory does not state and [Planted Links in the Project Config](#planted-links-in-the-project-config) below keeps. We acknowledge a report within 5 days, send an assessment within 10 days, and disclose publicly once the fix ships, or at 90 days at most; the disclosure date is coordinated with you within those limits. During an absence announced on the maintainer's GitHub profile, the 5 days count from the first day back. A public GitHub issue remains the right channel for an ordinary, non-security bug.
 
 ## What counts as a vulnerability
 
@@ -47,9 +47,7 @@ CoalFace is evaluated against [NVIDIA SkillSpector](https://github.com/NVIDIA/sk
   * BH1 ×1—the scanner's note that `hooks/hooks.json` registers a lifecycle hook.
 * **Coverage:** partial, 12 of 17 files fully inspected. `hooks/ag-conductor.js`, `skills/coalface/scripts/admission.mjs`, `skills/coalface/scripts/machine-reading.mjs` and the root `hooks.json` reached the scanner's parser span limit and `hooks/hooks.json` is opaque to it, so those five were read by hand.
 
-A re-scan is run when this repo's own version bump calls for it (the automatic baseline-diff trigger is planned and not yet wired) or on a genuinely new attack surface, not on every release — this pins the last version actually verified.
-
-Earlier scans are in this file's git history. Scanning is event-driven (this repository's own version bump, or a genuinely new attack surface); this record names the last scan actually run.
+A re-scan is run when this repo's own version bump calls for it (the automatic baseline-diff trigger is planned and not yet wired) or on a genuinely new attack surface, not on every release — this pins the last version actually verified. Earlier scans are in this file's git history.
 
 ## Structural Safety
 
