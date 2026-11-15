@@ -54,6 +54,9 @@ jobs:
           # This job pushes nothing, so the workflow token has no business staying in .git/config for the
           # rest of the job, readable by every later step (SKILL-REPO-PATTERN.md, Layer 5).
           persist-credentials: false
+          # 0 = all history and tags, so the pointer check's tag-form leg runs in CI instead of
+          # its named SKIP on a shallow tagless clone.
+          fetch-depth: 0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node }}
