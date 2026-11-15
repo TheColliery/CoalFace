@@ -188,3 +188,24 @@ test('filesMatch() falls back to EOL-normalize on a TEXT_EXTS extension (.md)', 
   assert.equal(filesMatch(a, b), true, 'two .md files differing only by EOL must match — .md IS in TEXT_EXTS');
   fs.rmSync(distRoot, { recursive: true, force: true });
 });
+
+// CW-067 (order 29hf): buildDist removes and rewrites the root it is handed. A temp folder holding a .git entry is a repository
+// root, not a dist, so it must be refused and its marker must survive. Red first against the unguarded build.
+test('buildDist refuses a temp folder that holds a .git entry, and its marker survives (CW-067)', () => {
+  const bait = mkTmp();
+  try {
+    fs.mkdirSync(path.join(bait, '.git'));
+    fs.writeFileSync(path.join(bait, 'marker.txt'), 'keep');
+    assert.throws(() => buildDist(bait), /refuses to remove or rebuild/);
+    assert.equal(fs.readFileSync(path.join(bait, 'marker.txt'), 'utf8'), 'keep', 'a refused build must leave the marker in place');
+  } finally {
+    fs.rmSync(bait, { recursive: true, force: true });
+  }
+});
+
+// CW-067 (order 29hf): a root whose parent folder does not exist cannot be resolved, so the build fails closed and creates nothing.
+test('buildDist refuses a root whose parent folder does not exist, and creates nothing (CW-067)', () => {
+  const parent = path.join(os.tmpdir(), `coalface-dist-missing-${process.pid}-${Date.now()}`);
+  assert.throws(() => buildDist(path.join(parent, 'plugin')), /refuses to remove or rebuild/);
+  assert.equal(fs.existsSync(parent), false, 'a refused build must not create the parent folder');
+});
