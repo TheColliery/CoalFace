@@ -202,3 +202,29 @@ test('cli: a skipped leg beside a real pass prints its SKIPPED line before the s
   assert.ok(skipAt >= 0, `no SKIPPED line on stdout: ${r.out.join(' | ')}`);
   assert.ok(summaryAt > skipAt, 'the SKIPPED line comes before the summary line');
 });
+
+// 29ix: a slow file prints its own wall time on BOTH paths: the waved file (its start and exit events) and the pinned file (runPinned's own clock).
+import * as judge from './suite-run.mjs';
+
+test('a slow file reports its own wall time through onFileTime on both paths, the waved file and the pinned one', async (t) => {
+  const dir = scratch(t);
+  plant(dir, 'waved.test.mjs', "test('slow waved', async () => { await new Promise((r) => setTimeout(r, 400)); });\n");
+  plant(dir, 'pinned.test.mjs', "test('slow pinned', async () => { await new Promise((r) => setTimeout(r, 400)); });\n");
+  const times = new Map();
+  const run = await runSuite({
+    files: ['waved.test.mjs', 'pinned.test.mjs'], expect: { floors: { 'waved.test.mjs': 1 }, names: { 'pinned.test.mjs': ['slow pinned'] } },
+    cwd: dir, env: sandboxEnv(dir), heapMb: 512, fileTimeoutMs: 30000, deadlineMs: 60000, serial: true,
+    onFileTime: (file, ms) => times.set(file, ms),
+  });
+  assert.equal(run.exitCode, 0, JSON.stringify(run.results.map((r) => [r.name, r.status, r.reason])));
+  assert.ok(times.get('waved.test.mjs') >= 350, `waved file time was ${times.get('waved.test.mjs')}`);
+  assert.ok(times.get('pinned.test.mjs') >= 350, `pinned file time was ${times.get('pinned.test.mjs')}`);
+});
+
+test('slowLine prints a TIME line at or over the threshold and nothing under it, with the threshold a named constant', () => {
+  assert.equal(judge.SLOW_FILE_LOG_MS, 30000);
+  assert.equal(judge.slowLine('a.test.mjs', 29999), null);
+  assert.equal(judge.slowLine('a.test.mjs', 30000), 'TIME a.test.mjs 30.0 s');
+  assert.equal(judge.slowLine('a.test.mjs', 82123), 'TIME a.test.mjs 82.1 s');
+  assert.equal(judge.slowLine('a.test.mjs', 500, 400), 'TIME a.test.mjs 0.5 s');
+});

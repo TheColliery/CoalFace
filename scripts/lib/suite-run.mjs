@@ -24,6 +24,16 @@ import { testChildEnv } from './test-child-env.mjs';
 const MAX_LISTED = 5;
 const listSome = (items) => items.slice(0, MAX_LISTED).join(', ') + (items.length > MAX_LISTED ? ` (+${items.length - MAX_LISTED} more)` : '');
 
+// 29ix: a file whose own wall time reaches this prints a TIME line, so the per-file clock is sized from a number a run printed, not a guess. 30 s is a floor:
+// scripts/secret-gate.test.mjs and scripts/verify.test.mjs both clear it on this box, and a file under it is not the clock's concern.
+export const SLOW_FILE_LOG_MS = 30000;
+
+// The TIME line for one finished file, or null when it ran under the threshold (a NaN time is never printed).
+export function slowLine(file, ms, thresholdMs = SLOW_FILE_LOG_MS) {
+  if (!(ms >= thresholdMs)) return null;
+  return `TIME ${file} ${(ms / 1000).toFixed(1)} s`;
+}
+
 // ---- the manifest: shape and drift against the roster --------------------------------------------------------------------------------------
 export function expectProblems(expect, files) {
   const problems = [];
@@ -77,6 +87,7 @@ function killTree(child) { // wave-run.mjs does not export its own; the same two
 
 export function runPinned({ file, cwd, env = process.env, heapMb, fileTimeoutMs, deadlineMs, fileClockMs }) {
   return new Promise((resolve) => {
+    const startedAt = Date.now(); // 29ix: the file's own wall time, a cut file included (it exits through finish below)
     const syncEnv = withStdoutSync(env);
     const childEnv = { ...syncEnv, NODE_OPTIONS: nodeOptionsWithHeap(syncEnv.NODE_OPTIONS, heapMb) };
     delete childEnv.NODE_TEST_CONTEXT; // a parent runner's variable switches a nested `node --test` to a binary format with no TAP
@@ -103,7 +114,7 @@ export function runPinned({ file, cwd, env = process.env, heapMb, fileTimeoutMs,
         : classifyFile({ file, code, signal, stdout: out, killedBy });
       r.name = file;
       if (r.status !== STATUS.PASS && r.status !== STATUS.SKIP) { r.stdout = out; r.stderr = err; }
-      resolve({ result: r, names: parseTap(out).results.map((x) => x.name) });
+      resolve({ result: r, names: parseTap(out).results.map((x) => x.name), ms: Date.now() - startedAt });
     };
     child.on('error', (e) => finish(null, null, e.code ?? e.message));
     child.on('close', (code, signal) => finish(code, signal));
@@ -112,15 +123,26 @@ export function runPinned({ file, cwd, env = process.env, heapMb, fileTimeoutMs,
 
 // ---- the suite ---------------------------------------------------------------------------------------------------------------------------------
 export async function runSuite(opts) {
-  const { files, expect, cwd, env = process.env, heapMb, fileTimeoutMs, deadlineMs, fileClockMs, read, serial, onEvent } = opts;
+  const { files, expect, cwd, env = process.env, heapMb, fileTimeoutMs, deadlineMs, fileClockMs, read, serial, onEvent, onFileTime } = opts;
   const problems = expectProblems(expect, files);
   if (problems.length) return { exitCode: 1, problems, results: [], summary: null, extras: {} };
   const started = Date.now();
   const pinned = files.filter((f) => Object.hasOwn(expect.names, f));
   const waved = files.filter((f) => !Object.hasOwn(expect.names, f));
   const byFile = new Map();
+  // 29ix: a waved file's own time is the gap between its start and exit events (the caller's onEvent still sees every event, unchanged).
+  const startedAt = new Map();
+  const timedEvent = (ev) => {
+    if (onEvent) onEvent(ev);
+    if (ev.type === 'start') startedAt.set(ev.file, Date.now());
+    else if (ev.type === 'exit' && startedAt.has(ev.file)) {
+      const ms = Date.now() - startedAt.get(ev.file);
+      startedAt.delete(ev.file);
+      if (onFileTime) onFileTime(ev.file, ms);
+    }
+  };
   if (waved.length) {
-    const wave = await runWaves({ files: waved, cwd, env, heapMb, fileTimeoutMs, deadlineMs, fileClockMs, read, serial, onEvent });
+    const wave = await runWaves({ files: waved, cwd, env, heapMb, fileTimeoutMs, deadlineMs, fileClockMs, read, serial, onEvent: timedEvent });
     for (const r of wave.results) byFile.set(r.file, applyFloor(r, expect.floors[r.file]));
   }
   const extras = {};
@@ -130,7 +152,8 @@ export async function runSuite(opts) {
       byFile.set(file, { file, name: file, status: STATUS.NOT_RUN, reason: 'the whole-run deadline was reached before this file started', counts: null, failing: [] });
       continue;
     }
-    const { result, names } = await runPinned({ file, cwd, env, heapMb, fileTimeoutMs, deadlineMs: left, fileClockMs });
+    const { result, names, ms } = await runPinned({ file, cwd, env, heapMb, fileTimeoutMs, deadlineMs: left, fileClockMs });
+    if (onFileTime) onFileTime(file, ms);
     if (result.status === STATUS.PASS || result.status === STATUS.SKIP) {
       const { missing, extra } = judgeNames(expect.names[file], names);
       if (missing.length) { result.status = STATUS.FAIL; result.reason = `expected test name(s) missing: ${listSome(missing)}`; }
@@ -193,7 +216,8 @@ export async function cli({ repo, tests, dirs, expectFile, argv, limits, env = p
     return wave.exitCode;
   }
   if (arg) { err(`test runner: unknown argument ${arg}`); return 64; }
-  const suite = await runSuite({ files: tests, expect, ...run });
+  // 29ix: a slow file's TIME line is printed as the file finishes, on either path (a cut file prints its time too).
+  const suite = await runSuite({ files: tests, expect, ...run, onFileTime: (file, ms) => { const line = slowLine(file, ms); if (line) out(line); } });
   for (const p of suite.problems) err(`test runner: ${expectFile}: ${p}`);
   for (const r of suite.results) {
     if (r.status === STATUS.PASS || r.status === STATUS.SKIP) continue;
