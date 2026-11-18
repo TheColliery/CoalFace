@@ -4,6 +4,13 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.15.7] - 2026-11-18
+
+The skill's update line says plainly that the user runs the update
+
+### Changed
+- **The skill's self-update line names who applies an update:** `/coalface:update` checks online and offers the update, and the user runs it. The hook only schedules the check.
+
 ## [0.15.6] - 2026-11-14
 
 The skill gets a worked example, and its text says plainly who applies an update
