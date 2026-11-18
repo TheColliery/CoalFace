@@ -1,0 +1,123 @@
+// Tests for scripts/skill-evaluator-pin.mjs: the pure checkPin() by inline fixtures (no network), and the CLI's
+// usage and refusal paths. Every fixture is a plain string; the release values are the ones the pin was read from.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { checkPin } from './skill-evaluator-pin.mjs';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const MODULE = path.join(HERE, 'skill-evaluator-pin.mjs');
+
+const TAG = '914c15cb3f31562ccffdc9a7166002a87ed2ce1e';
+const BUNDLE_SHA = 'c9369a7811bde083b550f2ac488222e8c388d7fd';
+const DIGEST_1 = 'fbff256df8f760019539d442b7cb533d7ec50efab37f4482b7b670e2e4b4189a';
+const DIGEST_0 = 'e96e3aaad89bf78c4f3f8c621e88005d18bd7c485b29c0d7945864700e5944e6';
+const OTHER_SHA = 'abcdef0123456789abcdef0123456789abcdef01';
+
+function callerYaml({ sha = TAG, comment = 'v1.0.1', digest = DIGEST_1, withImage = true } = {}) {
+  const uses = `    uses: NVIDIA/SkillEvaluator/.github/workflows/evaluate-skills.yml@${sha}${comment === null ? '' : ` # ${comment}`}`;
+  const image = withImage ? `      image: ghcr.io/nvidia/skillevaluator-tier1@sha256:${digest}` : '';
+  return ['name: skill-checks', 'jobs:', '  evaluate:', uses, '    with:', image].join('\n') + '\n';
+}
+
+function bundleYaml({ sha = BUNDLE_SHA, digest = DIGEST_1 } = {}) {
+  return [
+    'name: skill-checks',
+    'jobs:',
+    '  evaluate:',
+    `    uses: NVIDIA/SkillEvaluator/.github/workflows/evaluate-skills.yml@${sha}`,
+    '    with:',
+    `      image: ghcr.io/nvidia/skillevaluator-tier1@sha256:${digest}`,
+  ].join('\n') + '\n';
+}
+
+test('passes when the caller pins the release tag commit and the bundle image digest', () => {
+  const r = checkPin({ workflowText: callerYaml(), tagCommit: TAG, bundleText: bundleYaml() });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.problems, []);
+});
+
+test('passes when the caller pins the workflow commit the release bundle itself names', () => {
+  const r = checkPin({ workflowText: callerYaml({ sha: BUNDLE_SHA }), tagCommit: TAG, bundleText: bundleYaml() });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.problems, []);
+});
+
+test('fails naming both digests when the image is the previous release digest though the SHA and comment name this release', () => {
+  const r = checkPin({ workflowText: callerYaml({ digest: DIGEST_0 }), tagCommit: TAG, bundleText: bundleYaml() });
+  assert.equal(r.ok, false);
+  const text = r.problems.join('\n');
+  assert.match(text, /e96e3aaad89b/);
+  assert.match(text, /fbff256df8f7/);
+});
+
+test('fails when the caller SHA is neither the tag commit nor the bundle commit', () => {
+  const r = checkPin({ workflowText: callerYaml({ sha: OTHER_SHA }), tagCommit: TAG, bundleText: bundleYaml() });
+  assert.equal(r.ok, false);
+  assert.match(r.problems.join('\n'), /abcdef012345/);
+});
+
+test('fails when the uses line has no same-line version comment', () => {
+  const r = checkPin({ workflowText: callerYaml({ comment: null }), tagCommit: TAG, bundleText: bundleYaml() });
+  assert.equal(r.ok, false);
+  assert.match(r.problems.join('\n'), /version comment/);
+});
+
+test('fails when no image line pins the tier-1 image by sha256 digest', () => {
+  const r = checkPin({ workflowText: callerYaml({ withImage: false }), tagCommit: TAG, bundleText: bundleYaml() });
+  assert.equal(r.ok, false);
+  assert.match(r.problems.join('\n'), /sha256 digest/);
+});
+
+test('fails when the uses line pins a different repository, which does not count as the SkillEvaluator pin', () => {
+  const other = callerYaml().replace('NVIDIA/SkillEvaluator/', 'someone/else/');
+  const r = checkPin({ workflowText: other, tagCommit: TAG, bundleText: bundleYaml() });
+  assert.equal(r.ok, false);
+  assert.match(r.problems.join('\n'), /no uses: line pins NVIDIA\/SkillEvaluator/);
+});
+
+test('fails closed when the release bundle could not be read, even though the caller agrees with the tag', () => {
+  const r = checkPin({ workflowText: callerYaml(), tagCommit: TAG, bundleText: null });
+  assert.equal(r.ok, false);
+  assert.match(r.problems.join('\n'), /release bundle could not be read/);
+});
+
+test('fails closed when the tag commit could not be read, even though the caller agrees with the bundle', () => {
+  const r = checkPin({ workflowText: callerYaml({ sha: BUNDLE_SHA }), tagCommit: null, bundleText: bundleYaml() });
+  assert.equal(r.ok, false);
+  assert.match(r.problems.join('\n'), /tag commit could not be read/);
+});
+
+test('fails closed when the bundle is readable but names no image digest', () => {
+  const r = checkPin({ workflowText: callerYaml(), tagCommit: TAG, bundleText: bundleYaml().replace(/image:.*\n/, '') });
+  assert.equal(r.ok, false);
+  assert.match(r.problems.join('\n'), /names no workflow commit or no image digest/);
+});
+
+test('CLI: --help prints the usage on stdout and exits 0 without reading any source', () => {
+  const r = spawnSync(process.execPath, [MODULE, '--help'], { encoding: 'utf8', timeout: 20000 });
+  assert.equal(r.status, 0);
+  assert.match(r.stdout, /usage:/);
+  assert.equal(r.stderr, '');
+});
+
+test('CLI: an unknown flag is refused with exit 64 and the usage on stderr', () => {
+  const r = spawnSync(process.execPath, [MODULE, '--bogus'], { encoding: 'utf8', timeout: 20000 });
+  assert.equal(r.status, 64);
+  assert.match(r.stderr, /usage:/);
+  assert.equal(r.stdout, '');
+});
+
+test('CLI: a workflow with no version comment fails at once, naming the missing comment, without a network read', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-evaluator-pin-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'skill-checks.yml');
+  fs.writeFileSync(file, callerYaml({ comment: null }));
+  const r = spawnSync(process.execPath, [MODULE, file], { encoding: 'utf8', timeout: 20000 });
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /^FAIL skill-evaluator pin: .*version comment/m);
+});

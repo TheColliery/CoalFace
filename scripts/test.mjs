@@ -48,6 +48,8 @@ const TESTS = [
   // CWK-174: the house secret scan, adopted byte-identical from .github's templates/published-code/.
   'scripts/secret-scan.test.mjs',
   'scripts/secret-gate.test.mjs',
+  // 29il: the SkillEvaluator pin check (the caller's uses: commit and image digest against the release it names); a room tool, not canon.
+  'scripts/skill-evaluator-pin.test.mjs',
   'scripts/build-plugin.test.mjs',
   'scripts/verify.test.mjs',
   'scripts/build-claude-ai-zips.test.mjs',
