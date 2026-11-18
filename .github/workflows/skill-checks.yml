@@ -7,6 +7,9 @@
 # the keyless Tier 1 security scan reports pattern matches on skill text as findings (read in this suite
 # as false positives, first at CoalFace v0.15.6), so a push to main that touches a skill would leave a
 # standing red. Ends when the upstream rule is fixed or LLM verification is adopted: then restore `push`.
+# SECOND DIVERGENCE: `uses:` pins the v1.0.1 TAG's commit, where the bundle pins its parent c9369a78 (the same
+# evaluate-skills.yml blob 1fff11ac). Reason: Dependabot follows a commented SHA to the next tag only when the SHA is a
+# tag's commit; scripts/skill-evaluator-pin.mjs accepts either. Ends when upstream's bundle pins the tag's own commit.
 name: Skill checks
 on:
   pull_request:
