@@ -2,7 +2,7 @@
 # Use the release-generated copy with reviewed workflow and image pins.
 # The image uses the default OSS validation policy for public and private repos.
 # No internal/external input is needed; report visibility is configured separately.
-# NAMED DIVERGENCE from NVIDIA/SkillEvaluator v0.9.0 ci/bundles/0.9.0/skill-checks.yml (blob 7222c6c7):
+# NAMED DIVERGENCE from NVIDIA/SkillEvaluator v1.0.1 ci/bundles/1.0.1/skill-checks.yml (blob e64f05a2):
 # the `push` trigger is removed; pull_request and workflow_dispatch stay. Reason: without LLM verification
 # the keyless Tier 1 security scan reports pattern matches on skill text as findings (read in this suite
 # as false positives, first at CoalFace v0.15.6), so a push to main that touches a skill would leave a
@@ -22,9 +22,10 @@ concurrency:
   cancel-in-progress: true
 jobs:
   skills:
-    uses: NVIDIA/SkillEvaluator/.github/workflows/evaluate-skills.yml@ba7779ad617c6444c98b6241a75bce92067e9d56
+    # The version comment is read by Dependabot and by scripts/skill-evaluator-pin.mjs; move the image digest in the same PR.
+    uses: NVIDIA/SkillEvaluator/.github/workflows/evaluate-skills.yml@914c15cb3f31562ccffdc9a7166002a87ed2ce1e # v1.0.1
     with:
-      image: ghcr.io/nvidia/skillevaluator-tier1@sha256:e96e3aaad89bf78c4f3f8c621e88005d18bd7c485b29c0d7945864700e5944e6
+      image: ghcr.io/nvidia/skillevaluator-tier1@sha256:fbff256df8f760019539d442b7cb533d7ec50efab37f4482b7b670e2e4b4189a
       paths: skills
       min-score: 70
       # Enable only after the reviewed baseline manifest reaches the target branch.

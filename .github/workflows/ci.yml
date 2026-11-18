@@ -67,12 +67,26 @@ jobs:
       - run: node scripts/verify.mjs
       - run: node scripts/test.mjs
 
+  # Reads public upstream files and needs no secret, so a bot's PR (Dependabot's) runs it too.
+  skill-pin:
+    name: skill-pin
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - run: node scripts/skill-evaluator-pin.mjs
+
   # A single STABLE required-check context (the matrix names drift; this does not).
   # Succeeds iff every matrix gate passed or was legitimately skipped; fails if any
   # gate failed. Rulesets require `all-green`, never the per-matrix names.
   all-green:
     name: all-green
-    needs: gate
+    needs: [gate, skill-pin]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5 # a one-step result check
@@ -80,6 +94,10 @@ jobs:
       - name: gate result
         run: |
           case "${{ needs.gate.result }}" in
-            success|skipped) echo "gate ${{ needs.gate.result }}"; exit 0 ;;
+            success|skipped) echo "gate ${{ needs.gate.result }}" ;;
             *) echo "gate ${{ needs.gate.result }}"; exit 1 ;;
+          esac
+          case "${{ needs.skill-pin.result }}" in
+            success|skipped) echo "skill-pin ${{ needs.skill-pin.result }}"; exit 0 ;;
+            *) echo "skill-pin ${{ needs.skill-pin.result }}"; exit 1 ;;
           esac
