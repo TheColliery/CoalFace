@@ -3,18 +3,18 @@
 // edited byte of its file (the census compares git blob ids). Used by scripts/verify.mjs (the gate) and scripts/git-env-census-room.test.mjs.
 //
 // One pin, MEASURED by dropping it (scripts/git-env-census-room.test.mjs holds that measurement as a test):
-//   - scripts/secret-gate.mjs (ad1968c7): the canon's own pinned carrier. It keeps GIT_INDEX_FILE on purpose (the partial-commit read), so its two
+//   - scripts/secret-gate.mjs (719f7667): the canon's own pinned carrier. It keeps GIT_INDEX_FILE on purpose (the partial-commit read), so its two
 //     reads hold process.env without gitEnv().
-// scripts/secret-scan.test.mjs carried a second pin (d0db994d) until 09b: the Bankfire source moved to a0319dcd, which builds every child environment
+// scripts/secret-scan.test.mjs carried a second pin (d0db994d) until 09b: the canon's `.github` source moved it to a0319dcd, which builds every child environment
 // from named keys and reads clean with no pin (measured: dropping the pin left 0 findings in that file), so the pin came out with the copy.
-// Every other file reads clean with no pin, among them scripts/secret-gate.test.mjs (7692da15), release-notes.mjs (f8d998d8),
+// Every other file reads clean with no pin, among them scripts/secret-gate.test.mjs (18842d60), release-notes.mjs (f8d998d8),
 // release-notes.test.mjs (7e779ef8) and verify-release-shape.test.mjs (fa8a730d).
 import fs from 'node:fs';
 import path from 'node:path';
 import { scanGitSpawns, collectScriptsMjs } from './git-env-census.mjs';
 
 export const ROOM_PINS = [
-  { rel: 'scripts/secret-gate.mjs', blob: 'ad1968c709f98dab3272182c1266597887b50ea6', why: 'byte-equal org carrier; keeps GIT_INDEX_FILE and GIT_CEILING_DIRECTORIES by design (the canon pins the same file)' },
+  { rel: 'scripts/secret-gate.mjs', blob: '719f76676090101f56113ac5a0cd8cb13721d470', why: 'byte-equal org carrier; keeps GIT_INDEX_FILE and GIT_CEILING_DIRECTORIES by design (the canon pins the same file)' },
 ];
 
 // scripts/**/*.mjs through the canon walk, plus hooks/*.js (the canon walk covers scripts/ only; a hook spawns no git today and the census keeps it that way).
