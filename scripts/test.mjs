@@ -11,8 +11,9 @@
 //
 // SIZING (this room's own variables, never the canon's). BASIS: the CI readings of 2026-11-18, PR run 44353088147 on Node 22 (the TIME lines of 29ix part 1).
 // scripts/secret-gate.test.mjs was cut at the 240 s per-file clock on windows-latest twice (240.1 s, job 134973769444; 240.2 s, job 134977563923), about 45 of 56 tests done, so its
-// real time there is over 240 s, likely near 300 s; the same file took 158.0 s and 148.1 s on macos and 159.5 s and 225.5 s on ubuntu. The CI test steps ran 170 to 274 s.
-// 540000 ms per test (on Node 22 that clock is per FILE) is 2.25x the cut and about 1.8x the 300 s estimate; 600000 ms per file sits above it; the whole run ends at 780000 ms,
+// real time there was over 240 s (the raise was sized before a measured figure existed); the same file took 158.0 s and 148.1 s on macos and 159.5 s and 225.5 s on ubuntu. The CI test steps ran 170 to 274 s.
+// MEASURED after the raise (PR run 44358429067, job 134992789394, green): windows-latest Node 22 secret-gate.test.mjs took 269.7 s (step 292 s).
+// 540000 ms per test (on Node 22 that clock is per FILE) is 2.0x that measured 269.7 s and 2.25x the 240 s cut that started the raise; 600000 ms per file sits above it; the whole run ends at 780000 ms,
 // under the 900 s gate job (.github/workflows/ci.yml, timeout-minutes 15). SUPERSEDED: the 2026-10-08 basis (serial, heap-capped, verify.test.mjs 82.1 s, suite 154 s) measured a
 // local box, and a local run is not the CI runner's clock. A file that outruns these is a defect to fix; the TIME lines (scripts/lib/suite-run.mjs, SLOW_FILE_LOG_MS) name it.
 import path from 'node:path';

@@ -47,7 +47,7 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
         node: [22, 24]  # supported LTS only (24 Active, 22 Maintenance); 18/20 are EOL — bump as the Node LTS schedule moves
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15 # measured 2026-11-18 (PR run 44353088147): the Node 22 test steps ran 170 to 274 s, and windows-latest cut secret-gate.test.mjs at the 240 s per-file clock. scripts/test.mjs (LIMITS deadlineMs 780000) runs under this bound.
+    timeout-minutes: 15 # measured 2026-11-18 (PR run 44353088147): the Node 22 test steps ran 170 to 274 s, and windows-latest cut secret-gate.test.mjs at the 240 s per-file clock. With the raised clock (PR run 44358429067): windows-latest Node 22 secret-gate.test.mjs 269.7 s (job 134992789394). scripts/test.mjs (LIMITS deadlineMs 780000) runs under this bound.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
