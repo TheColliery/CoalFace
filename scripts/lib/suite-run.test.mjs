@@ -126,9 +126,11 @@ test('scripts/test.mjs is wired to the judge with the room numbers: finite heap,
   assert.ok(m, 'scripts/test.mjs carries its LIMITS line');
   const [heap, perTest, deadline, perFile] = m.slice(1).map(Number);
   assert.equal(heap, 2048);
-  assert.ok(perTest >= 2 * 82100, 'the clock per test stays above twice the slowest file measured (verify.test.mjs, 82.1 s, 2026-10-08)');
-  assert.ok(perFile > 82100 && perFile < deadline, 'a file clock above the slowest file and below the whole-run deadline');
-  assert.ok(deadline >= 4 * 82100 && deadline <= 900000, 'the deadline is finite and about 4x the serial suite');
+  // 29ix part 2, from the CI readings (PR run 44353088147, Node 22): secret-gate.test.mjs was cut at the 240 s per-file clock on windows-latest twice (240.1 s, job 134973769444;
+  // 240.2 s, job 134977563923), about 45 of 56 tests done, so its real time is over 240 s; the same file ran 225.5 s on ubuntu and 158 s on macos. The clock per test must clear that cut with headroom.
+  assert.ok(perTest >= 480000, 'the clock per test clears the Windows Node 22 cut of secret-gate.test.mjs at 240 s (CI run 44353088147), with headroom');
+  assert.ok(perFile > perTest && perFile < deadline, 'a file clock above the per-test clock and below the whole-run deadline');
+  assert.ok(deadline > perFile && deadline <= 15 * 60 * 1000, 'the whole-run deadline sits under the gate job timeout-minutes 15 (900000 ms)');
   assert.match(src, /expectFile: 'scripts\/test-expect\.json'/);
   assert.match(src, /import\('\.\/lib\/suite-run\.mjs'\)/);
 });
