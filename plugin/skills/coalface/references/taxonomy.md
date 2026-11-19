@@ -59,3 +59,12 @@ in order, and the flat bulk fills the width. One receipt covers the lot.
 ## Granularity honesty
 
 Granularity honesty: "finer = faster" saturates — wall-clock ≈ ceil(N / width) × unit-time, so beyond roughly 2-4× the wave width finer slices add spawn overhead and no wall-clock. That is an OBSERVATION, not a cap: the rule SKILL.md step 2 states is one rule, the min-unit floor. Merge a unit that is below the floor into a neighbour; never merge independent spots that clear it just because there are many (mode 1 keeps worker count = unit count, and a spot is the QC and rollback grain). Width bounds each wave, not the unit count. The benchmark's cheapest arm (2 workers x 3 spots on a 6-spot job, `TheColliery/.github/benchmarks/CoalFace/RESULTS.md`) traded spawn overhead for parallelism on spots far below the floor (about 27 tokens a spot against a per-worker baseline of about 25,000), so even 3 spots stayed under it. Under the floor-only rule that job is not fanned out at all (F14, run it solo); above the floor each spot stays its own unit.
+
+## Why the contract is shaped this way (moved from SKILL.md, 29iz)
+
+- **Honest frame:** ad-hoc fan-out makes the same promises with NO guarantee. CoalFace enforces them by STRUCTURE instead: bounded (dollars ~solo on cheap tiers, Wallet), full width (floor and width bounded), netted (QC, single writer, snapshot).
+- **Nested conductor:** the wallet slices DOWN the chain (the conductor allocates the sub a slice, and the sub splits it across its workers); receipts flow UP.
+- **Board hand-off:** after CoalBoard decides error-not-allowed work, CoalFace may serve as the board's apply-hand.
+- **Standing rules** (user or project, for example a translation rulebook) are invariants: the scout copies them into the shared-digest, so no worker re-decides them.
+- **Platforms:** a platform with no fan-out still gets the same contract run one unit at a time, so isolation and QC are kept even though no speedup is possible.
+- **Self-report caveat:** the self error-report fires only for what the model noticed. A clean run means "nothing noticed", not "nothing wrong".

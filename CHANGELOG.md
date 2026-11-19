@@ -4,6 +4,13 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.15.8] - 2026-11-19
+
+The skill's body is carved under its cost ceiling, and every instruction stays
+
+### Changed
+- **The skill's main text is shorter, and no instruction is lost.** The explanations move to `references/`, loaded on demand; the rules the agent follows stay in `SKILL.md`.
+
 ## [0.15.7] - 2026-11-18
 
 The skill's update line says plainly that the user runs the update
