@@ -164,3 +164,25 @@ test('the image line still passes with a trailing comment, a tab before it, CRLF
   const r = checkPin({ workflowText: real, tagCommit: TAG, bundleText: bundleYaml() });
   assert.equal(r.ok, true, `real workflow failed: ${JSON.stringify(r.problems)}`);
 });
+
+// 29jk (E1 t350 #1, the reviewer's 29jf LOW-2): in YAML a `#` with no whitespace before it is part of the value, not a comment, but USES_RE and IMAGE_RE read it as one, so a value that is not the pinned one passed.
+test('a # with no whitespace before it is part of the value: uses: or image: directly followed by #x or #v1.0.1 fails the pin', () => {
+  for (const attack of [`@${TAG}#v1.0.1`, `@${TAG}#x`]) {
+    const r = checkPin({ workflowText: callerYaml().replace(`@${TAG} # v1.0.1`, attack), tagCommit: TAG, bundleText: bundleYaml() });
+    assert.equal(r.ok, false, `uses "${attack}" passed: ${JSON.stringify(r.problems)}`);
+  }
+  for (const attack of ['#x', '#v1']) {
+    const r = checkPin({ workflowText: imageLine(attack), tagCommit: TAG, bundleText: bundleYaml() });
+    assert.equal(r.ok, false, `image "${attack}" passed: ${JSON.stringify(r.problems)}`);
+  }
+});
+
+test('a uses: line still passes with a space, two spaces, or a tab before its comment, and with CRLF', () => {
+  for (const sep of [' ', '  ', '\t']) {
+    const r = checkPin({ workflowText: callerYaml().replace(`@${TAG} # v1.0.1`, `@${TAG}${sep}# v1.0.1`), tagCommit: TAG, bundleText: bundleYaml() });
+    assert.equal(r.ok, true, `uses separator ${JSON.stringify(sep)} failed: ${JSON.stringify(r.problems)}`);
+  }
+  const crlf = callerYaml().replace(`@${TAG} # v1.0.1\n`, `@${TAG} # v1.0.1\r\n`);
+  const r = checkPin({ workflowText: crlf, tagCommit: TAG, bundleText: bundleYaml() });
+  assert.equal(r.ok, true, `uses CRLF failed: ${JSON.stringify(r.problems)}`);
+});
