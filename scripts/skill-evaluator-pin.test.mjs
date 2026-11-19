@@ -12,6 +12,13 @@ import { checkPin } from './skill-evaluator-pin.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const MODULE = path.join(HERE, 'skill-evaluator-pin.mjs');
 
+// 29iz (F13, hooks-safety §7 and testing.md's hermetic spawns): a CLI child gets a throwaway HOME, USERPROFILE and TEMP, removed after the test. The local shape of hooks.test.mjs's sandbox().
+function childEnv(t) {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-evaluator-pin-home-'));
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  return { ...process.env, HOME: home, USERPROFILE: home, TEMP: home, TMP: home, TMPDIR: home };
+}
+
 const TAG = '914c15cb3f31562ccffdc9a7166002a87ed2ce1e';
 const BUNDLE_SHA = 'c9369a7811bde083b550f2ac488222e8c388d7fd';
 const DIGEST_1 = 'fbff256df8f760019539d442b7cb533d7ec50efab37f4482b7b670e2e4b4189a';
@@ -98,15 +105,15 @@ test('fails closed when the bundle is readable but names no image digest', () =>
   assert.match(r.problems.join('\n'), /names no workflow commit or no image digest/);
 });
 
-test('CLI: --help prints the usage on stdout and exits 0 without reading any source', () => {
-  const r = spawnSync(process.execPath, [MODULE, '--help'], { encoding: 'utf8', timeout: 20000 });
+test('CLI: --help prints the usage on stdout and exits 0 without reading any source', (t) => {
+  const r = spawnSync(process.execPath, [MODULE, '--help'], { encoding: 'utf8', timeout: 20000, env: childEnv(t) });
   assert.equal(r.status, 0);
   assert.match(r.stdout, /usage:/);
   assert.equal(r.stderr, '');
 });
 
-test('CLI: an unknown flag is refused with exit 64 and the usage on stderr', () => {
-  const r = spawnSync(process.execPath, [MODULE, '--bogus'], { encoding: 'utf8', timeout: 20000 });
+test('CLI: an unknown flag is refused with exit 64 and the usage on stderr', (t) => {
+  const r = spawnSync(process.execPath, [MODULE, '--bogus'], { encoding: 'utf8', timeout: 20000, env: childEnv(t) });
   assert.equal(r.status, 64);
   assert.match(r.stderr, /usage:/);
   assert.equal(r.stdout, '');
@@ -117,7 +124,23 @@ test('CLI: a workflow with no version comment fails at once, naming the missing 
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const file = path.join(dir, 'skill-checks.yml');
   fs.writeFileSync(file, callerYaml({ comment: null }));
-  const r = spawnSync(process.execPath, [MODULE, file], { encoding: 'utf8', timeout: 20000 });
+  const r = spawnSync(process.execPath, [MODULE, file], { encoding: 'utf8', timeout: 20000, env: childEnv(t) });
   assert.equal(r.status, 1);
   assert.match(r.stdout, /^FAIL skill-evaluator pin: .*version comment/m);
+});
+
+// 29iz (F14, CodeRabbit E1 t346): IMAGE_RE had no line anchor, so the text of a commented copy of the image key was matched first, and a longer hex token matched its first 64 characters.
+test('a commented image line is not the active pin: a commented bundle digest above a different active digest fails', () => {
+  const commented = `      # image: ghcr.io/nvidia/skillevaluator-tier1@sha256:${DIGEST_1}`;
+  const active = `      image: ghcr.io/nvidia/skillevaluator-tier1@sha256:${DIGEST_0}`;
+  const text = callerYaml({ digest: DIGEST_0 }).replace(/^      image:.*$/m, `${commented}\n${active}`);
+  const r = checkPin({ workflowText: text, tagCommit: TAG, bundleText: bundleYaml() });
+  assert.equal(r.ok, false, JSON.stringify(r.problems));
+  assert.match(r.problems.join('\n'), /e96e3aaad89b/);
+});
+
+test('a digest token longer than 64 hex characters is no 64-character digest: the image line with 65 hex fails as absent', () => {
+  const r = checkPin({ workflowText: callerYaml({ digest: `${DIGEST_1}a` }), tagCommit: TAG, bundleText: bundleYaml() });
+  assert.equal(r.ok, false, JSON.stringify(r.problems));
+  assert.match(r.problems.join('\n'), /sha256 digest/);
 });

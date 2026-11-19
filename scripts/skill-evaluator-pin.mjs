@@ -16,7 +16,7 @@ const DIGEST_RE = /^[0-9a-f]{64}$/;
 const VERSION_RE = /^\d+\.\d+\.\d+$/;
 const USES_RE = /^[ \t]*uses:[ \t]*NVIDIA\/SkillEvaluator\/\.github\/workflows\/evaluate-skills\.yml@([^\s#]+)[ \t]*(#[^\r\n]*)?\r?$/m;
 const VERSION_COMMENT_RE = /#[ \t]*v(\d+\.\d+\.\d+)[ \t]*$/;
-const IMAGE_RE = /image:[ \t]*ghcr\.io\/nvidia\/skillevaluator-tier1@sha256:([0-9a-f]{64})/;
+const IMAGE_RE = /^[ \t]*image:[ \t]*ghcr\.io\/nvidia\/skillevaluator-tier1@sha256:([0-9a-f]{64})(?![0-9a-f])/m; // 29iz: anchored as USES_RE is, so a comment never matches, and the digest is exactly 64 hex
 
 const USAGE = [
   'usage: node scripts/skill-evaluator-pin.mjs [workflow.yml]',
