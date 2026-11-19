@@ -122,14 +122,14 @@ The swarm fits the estimated main-SOLO **dollar** cost only with workers cheaper
 Journal each worker's scope at spawn and its returned order on landing. A dead or silent worker → one fresh worker on the REMAINDER from the journal (P14).
 
 ## Composition
-- **CoalBoard WINS on error-not-allowed** (P22).
+- **CoalBoard WINS on error-not-allowed** (P22); CoalFace may serve as its apply-hand.
 - **CoalTipple** (if installed): delegate-down optional; SENSITIVE gate inherited (P21).
 - **subagent-safety inherited** (F5/F7/F8, P14/P15): a failed worker RETURNS; you re-route.
 - **Standing rules** (user or project) are invariants: the scout reads them into the shared-digest (P23).
 - **Engine:** a Workflow engine present → ride it, reading `references/workflow-engine.md` first (P28).
 
 ## Nested conductor and platforms (P2/P24)
-A depth-1 sub may conduct its scope (scout → contract → QC → apply) and spawn depth-2 workers. Spawn via the platform's NATIVE subagent tool; width sizes via `bandwidth`. NO fan-out → sequential pipeline under the same contract. Unverified platform or version: width and nesting UNVERIFIED; degrade conservatively; say so.
+A depth-1 sub may conduct its scope (scout → contract → QC → apply) and spawn depth-2 workers. Give it a wallet slice; take its receipt back up. Spawn via the platform's NATIVE subagent tool; width sizes via `bandwidth`. NO fan-out → sequential pipeline under the same contract. Unverified platform or version: width and nesting UNVERIFIED; degrade conservatively; say so.
 
 ## Config + self-update (P25/P26)
 Merged config: global `~/.claude/.coalface.json` overlaid by the nearest project config (project wins per key), except `coalfaceMode` (a project may only QUIETEN it: never past global's explicit value, or the `auto` default if global is silent) and the admission keys (the stricter value wins, step 4). Project config: per directory level, first found wins; the walk stops at home: **(1)** your agent's dir (`.claude/coal/coalface.json` on Claude Code, `.agents/coal/coalface.json` on Antigravity); **(2)** `coal/coalface.json` in the other dirs, `.claude` → `.agents` → `.gemini`; **(3)** DEPRECATED `.<agent>/.coalface.json`, same order; **(4)** DEPRECATED root `.coalface.json`. Keys: `coalfaceMode` · `bandwidth` · `autoFanoutFloor` · `maxLocalWorkers` (def `0` = the reading decides) · `admitCpuBusyMaxPct` · `admitMemFreeMinPct` (step 4) · `updateMode` (`off`/`remind`/`ask`/`auto`, def `ask`) · `updateCheckDays` (def `14`) · `language`. The hook clamps `autoFanoutFloor` and `updateCheckDays` on read. Updates: the hook only schedules a throttled check; `/coalface:update` checks online and offers the update, which the user runs (G2); `updateMode` never gates the command itself.

@@ -63,8 +63,7 @@ Granularity honesty: "finer = faster" saturates — wall-clock ≈ ceil(N / widt
 ## Why the contract is shaped this way (moved from SKILL.md, 29iz)
 
 - **Honest frame:** ad-hoc fan-out makes the same promises with NO guarantee. CoalFace enforces them by STRUCTURE instead: bounded (dollars ~solo on cheap tiers, Wallet), full width (floor and width bounded), netted (QC, single writer, snapshot).
-- **Nested conductor:** the wallet slices DOWN the chain (the conductor allocates the sub a slice, and the sub splits it across its workers); receipts flow UP.
-- **Board hand-off:** after CoalBoard decides error-not-allowed work, CoalFace may serve as the board's apply-hand.
+- **Nested conductor:** the sub splits its wallet slice across its own workers, so the dollar bound holds at every depth.
 - **Standing rules** (user or project, for example a translation rulebook) are invariants: the scout copies them into the shared-digest, so no worker re-decides them.
 - **Platforms:** a platform with no fan-out still gets the same contract run one unit at a time, so isolation and QC are kept even though no speedup is possible.
 - **Self-report caveat:** the self error-report fires only for what the model noticed. A clean run means "nothing noticed", not "nothing wrong".
