@@ -38,7 +38,7 @@ Agents already fan work out to subagents — CoalFace does not invent that. It d
 
 | Promise | Ad-hoc fan-out | CoalFace |
 |---|---|---|
-| **Cost** | UNBOUNDED — uncontrolled spawn overhead, N workers re-reading the same files, retry storms, stray runaway workers | Overhead BOUNDED (shared-digest + min-unit floor + no self-retry) and **cheaper in $ only when workers run on cheaper tiers** (with main-equivalent workers it can cost more than solo). NOTE: raw **tokens run HIGHER than solo** — fan-out multiplies the ~per-sub baseline by N (the benchmark showed ~5.3× on a small job); the wallet bounds **dollars + wall-time**, never raw tokens |
+| **Cost** | UNBOUNDED — uncontrolled spawn overhead, N workers re-reading the same files, retry storms, stray runaway workers | Overhead BOUNDED (shared-digest + min-unit floor + no self-retry) and **cheaper in $ only when workers run on cheaper tiers** (with main-equivalent workers it can cost more than solo). NOTE: raw **tokens run HIGHER than solo** — fan-out multiplies the ~per-sub baseline by N (the benchmark showed ~5.3× on a small job); the wallet ESTIMATES **dollars** (about solo only on cheaper worker tiers, never a guarantee), never raw tokens; `bandwidth` sets the speed |
 | **Speed** | UNDER-FANNED — a lazy orchestrator batches 100 spots into 5-8 bloated workers whose tail quality drops | Full width — worker count = spot count, floor/width-bounded waves |
 | **Quality** | Can dip BELOW solo — a deviant worker, real-tree writes, a half-applied death | Netted — mechanical QC at collection, single-writer apply behind a pre-swarm snapshot, a domain gate |
 
