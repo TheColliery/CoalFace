@@ -1,8 +1,8 @@
 # Admission control — the MACHINE bound, by a live reading
 
-> Loaded on-demand from WAVES (step 4, P29). Three bounds compose, each answering a different question: the WALLET bounds **dollars**, ~solo only on cheaper worker tiers (§ Wallet) · `bandwidth` bounds **speed** (AIMD, agent-process width) · this bound asks **the machine**: is there room right now for the next apply-time DOMAIN-GATE run (main's own step-7 build/test, or a depth-1 nested conductor's own for its scope) or the next wave of heavy local work? It is separate from worker-wave width, which is `max(1, floor(platform width × bandwidth%))` alone (never above the platform width).
+> Loaded on-demand from WAVES (step 4, P29). Two bounds and one estimate compose, each answering a different question: the WALLET estimates **dollars**, about solo only on cheaper worker tiers, never a guarantee (§ Wallet) · `bandwidth` bounds **speed** (AIMD, agent-process width) · this bound asks **the machine**: is there room right now for the next apply-time DOMAIN-GATE run (main's own step-7 build/test, or a depth-1 nested conductor's own for its scope) or the next wave of heavy local work? It is separate from worker-wave width, which is `max(1, floor(platform width × bandwidth%))` alone (never above the platform width).
 
-## Why a third bound
+## Why a machine bound
 
 Board #89's exhibit: 10 lanes flew without a single file collision — the partition/QC/single-writer discipline held — and 13 live node runtimes drove the host to 82% CPU. Nothing before this bounded the MACHINE: the wallet answers "can we afford this in dollars", `bandwidth` answers "how many agent processes may the platform hold open", and neither one asks whether the box running the local gate steps has the room to do it.
 

@@ -4,6 +4,13 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.15.10] - 2026-11-19
+
+The admission-control reference calls the wallet an estimate, not a bound
+
+### Fixed
+- **The admission-control reference no longer says the wallet bounds dollars.** It calls dollars an estimate, about solo only on cheaper worker tiers, as the skill does.
+
 ## [0.15.9] - 2026-11-19
 
 The skill's reference no longer claims a dollar bound
