@@ -4,6 +4,13 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.15.9] - 2026-11-19
+
+The skill's reference no longer claims a dollar bound
+
+### Fixed
+- **The skill's reference no longer claims a dollar bound.** The structure bounds overhead; dollars stay an estimate, about solo only on cheaper worker tiers.
+
 ## [0.15.8] - 2026-11-19
 
 The skill's body is carved under its cost ceiling, and every instruction stays
