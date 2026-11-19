@@ -144,3 +144,23 @@ test('a digest token longer than 64 hex characters is no 64-character digest: th
   assert.equal(r.ok, false, JSON.stringify(r.problems));
   assert.match(r.problems.join('\n'), /sha256 digest/);
 });
+
+// 29jf (F5, CodeRabbit E1 t348): a suffix after the 64-hex digest still matched, so an edited caller whose image token is not the pinned image passed the gate. IMAGE_RE now ends where USES_RE ends.
+const imageLine = (tail) => callerYaml().replace(/^      image:.*$/m, `      image: ghcr.io/nvidia/skillevaluator-tier1@sha256:${DIGEST_1}${tail}`);
+
+test('an image token with a suffix after the 64-hex digest fails the pin, whatever the suffix (A, Z, -x, :latest)', () => {
+  for (const suffix of ['A', 'Z', '-x', ':latest']) {
+    const r = checkPin({ workflowText: imageLine(suffix), tagCommit: TAG, bundleText: bundleYaml() });
+    assert.equal(r.ok, false, `suffix "${suffix}" passed: ${JSON.stringify(r.problems)}`);
+  }
+});
+
+test('the image line still passes with a trailing comment, a tab before it, CRLF, and the real workflow file', () => {
+  for (const tail of ['', '  # pinned by the release', '\t# pinned', '\r']) {
+    const r = checkPin({ workflowText: imageLine(tail), tagCommit: TAG, bundleText: bundleYaml() });
+    assert.equal(r.ok, true, `tail ${JSON.stringify(tail)} failed: ${JSON.stringify(r.problems)}`);
+  }
+  const real = fs.readFileSync(path.join(HERE, '..', '.github', 'workflows', 'skill-checks.yml'), 'utf8');
+  const r = checkPin({ workflowText: real, tagCommit: TAG, bundleText: bundleYaml() });
+  assert.equal(r.ok, true, `real workflow failed: ${JSON.stringify(r.problems)}`);
+});
