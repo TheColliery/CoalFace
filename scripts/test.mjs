@@ -58,6 +58,8 @@ const TESTS = [
   'scripts/verify.test.mjs',
   'scripts/build-claude-ai-zips.test.mjs',
   'scripts/configure.test.mjs',
+  // 29ko: the legacy-config migration keeps a legacy file that changed inside the migration window (the reviewer's witness, ported).
+  'scripts/configure-migrate.test.mjs',
   'scripts/link-check.test.mjs',
   // 16f item 1: the canon's front-door-links (the outward half of the link check), adopted byte-identical from .github's templates/published-code/.
   'scripts/front-door-links.test.mjs',

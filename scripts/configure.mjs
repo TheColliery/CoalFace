@@ -173,11 +173,30 @@ async function main() {
   }
 
   let cfg = {};
+  // 29ko (the READ-WINDOW class): the legacy file as its first read saw it, its bytes and its identity (device, inode, size, mtime).
+  // The migration's delete is judged against this snapshot, never against the earlier read alone.
+  function legacyFileSnapshot(file, bytes) {
+    try {
+      const st = fs.statSync(file);
+      return { bytes, dev: st.dev, ino: st.ino, size: st.size, mtimeMs: st.mtimeMs };
+    } catch { return null; }
+  }
+  // True only when the file now has the identity and the bytes the snapshot holds. A file that cannot be checked is not unchanged.
+  function legacyFileUnchanged(file, snap) {
+    if (!snap) return false;
+    try {
+      const st = fs.statSync(file);
+      if (st.dev !== snap.dev || st.ino !== snap.ino || st.size !== snap.size || st.mtimeMs !== snap.mtimeMs) return false;
+      return fs.readFileSync(file, 'utf8') === snap.bytes;
+    } catch { return false; }
+  }
   let hadComments = false;
   let rawConfig = null;
+  let legacySnapshot = null;
   if (readPath !== null) {
     try {
       let content = readConfigBounded(readPath);
+      if (readIsLegacy) legacySnapshot = legacyFileSnapshot(readPath, content);
       if (content.charCodeAt(0) === 0xfeff) content = content.slice(1);
       rawConfig = content;
     } catch (e) {
@@ -266,12 +285,18 @@ async function main() {
     }
     // Move-on-CONFIG-WRITE-only (no-old-version-leftover): the legacy file (root or
     // nested) is removed only AFTER the new-home write above succeeded, and only when this write
-    // actually migrated it. Best-effort — a failed delete here still leaves a
-    // correctly-written new config; the stray legacy file is simply not cleaned up
-    // this run.
+    // actually migrated it. 29ko: it is removed only while it is still the file the first read
+    // saw (identity and bytes, checked again just before the delete). A change in the window is
+    // kept, named in one warning, and exits 1. The window between that last check and the rmSync
+    // is a stated limit, not closed: a change landing there is deleted with the file.
     if (readIsLegacy && writePath !== readPath) {
-      try { fs.rmSync(readPath, { force: true }); } catch {}
-      console.log(`Migrated the project config from ${readPath} to ${writePath}.`);
+      if (legacyFileUnchanged(readPath, legacySnapshot)) { try { fs.rmSync(readPath, { force: true }); } catch {} }
+      if (fs.existsSync(readPath)) {
+        console.error(`Warning: the legacy config ${readPath} was kept: it changed during the migration (or could not be re-checked). The new config at ${writePath} does not include that change; merge it by hand, then delete ${readPath}.`);
+        process.exitCode = 1;
+      } else {
+        console.log(`Migrated the project config from ${readPath} to ${writePath}.`);
+      }
     }
     if (hadComments) {
       console.warn('Note: inline comments were stripped (this tool writes plain JSON). Every key stays documented in platform-configs/.coalface.json.');
