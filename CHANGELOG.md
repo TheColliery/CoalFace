@@ -4,6 +4,13 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.15.11] - 2026-11-20
+
+The config migration keeps a legacy file that changed during the move
+
+### Fixed
+- **A legacy project config edited during the migration is no longer deleted.** Severity HIGH: one edit to a setting, lost silently, inside a one-time migration. `node scripts/configure.mjs` moved the legacy file to `.claude/coal/coalface.json` and removed it on its first read, so an edit made in that window was lost without a word. The legacy file is now re-checked just before removal: if it changed, it is kept, one warning names it, the new config does not include that change, and the run exits 1. The window is narrowed, not closed. Regression test: `scripts/configure-migrate.test.mjs`.
+
 ## [0.15.10] - 2026-11-19
 
 The admission-control reference calls the wallet an estimate, not a bound
