@@ -4,6 +4,13 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.15.12] - 2026-11-20
+
+The legacy-config re-check reads one open file, narrowing the gap before the delete
+
+### Fixed
+- **The legacy-config re-check before the delete now reads the file through one open descriptor.** The check compared the file's name with its content in two separate steps, which left a gap between the check and the read. The file is now opened once, its identity and its content are judged on that same descriptor, and the name is compared with it just before the delete. Behaviour is unchanged: a legacy file that changed or was replaced during the migration is kept, with a warning, and the run exits 1. A change between that last name check and the delete is still not seen: the window is narrowed, not closed. Tests: `scripts/configure-migrate.test.mjs` (the existing legs; no leg isolates the old two-step gap, as no leg could show a loss from it).
+
 ## [0.15.11] - 2026-11-20
 
 The config migration keeps a legacy file that changed during the move
