@@ -38,7 +38,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { CONFIG_SCHEMA, validateValue } from './lib/config-schema.mjs';
 import { parseJsonc } from './lib/jsonc.mjs';
-import { mkdirRepoParents, writeFileAtomic, RepoWriteRefused, readConfigBounded } from './lib/repo-fs.mjs';
+import { mkdirRepoParents, writeFileAtomic, RepoWriteRefused, readConfigBounded, readConfigBoundedWithIdentity, recheckConfigIdentity } from './lib/repo-fs.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -173,30 +173,21 @@ async function main() {
   }
 
   let cfg = {};
-  // 29ko (the READ-WINDOW class): the legacy file as its first read saw it, its bytes and its identity (device, inode, size, mtime).
-  // The migration's delete is judged against this snapshot, never against the earlier read alone.
-  function legacyFileSnapshot(file, bytes) {
-    try {
-      const st = fs.statSync(file);
-      return { bytes, dev: st.dev, ino: st.ino, size: st.size, mtimeMs: st.mtimeMs };
-    } catch { return null; }
-  }
-  // True only when the file now has the identity and the bytes the snapshot holds. A file that cannot be checked is not unchanged.
-  function legacyFileUnchanged(file, snap) {
-    if (!snap) return false;
-    try {
-      const st = fs.statSync(file);
-      if (st.dev !== snap.dev || st.ino !== snap.ino || st.size !== snap.size || st.mtimeMs !== snap.mtimeMs) return false;
-      return fs.readFileSync(file, 'utf8') === snap.bytes;
-    } catch { return false; }
-  }
   let hadComments = false;
   let rawConfig = null;
+  // 29kv (the READ-WINDOW class): the legacy file as its seeding read saw it, through one descriptor: its text and that descriptor's identity. The migration's
+  // delete is judged against this snapshot, never against the earlier read alone.
   let legacySnapshot = null;
   if (readPath !== null) {
     try {
-      let content = readConfigBounded(readPath);
-      if (readIsLegacy) legacySnapshot = legacyFileSnapshot(readPath, content);
+      let content;
+      if (readIsLegacy) {
+        const seed = readConfigBoundedWithIdentity(readPath);
+        content = seed.text;
+        legacySnapshot = { text: seed.text, identity: seed.identity };
+      } else {
+        content = readConfigBounded(readPath);
+      }
       if (content.charCodeAt(0) === 0xfeff) content = content.slice(1);
       rawConfig = content;
     } catch (e) {
@@ -290,7 +281,12 @@ async function main() {
     // kept, named in one warning, and exits 1. The window between that last check and the rmSync
     // is a stated limit, not closed: a change landing there is deleted with the file.
     if (readIsLegacy && writePath !== readPath) {
-      if (legacyFileUnchanged(readPath, legacySnapshot)) { try { fs.rmSync(readPath, { force: true }); } catch {} }
+      // 29kv: the re-check reads through its own descriptor (recheckConfigIdentity); the NAME is then lstat'ed and must be that same regular file (a link at the
+      // name, or a different file, is kept). Residual window: a change between this lstat and the rmSync is deleted with the file; a stated limit, not closed.
+      const kept = recheckConfigIdentity(readPath, legacySnapshot);
+      let named = null;
+      if (kept) { try { named = fs.lstatSync(readPath); } catch {} }
+      if (kept && named && named.isFile() && named.dev === kept.dev && named.ino === kept.ino) { try { fs.rmSync(readPath, { force: true }); } catch {} }
       if (fs.existsSync(readPath)) {
         console.error(`Warning: the legacy config ${readPath} was kept: it changed during the migration (or could not be re-checked). The new config at ${writePath} does not include that change; merge it by hand, then delete ${readPath}.`);
         process.exitCode = 1;
