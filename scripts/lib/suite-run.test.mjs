@@ -178,17 +178,19 @@ test('cli: a green run prints the summary line and the per-test totals; an unkno
 // 16f item 3 (E1 t133 finding 5): the pinned children see the scratch folder as HOME, USERPROFILE and the temp folders, never the operator's own.
 const sandboxEnv = (dir) => ({ ...process.env, HOME: dir, USERPROFILE: dir, TEMP: dir, TMP: dir, TMPDIR: dir });
 const HANG_BEFORE_TEST = "setInterval(() => {}, 1000);\nawait new Promise(() => {});\ntest('never registered', () => {});\n";
+// 29mm: the good file (one node start and two tests, about 0.2 s on a quiet box) gets 6000 ms, not 1500: a loaded box stretched its start past 1.5 s and
+// failed it with nothing wrong in the behaviour held (scratchpad/29mm/cd-flake.txt). The hang is still killed by the clock, which now reads 6000 ms.
 test('a pinned file that hangs before its first test is killed at the file clock; the next pinned file still runs', async (t) => {
   const dir = scratch(t);
   plant(dir, 'hang.test.mjs', HANG_BEFORE_TEST);
   plant(dir, 'after.test.mjs', GOOD);
   const run = await runSuite({
     files: ['hang.test.mjs', 'after.test.mjs'], expect: { floors: {}, names: { 'hang.test.mjs': ['never registered'], 'after.test.mjs': ['first', 'second'] } },
-    cwd: dir, env: sandboxEnv(dir), heapMb: 512, fileTimeoutMs: 30000, deadlineMs: 20000, fileClockMs: 1500,
+    cwd: dir, env: sandboxEnv(dir), heapMb: 512, fileTimeoutMs: 30000, deadlineMs: 20000, fileClockMs: 6000,
   });
   const [hang, after] = run.results;
   assert.notEqual(hang.status, STATUS.PASS);
-  assert.match(String(hang.reason), /file clock \(1500 ms\)/, 'the kill names the clock that fired');
+  assert.match(String(hang.reason), /file clock \(6000 ms\)/, 'the kill names the clock that fired');
   assert.equal(after.status, STATUS.PASS, 'the next pinned file was not starved into NOT-RUN');
   assert.equal(run.exitCode, 1);
 });
