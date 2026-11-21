@@ -199,9 +199,15 @@ async function main() {
       if (content.charCodeAt(0) === 0xfeff) content = content.slice(1);
       rawConfig = content;
     } catch (e) {
-      // An oversize config is a named refusal before anything is parsed or written. Any other read failure stays silent, as before.
+      // Only "does not exist" means an empty config. Any other failure to read a config that is there refuses the run BEFORE anything is written: its bytes
+      // were never seen, and an empty fallback would let the write replace them (29mm, CF-RD-1). An oversize config is a refusal of its own, with its own sentence.
       if (e.code === 'ECONFIGTOOLARGE') {
         console.error(`FAIL ${readPath}: config is larger than 1 MiB, so it is not read; nothing was written`);
+        process.exitCode = 1;
+        return;
+      }
+      if (e.code !== 'ENOENT') {
+        console.error(`FAIL ${readPath}: could not be read (${e.code || e.message}); nothing was written`);
         process.exitCode = 1;
         return;
       }
@@ -289,7 +295,7 @@ async function main() {
     if (readIsLegacy && writePath !== readPath) {
       const bak = readPath + '.bak';
       if (legacySnapshot === null) {
-        console.error(`Error: the legacy config ${readPath} could not be read at the start, so nothing was moved and it stays in place. The new config at ${writePath} was written without its settings: merge them by hand.`);
+        console.error(`Error: the legacy config ${readPath} was gone when the run read it, so there was nothing to move. The new config at ${writePath} was written without its settings: merge them by hand.`);
         process.exitCode = 1;
         return;
       }

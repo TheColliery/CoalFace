@@ -60,6 +60,8 @@ const TESTS = [
   'scripts/configure.test.mjs',
   // 29ko: the legacy-config migration keeps a legacy file that changed inside the migration window (the reviewer's witness, ported).
   'scripts/configure-migrate.test.mjs',
+  // 29mm (CF-RD-1, CF-RD-2): a config that exists but cannot be read is left untouched and the run says so; a read-only target is refused by name.
+  'scripts/configure-reader.test.mjs',
   'scripts/link-check.test.mjs',
   // 16f item 1: the canon's front-door-links (the outward half of the link check), adopted byte-identical from .github's templates/published-code/.
   'scripts/front-door-links.test.mjs',
