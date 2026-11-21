@@ -21,7 +21,7 @@ const LEGACY_BODY = '{"coalfaceMode":"auto","bandwidth":30}\n';
 
 // Modes: append | same (a change right after the new home is written, before the move); w-c1 (bytes appended at the latest moment before the
 // migration's destroying step: the last lstat of the legacy file on the old code, the move on the new one); ebusy (the move is refused);
-// w-b1 (a writer keeps writing the old file after the move); bak-unreadable (the backup cannot be read back).
+// w-b1 (a writer keeps writing the old file after the move); bak-unreadable (the backup cannot be read back); moved-away (another writer moves the legacy file just before the rename).
 const PRELOAD_SRC = [
   "import fs from 'node:fs';",
   "import path from 'node:path';",
@@ -57,6 +57,10 @@ const PRELOAD_SRC = [
   "  if (legacy && mode === 'w-c1' && newHomeWritten && !done && f === legacy) {",
   '    done = true;',
   "    fs.appendFileSync(legacy, 'WRITTEN-IN-WINDOW\\n');",
+  '  }',
+  "  if (legacy && mode === 'moved-away' && f === legacy && !done) {",
+  '    done = true;',
+  "    origRename.call(fs, legacy, legacy + '.elsewhere');",
   '  }',
   '  const r = origRename.apply(this, arguments);',
   '  if (legacy && f === legacy) renamed = true;',
@@ -231,4 +235,18 @@ test('a legacy config that git tracks is named as a deletion to commit, and the 
   const r = runConfigure(s, legacy, null);
   assert.equal(r.status, 0, show(r));
   assert.ok(r.stdout.includes('tracked by git') && r.stdout.includes('commit'), `stdout does not say to commit the removal: ${show(r)}`);
+});
+
+test('a legacy config another writer moved away during the run is named as no longer at its path, never as kept: the run exits 1 and prints no success line', (t) => {
+  const s = sandbox(t);
+  const legacy = path.join(s.proj, '.coalface.json');
+  const elsewhere = legacy + '.elsewhere';
+  fs.writeFileSync(legacy, LEGACY_BODY);
+  const r = runConfigure(s, legacy, 'moved-away');
+  assert.equal(r.status, 1, show(r));
+  assert.equal(fs.readFileSync(elsewhere, 'utf8'), LEGACY_BODY, 'the other writer\'s move did not carry the legacy bytes');
+  assert.equal(fs.existsSync(legacy + '.bak'), false, `a backup was made by a run that moved nothing: ${show(r)}`);
+  assert.equal(r.stdout.includes('Successfully updated') || r.stdout.includes('Migrated'), false, `a success line was printed after a failed move: ${show(r)}`);
+  assert.ok(r.stderr.includes('no longer at'), `stderr does not say the legacy file is no longer at its path: ${show(r)}`);
+  assert.equal(r.stderr.includes('it was kept'), false, `stderr says the legacy file was kept although it is gone: ${show(r)}`);
 });

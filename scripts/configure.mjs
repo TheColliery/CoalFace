@@ -294,12 +294,21 @@ async function main() {
         return;
       }
       const tracked = trackedByGit(readPath);
+      // 29md F2: hadBak is read one step before the rename below, which replaces whatever sits at .bak by then. A .bak made in that gap is replaced and this
+      // line still says "no earlier backup": a stated limit, reported here, not closed (the form's replace is the sanctioned act).
       let hadBak = false;
       try { fs.lstatSync(bak); hadBak = true; } catch {}
       try {
         fs.renameSync(readPath, bak);
       } catch (e) {
-        console.error(`Error: could not move the legacy config ${readPath} aside (${e.code || e.message}); it was kept. The new config at ${writePath} was already written: compare the two, then move ${readPath} by hand.`);
+        // 29md F1: "kept" is said only when an lstat after the failed rename still finds the legacy file at its path. A rename that failed because another
+        // writer moved the file away says so, and this run moved nothing. The new config was already written in both cases.
+        let stillThere = true;
+        try { stillThere = fs.lstatSync(readPath, { throwIfNoEntry: false }) !== undefined; } catch { stillThere = true; }
+        const cause = e.code || e.message;
+        console.error(stillThere
+          ? `Error: could not move the legacy config ${readPath} aside (${cause}); it was kept. The new config at ${writePath} was already written: compare the two, then move ${readPath} by hand.`
+          : `Error: the legacy config ${readPath} is no longer at that path (moved or removed by something else during the run), so this run moved nothing (${cause}). The new config at ${writePath} was already written: compare it with what the other writer left.`);
         process.exitCode = 1;
         return;
       }
