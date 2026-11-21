@@ -24,8 +24,7 @@ export const MAX_CONFIG_BYTES = 1024 * 1024;
 // descriptor (fstat), then the same descriptor is read, so nothing is read that was not judged.
 // A directory keeps EISDIR, a non-file gets ENOTFILE, and an oversize file is refused with
 // ECONFIGTOOLARGE and a message that names the file.
-// 29kv: the same read also returns the identity of the descriptor it read (device, inode, size, mtime), so a caller that judges the file again later can compare with it.
-export function readConfigBoundedWithIdentity(file) {
+export function readConfigBounded(file) {
   const fd = fs.openSync(file, 'r');
   try {
     const st = fs.fstatSync(fd);
@@ -46,42 +45,9 @@ export function readConfigBoundedWithIdentity(file) {
       if (n === 0) break;
       got += n;
     }
-    return { text: buf.subarray(0, got).toString('utf8'), identity: { dev: st.dev, ino: st.ino, size: st.size, mtimeMs: st.mtimeMs } };
+    return buf.subarray(0, got).toString('utf8');
   } finally {
     fs.closeSync(fd);
-  }
-}
-
-export function readConfigBounded(file) {
-  return readConfigBoundedWithIdentity(file).text;
-}
-
-// 29kv: the re-check before a migration deletes its legacy config. ONE descriptor: the file is opened, judged by fstat (type, identity, size, mtime), read through that
-// same descriptor, and closed here. It returns the descriptor's identity when the file is still the one the snapshot holds (same identity, same text), else null: a
-// file that cannot be checked is not unchanged. The caller compares the NAME's lstat with the returned identity before it deletes. Residual window: a change between
-// that lstat and the delete is not seen.
-export function recheckConfigIdentity(file, snap) {
-  if (!snap) return null;
-  let fd;
-  try {
-    fd = fs.openSync(file, 'r');
-    const st = fs.fstatSync(fd);
-    if (!st.isFile() || st.dev !== snap.identity.dev || st.ino !== snap.identity.ino || st.size !== snap.identity.size || st.mtimeMs !== snap.identity.mtimeMs) return null;
-    const buf = Buffer.alloc(st.size);
-    let got = 0;
-    while (got < st.size) {
-      const n = fs.readSync(fd, buf, got, st.size - got, got);
-      if (n === 0) break;
-      got += n;
-    }
-    if (buf.subarray(0, got).toString('utf8') !== snap.text) return null;
-    return { dev: st.dev, ino: st.ino };
-  } catch {
-    return null;
-  } finally {
-    if (fd !== undefined) {
-      try { fs.closeSync(fd); } catch {}
-    }
   }
 }
 

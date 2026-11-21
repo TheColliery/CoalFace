@@ -1,11 +1,9 @@
-// 29ko: the legacy-config migration of scripts/configure.mjs deletes the legacy file on the strength of its first read. An edit made inside
-// that window (after the read, before the delete) was in neither file. Ported from the reviewer's witness (READ-WINDOW CO-WRITER, the
-// CoalFace code-reviewer, 24a0bdf3, 2026-11-20).
+// The legacy-config migration of scripts/configure.mjs under card BB-533 (signed 2026-11-21, option 5): the old file is MOVED, never removed.
+// One rename of the legacy file to <legacy>.bak beside it, after the new home is written; the backup is compared with what was migrated;
+// a rename that fails is reported and the legacy file stays. Ported from the 29ko witness (CoalFace code-reviewer, 24a0bdf3) and the 29lg study.
 //
-// It spawns the REAL scripts/configure.mjs from a temp project holding a LEGACY config. A preload wraps fs.renameSync: right after the
-// rename that lands the NEW-home config (the window between the migration's read of the legacy file and its delete), it changes the
-// legacy file. Leg A (the class): the legacy file must be KEPT and the exit must be non-zero. Leg B (the ordinary run): the migration
-// writes the new home, removes the legacy file, and exits 0.
+// A child is the REAL scripts/configure.mjs run from a temp project. The preload (--import) patches the fs calls the migration makes, so the
+// change, the refusal or the unreadable backup lands at the exact step each test names.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -13,6 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { gitEnv } from './lib/git-env.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOM = path.resolve(HERE, '..');
@@ -20,23 +19,59 @@ const CONFIGURE = path.join(ROOM, 'scripts', 'configure.mjs');
 const TIMEOUT_MS = 60000;
 const LEGACY_BODY = '{"coalfaceMode":"auto","bandwidth":30}\n';
 
-// The preload runs inside the configure child. It touches only the file CF_W_LEGACY names, and only after a rename into a path that is
-// neither the legacy file nor a .bak (that rename is the new-home write).
+// Modes: append | same (a change right after the new home is written, before the move); w-c1 (bytes appended at the latest moment before the
+// migration's destroying step: the last lstat of the legacy file on the old code, the move on the new one); ebusy (the move is refused);
+// w-b1 (a writer keeps writing the old file after the move); bak-unreadable (the backup cannot be read back).
 const PRELOAD_SRC = [
   "import fs from 'node:fs';",
+  "import path from 'node:path';",
   'const legacy = process.env.CF_W_LEGACY;',
   'const mode = process.env.CF_W_MODE;',
-  'const orig = fs.renameSync;',
+  "const newHome = path.join('coal', 'coalface.json');",
+  'let newHomeWritten = false;',
+  'let renamed = false;',
   'let done = false;',
+  'const origRename = fs.renameSync;',
+  'const origLstat = fs.lstatSync;',
+  'const origOpen = fs.openSync;',
+  'fs.lstatSync = function patchedLstat(p) {',
+  '  const r = origLstat.apply(this, arguments);',
+  "  if (legacy && mode === 'w-c1' && newHomeWritten && !done && String(p) === legacy) {",
+  '    done = true;',
+  "    fs.appendFileSync(legacy, 'WRITTEN-IN-WINDOW\\n');",
+  '  }',
+  '  return r;',
+  '};',
+  'fs.openSync = function patchedOpen(p) {',
+  "  if (legacy && mode === 'bak-unreadable' && renamed && String(p) === legacy + '.bak') {",
+  "    const e = new Error('EACCES: permission denied, open'); e.code = 'EACCES'; throw e;",
+  '  }',
+  '  return origOpen.apply(this, arguments);',
+  '};',
   'fs.renameSync = function patchedRename(from, to) {',
-  '  const r = orig.apply(this, arguments);',
-  "  if (!done && legacy && mode && String(to) !== legacy && !String(to).endsWith('.bak')) {",
+  '  const f = String(from);',
+  '  const t = String(to);',
+  "  if (legacy && mode === 'ebusy' && f === legacy) {",
+  "    const e = new Error('EBUSY: resource busy or locked, rename'); e.code = 'EBUSY'; throw e;",
+  '  }',
+  "  if (legacy && mode === 'w-c1' && newHomeWritten && !done && f === legacy) {",
+  '    done = true;',
+  "    fs.appendFileSync(legacy, 'WRITTEN-IN-WINDOW\\n');",
+  '  }',
+  '  const r = origRename.apply(this, arguments);',
+  '  if (legacy && f === legacy) renamed = true;',
+  "  if (legacy && mode === 'w-b1' && f === legacy && !done) {",
+  '    done = true;',
+  "    fs.appendFileSync(t, 'WRITTEN-AFTER-RENAME\\n');",
+  '  }',
+  "  if (legacy && (mode === 'append' || mode === 'same') && !done && t.includes(newHome)) {",
   '    done = true;',
   "    const before = fs.readFileSync(legacy, 'utf8');",
   "    if (mode === 'append') fs.writeFileSync(legacy, before.replace(/}\\s*$/, ',\"updateMode\":\"off\"}\\n'));",
-  "    else if (mode === 'same') fs.writeFileSync(legacy, before.replace('30', '70'));",
+  "    else fs.writeFileSync(legacy, before.replace('30', '70'));",
   "    fs.writeFileSync(legacy + '.witness-touched', mode);",
   '  }',
+  '  if (t.includes(newHome)) newHomeWritten = true;',
   '  return r;',
   '};',
   '',
@@ -80,30 +115,120 @@ function runConfigure({ home, proj, preload }, legacy, mode) {
 }
 
 const show = (r) => `exit=${r.status} signal=${r.signal} stdout=${JSON.stringify(r.stdout)} stderr=${JSON.stringify(r.stderr)}`;
+const SHAPES = [['root .coalface.json', '.coalface.json'], ['nested .claude/.coalface.json', path.join('.claude', '.coalface.json')]];
 
-for (const [shape, rel] of [['root .coalface.json', '.coalface.json'], ['nested .claude/.coalface.json', path.join('.claude', '.coalface.json')]]) {
+// Legs A: a change inside the window (after the new home is written, before the move) is moved WITH the file, into the backup, and the run
+// says so and exits non-zero. The new config does not hold the change, so both files are named.
+for (const [shape, rel] of SHAPES) {
   for (const mode of ['append', 'same']) {
-    test(`leg A (${shape}, ${mode} inside the window): the changed legacy config is kept and the run exits non-zero`, (t) => {
+    test(`leg A (${shape}, ${mode} inside the window): the changed legacy config moves whole to its backup, and the run names both files and exits non-zero`, (t) => {
       const s = sandbox(t);
       const legacy = path.join(s.proj, rel);
+      const bak = legacy + '.bak';
       fs.mkdirSync(path.dirname(legacy), { recursive: true });
       fs.writeFileSync(legacy, LEGACY_BODY);
       const r = runConfigure(s, legacy, mode);
       assert.ok(fs.existsSync(legacy + '.witness-touched'), `the preload never reached the window: ${show(r)}`);
-      assert.ok(fs.existsSync(legacy), `the legacy config was deleted after it changed inside the window (the edit is in neither file): ${show(r)}`);
-      assert.notEqual(r.status, 0, `the run exited 0 after leaving a changed legacy config: ${show(r)}`);
+      assert.equal(fs.existsSync(legacy), false, `the legacy config is still at its name after the move: ${show(r)}`);
+      assert.ok(fs.existsSync(bak), `the backup was not written: ${show(r)}`);
+      assert.notEqual(fs.readFileSync(bak, 'utf8'), LEGACY_BODY, 'the backup holds the change the migration read');
+      assert.notEqual(r.status, 0, `the run exited 0 although the backup holds a change the new config lacks: ${show(r)}`);
+      assert.ok(r.stderr.includes(bak) && r.stderr.includes(path.join('coal', 'coalface.json')), `stderr does not name both files: ${show(r)}`);
     });
   }
 }
 
-test('leg B (root .coalface.json, no change): the migration writes the new home, removes the legacy config and exits 0', (t) => {
+test('leg B (root .coalface.json, no change): the migration moves the legacy config aside, writes the new home, says so in one line and exits 0', (t) => {
   const s = sandbox(t);
   const legacy = path.join(s.proj, '.coalface.json');
+  const bak = legacy + '.bak';
   fs.writeFileSync(legacy, LEGACY_BODY);
   const r = runConfigure(s, legacy, null);
   const home = path.join(s.proj, '.claude', 'coal', 'coalface.json');
   assert.equal(r.status, 0, show(r));
   assert.ok(fs.existsSync(home), `the new home was not written: ${show(r)}`);
   assert.equal(JSON.parse(fs.readFileSync(home, 'utf8')).bandwidth, 50, show(r));
-  assert.ok(!fs.existsSync(legacy), `the legacy config was left behind on an ordinary run: ${show(r)}`);
+  assert.equal(fs.existsSync(legacy), false, `the legacy config is still at its name: ${show(r)}`);
+  assert.equal(fs.readFileSync(bak, 'utf8'), LEGACY_BODY, 'the backup does not hold the legacy bytes');
+  assert.ok(r.stdout.includes('Migrated the project config') && r.stdout.includes(bak) && r.stdout.includes('no earlier backup'), `the migration line does not name the backup: ${show(r)}`);
+  assert.equal(r.stdout.includes('tracked by git'), false, 'an untracked legacy file is not described as tracked');
+});
+
+test('W-c1: bytes appended to the legacy config inside the migration window are kept, and named when the new config lacks them', (t) => {
+  const s = sandbox(t);
+  const legacy = path.join(s.proj, '.coalface.json');
+  const bak = legacy + '.bak';
+  fs.writeFileSync(legacy, LEGACY_BODY);
+  const r = runConfigure(s, legacy, 'w-c1');
+  const holder = [legacy, bak].find((f) => fs.existsSync(f) && fs.readFileSync(f, 'utf8').includes('WRITTEN-IN-WINDOW'));
+  assert.ok(holder, `the bytes appended in the window were lost with the file: ${show(r)}`);
+  const newText = fs.existsSync(path.join(s.proj, '.claude', 'coal', 'coalface.json')) ? fs.readFileSync(path.join(s.proj, '.claude', 'coal', 'coalface.json'), 'utf8') : '';
+  if (!newText.includes('WRITTEN-IN-WINDOW')) {
+    assert.notEqual(r.status, 0, `the appended bytes are not in the new config and the run exited 0: ${show(r)}`);
+    assert.ok(r.stderr.includes(bak), `stderr does not name the backup that holds them: ${show(r)}`);
+  }
+});
+
+test('a refused move keeps the legacy config byte for byte, makes no backup, prints no success line and exits 1', (t) => {
+  const s = sandbox(t);
+  const legacy = path.join(s.proj, '.coalface.json');
+  const bak = legacy + '.bak';
+  fs.writeFileSync(legacy, LEGACY_BODY);
+  const r = runConfigure(s, legacy, 'ebusy');
+  assert.equal(r.status, 1, show(r));
+  assert.equal(fs.readFileSync(legacy, 'utf8'), LEGACY_BODY, 'the legacy config changed after a refused move');
+  assert.equal(fs.existsSync(bak), false, `a backup was made although the move was refused: ${show(r)}`);
+  assert.equal(r.stdout.includes('Successfully updated') || r.stdout.includes('Migrated'), false, `a success line was printed after a refused move: ${show(r)}`);
+  assert.ok(r.stderr.includes(legacy) && r.stderr.includes('EBUSY'), `stderr does not name the legacy file and the code: ${show(r)}`);
+});
+
+test('an earlier backup at the same name is replaced, and the run says so', (t) => {
+  const s = sandbox(t);
+  const legacy = path.join(s.proj, '.coalface.json');
+  const bak = legacy + '.bak';
+  fs.writeFileSync(legacy, LEGACY_BODY);
+  fs.writeFileSync(bak, 'OLD BACKUP\n');
+  const r = runConfigure(s, legacy, null);
+  assert.equal(r.status, 0, show(r));
+  assert.equal(fs.readFileSync(bak, 'utf8'), LEGACY_BODY, 'the earlier backup was not replaced by the moved file');
+  assert.ok(r.stdout.includes('replaced an earlier backup'), `the run does not say it replaced an earlier backup: ${show(r)}`);
+});
+
+test('a writer that keeps writing the old file after the move is named: the backup holds bytes the new config lacks, and the run exits 1', (t) => {
+  const s = sandbox(t);
+  const legacy = path.join(s.proj, '.coalface.json');
+  const bak = legacy + '.bak';
+  fs.writeFileSync(legacy, LEGACY_BODY);
+  const r = runConfigure(s, legacy, 'w-b1');
+  assert.equal(r.status, 1, show(r));
+  assert.ok(fs.readFileSync(bak, 'utf8').includes('WRITTEN-AFTER-RENAME'), 'the write after the move is not in the backup');
+  assert.ok(r.stderr.includes(bak) && r.stderr.includes(path.join('coal', 'coalface.json')), `stderr does not name both files: ${show(r)}`);
+});
+
+test('a backup that cannot be read back is said to be unchecked: the run exits 1 and prints no success line', (t) => {
+  const s = sandbox(t);
+  const legacy = path.join(s.proj, '.coalface.json');
+  const bak = legacy + '.bak';
+  fs.writeFileSync(legacy, LEGACY_BODY);
+  const r = runConfigure(s, legacy, 'bak-unreadable');
+  assert.equal(r.status, 1, show(r));
+  assert.equal(fs.readFileSync(bak, 'utf8'), LEGACY_BODY, 'the moved bytes are not in the backup');
+  assert.ok(r.stderr.includes('could not be checked'), `stderr does not say the backup was not checked: ${show(r)}`);
+  assert.equal(r.stdout.includes('Successfully updated') || r.stdout.includes('Migrated'), false, `a success line was printed for an unchecked backup: ${show(r)}`);
+});
+
+test('a legacy config that git tracks is named as a deletion to commit, and the backup as the user\'s', (t) => {
+  if (spawnSync('git', ['--version'], { encoding: 'utf8', env: gitEnv(process.env) }).status !== 0) {
+    t.skip('git is not on this box, so the tracked-file line cannot be shown here');
+    return;
+  }
+  const s = sandbox(t);
+  const legacy = path.join(s.proj, '.coalface.json');
+  fs.writeFileSync(legacy, LEGACY_BODY);
+  const probeEnv = gitEnv(childEnv(s.home, {}));
+  spawnSync('git', ['init', '-q'], { cwd: s.proj, env: probeEnv, encoding: 'utf8' });
+  spawnSync('git', ['add', '--', '.coalface.json'], { cwd: s.proj, env: probeEnv, encoding: 'utf8' });
+  const r = runConfigure(s, legacy, null);
+  assert.equal(r.status, 0, show(r));
+  assert.ok(r.stdout.includes('tracked by git') && r.stdout.includes('commit'), `stdout does not say to commit the removal: ${show(r)}`);
 });

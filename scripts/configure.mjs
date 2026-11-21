@@ -38,7 +38,22 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { CONFIG_SCHEMA, validateValue } from './lib/config-schema.mjs';
 import { parseJsonc } from './lib/jsonc.mjs';
-import { mkdirRepoParents, writeFileAtomic, RepoWriteRefused, readConfigBounded, readConfigBoundedWithIdentity, recheckConfigIdentity } from './lib/repo-fs.mjs';
+import { mkdirRepoParents, writeFileAtomic, RepoWriteRefused, readConfigBounded } from './lib/repo-fs.mjs';
+import { execFileSync } from 'node:child_process';
+import { gitEnv } from './lib/git-env.mjs';
+
+// BB-533: does git track this file? Asked from the file's own folder, with every GIT_* variable stripped and a timeout. Git absent or the probe failing
+// means false, so no sentence is added. It is read BEFORE the move: after it the name no longer exists.
+function trackedByGit(file) {
+  try {
+    const stripped = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')));
+    const env = gitEnv(stripped);
+    execFileSync('git', ['ls-files', '--error-unmatch', '--', path.basename(file)], { cwd: path.dirname(file), env, timeout: 10000, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -175,19 +190,12 @@ async function main() {
   let cfg = {};
   let hadComments = false;
   let rawConfig = null;
-  // 29kv (the READ-WINDOW class): the legacy file as its seeding read saw it, through one descriptor: its text and that descriptor's identity. The migration's
-  // delete is judged against this snapshot, never against the earlier read alone.
+  // The legacy file's text as the seeding read saw it (before the BOM strip): the migration compares its backup with this, never removes anything.
   let legacySnapshot = null;
   if (readPath !== null) {
     try {
-      let content;
-      if (readIsLegacy) {
-        const seed = readConfigBoundedWithIdentity(readPath);
-        content = seed.text;
-        legacySnapshot = { text: seed.text, identity: seed.identity };
-      } else {
-        content = readConfigBounded(readPath);
-      }
+      let content = readConfigBounded(readPath);
+      if (readIsLegacy) legacySnapshot = content;
       if (content.charCodeAt(0) === 0xfeff) content = content.slice(1);
       rawConfig = content;
     } catch (e) {
@@ -274,24 +282,40 @@ async function main() {
       process.exitCode = 1;
       return;
     }
-    // Move-on-CONFIG-WRITE-only (no-old-version-leftover): the legacy file (root or
-    // nested) is removed only AFTER the new-home write above succeeded, and only when this write
-    // actually migrated it. 29ko: it is removed only while it is still the file the first read
-    // saw (identity and bytes, checked again just before the delete). A change in the window is
-    // kept, named in one warning, and exits 1. The window between that last check and the rmSync
-    // is a stated limit, not closed: a change landing there is deleted with the file.
+    // BB-533 (signed 2026-11-21): the migration MOVES the legacy file aside and removes nothing. Its bytes stay whole in <legacy>.bak beside it, so a write
+    // that lands in the window is in the backup and is never lost with a delete. The move is one rename, after the new home is written. Each step that cannot
+    // be done says so and exits 1: a refused move keeps the legacy file, a backup that cannot be read back is said to be unchecked, and the success line
+    // prints only when the backup reads back equal to what the migration read.
     if (readIsLegacy && writePath !== readPath) {
-      // 29kv: the re-check reads through its own descriptor (recheckConfigIdentity); the NAME is then lstat'ed and must be that same regular file (a link at the
-      // name, or a different file, is kept). Residual window: a change between this lstat and the rmSync is deleted with the file; a stated limit, not closed.
-      const kept = recheckConfigIdentity(readPath, legacySnapshot);
-      let named = null;
-      if (kept) { try { named = fs.lstatSync(readPath); } catch {} }
-      if (kept && named && named.isFile() && named.dev === kept.dev && named.ino === kept.ino) { try { fs.rmSync(readPath, { force: true }); } catch {} }
-      if (fs.existsSync(readPath)) {
-        console.error(`Warning: the legacy config ${readPath} was kept: it changed during the migration (or could not be re-checked). The new config at ${writePath} does not include that change; merge it by hand, then delete ${readPath}.`);
+      const bak = readPath + '.bak';
+      if (legacySnapshot === null) {
+        console.error(`Error: the legacy config ${readPath} could not be read at the start, so nothing was moved and it stays in place. The new config at ${writePath} was written without its settings: merge them by hand.`);
+        process.exitCode = 1;
+        return;
+      }
+      const tracked = trackedByGit(readPath);
+      let hadBak = false;
+      try { fs.lstatSync(bak); hadBak = true; } catch {}
+      try {
+        fs.renameSync(readPath, bak);
+      } catch (e) {
+        console.error(`Error: could not move the legacy config ${readPath} aside (${e.code || e.message}); it was kept. The new config at ${writePath} was already written: compare the two, then move ${readPath} by hand.`);
+        process.exitCode = 1;
+        return;
+      }
+      let backupText = null;
+      try { backupText = readConfigBounded(bak); } catch {}
+      if (backupText === null) {
+        console.error(`Error: the backup ${bak} could not be read back, so it could not be checked against the migrated config ${writePath}. The moved bytes are in ${bak}.`);
+        process.exitCode = 1;
+        return;
+      }
+      if (backupText !== legacySnapshot) {
+        console.error(`Warning: the backup ${bak} holds a change the new config ${writePath} does not have (written after the move). Merge it by hand; the backup is yours to keep or delete.`);
         process.exitCode = 1;
       } else {
-        console.log(`Migrated the project config from ${readPath} to ${writePath}.`);
+        console.log(`Migrated the project config to ${writePath}; the old file is kept as ${bak}${hadBak ? ' (replaced an earlier backup)' : ' (no earlier backup)'}.`);
+        if (tracked) console.log(`${readPath} is tracked by git: commit its removal (git add -A -- ${readPath}). ${bak} is untracked and yours to keep or delete.`);
       }
     }
     if (hadComments) {
