@@ -4,6 +4,14 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- **The migration no longer deletes the old config.** The legacy file is renamed to `<legacy path>.bak` beside it, one rename with a byte compare; an edit that lands during the migration is in the backup and warned about, where it used to be lost. A failed move keeps the legacy file and exits 1. — test: scripts/configure-migrate.test.mjs
+
+### Changed
+- **The plugin carries its icon files** (`plugin/.claude-plugin/icon.png`, `assets/logo.svg`). No manifest key names the PNG yet, so a user sees no change until the listing is updated.
+
 ## [0.15.12] - 2026-11-20
 
 The legacy-config re-check reads one open file, narrowing the gap before the delete
