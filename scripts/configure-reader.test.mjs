@@ -153,3 +153,79 @@ test('a directory at the project config path is still refused by name, never rep
   assert.ok(r.stderr.includes('it is a folder, not a config file'), show(r));
   assert.equal(fs.statSync(cfg).isDirectory(), true, 'the folder at the config path was replaced');
 });
+
+// 29mm (CF-RD-2, Z): a target that EXISTS with no write bit is refused by name: never chmodded, never replaced. The check reads the mode, which is the POSIX
+// wall; on Windows the read-only attribute reads back as the same mode (probed 2026-11-21: chmod 0o444 gives 0o444 and a plain write is EPERM), so one
+// check and one leg cover both platforms. Root writes through mode 0o444 too, so the leg runs there as well: the check is the mode, not the EACCES.
+const READ_ONLY = 0o444;
+function setReadOnly(file) { fs.chmodSync(file, READ_ONLY); }
+function restoreWritable(file) { fs.chmodSync(file, 0o666); }
+
+test('a project config with no write bit is refused by name, never replaced, and its mode is kept (POSIX mode bits and the Windows read-only attribute)', (t) => {
+  const s = sandbox(t);
+  const dir = path.join(s.proj, '.claude', 'coal');
+  const cfg = path.join(dir, 'coalface.json');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(cfg, ORIGINAL);
+  setReadOnly(cfg);
+  let r;
+  let modeAfter;
+  try {
+    r = runConfigure(s, ['--bandwidth', '50']);
+    modeAfter = fs.lstatSync(cfg).mode & 0o777;
+  } finally {
+    restoreWritable(cfg);
+  }
+  assert.equal(r.status, 1, show(r));
+  assert.ok(r.stderr.includes('read-only; nothing was written'), show(r));
+  assert.equal(r.stdout.includes('Successfully updated'), false, show(r));
+  assert.equal(fs.readFileSync(cfg, 'utf8'), ORIGINAL, 'the read-only config was replaced');
+  assert.equal(modeAfter, READ_ONLY, 'the mode of the read-only config was changed');
+  assert.deepEqual(listDir(dir), ['coalface.json'], 'a temp file was left beside the read-only config');
+});
+
+test('a read-only backup file is refused by name when a malformed config would be backed up over it: the config and the earlier backup are left untouched', (t) => {
+  const s = sandbox(t);
+  const dir = path.join(s.proj, '.claude', 'coal');
+  const cfg = path.join(dir, 'coalface.json');
+  const bak = cfg + '.bak';
+  const malformed = '{ not json\n';
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(cfg, malformed);
+  fs.writeFileSync(bak, 'EARLIER BACKUP\n');
+  setReadOnly(bak);
+  let r;
+  let modeAfter;
+  try {
+    r = runConfigure(s, ['--bandwidth', '50']);
+    modeAfter = fs.lstatSync(bak).mode & 0o777;
+  } finally {
+    restoreWritable(bak);
+  }
+  assert.equal(r.status, 1, show(r));
+  assert.ok(r.stderr.includes('read-only; nothing was written'), show(r));
+  assert.equal(fs.readFileSync(cfg, 'utf8'), malformed, 'the malformed config was changed');
+  assert.equal(fs.readFileSync(bak, 'utf8'), 'EARLIER BACKUP\n', 'the earlier backup was replaced');
+  assert.equal(modeAfter, READ_ONLY, 'the mode of the read-only backup was changed');
+  assert.deepEqual(listDir(dir), ['coalface.json', 'coalface.json.bak'], 'a file was created or left behind');
+});
+
+test('a migration whose backup path is a read-only file is refused before anything is written: the legacy config, the earlier backup and the new home are unchanged', (t) => {
+  const s = sandbox(t);
+  const legacy = path.join(s.proj, '.coalface.json');
+  const bak = legacy + '.bak';
+  fs.writeFileSync(legacy, ORIGINAL);
+  fs.writeFileSync(bak, 'EARLIER BACKUP\n');
+  setReadOnly(bak);
+  let r;
+  try {
+    r = runConfigure(s, ['--bandwidth', '50']);
+  } finally {
+    restoreWritable(bak);
+  }
+  assert.equal(r.status, 1, show(r));
+  assert.ok(r.stderr.includes('read-only; nothing was written'), show(r));
+  assert.equal(fs.readFileSync(legacy, 'utf8'), ORIGINAL, 'the legacy config changed');
+  assert.equal(fs.readFileSync(bak, 'utf8'), 'EARLIER BACKUP\n', 'the earlier backup was replaced');
+  assert.equal(fs.existsSync(path.join(s.proj, '.claude', 'coal', 'coalface.json')), false, 'a new home was written before the refusal');
+});

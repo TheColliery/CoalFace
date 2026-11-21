@@ -38,7 +38,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { CONFIG_SCHEMA, validateValue } from './lib/config-schema.mjs';
 import { parseJsonc } from './lib/jsonc.mjs';
-import { mkdirRepoParents, writeFileAtomic, RepoWriteRefused, readConfigBounded } from './lib/repo-fs.mjs';
+import { mkdirRepoParents, writeFileAtomic, refuseIfReadOnly, RepoWriteRefused, readConfigBounded } from './lib/repo-fs.mjs';
 import { execFileSync } from 'node:child_process';
 import { gitEnv } from './lib/git-env.mjs';
 
@@ -238,6 +238,8 @@ async function main() {
       if (!isGlobal && !containedWriteTarget(hit.dir, readPath + '.bak')) return refuse(readPath + '.bak'); // the backup is a write too (it sits beside the found file): a link at .bak must not carry it outside
       try {
         // 17c (d): the backup goes through the same temp-then-rename route as the config (writeFileAtomic), never a copyFileSync that follows a link at the destination after the pin.
+        // 29mm (Z): a read-only config is refused before its backup is written, so the FAIL line's "nothing was written" is true.
+        if (writePath === readPath) refuseIfReadOnly(readPath);
         writeFileAtomic(readPath + '.bak', fs.readFileSync(readPath), readPath); // the backup takes the mode of the config it copies, as copyFileSync did
         console.warn(`Warning: existing config is malformed — backed it up to ${readPath}.bak and rebuilding.`);
       } catch (e) {
@@ -276,6 +278,13 @@ async function main() {
   try {
     // CWK2-042: the parent folder is made only after the chain from the write root is judged (a link or a file on the way is refused with a sentence, nothing is made beyond a
     // checked component). The user-global config has no project root and keeps the plain recursive make.
+    // 29mm (Z): a migration's backup path that exists read-only (or cannot be inspected) is refused before anything is written, the new home included.
+    try { if (readIsLegacy && writePath !== readPath) refuseIfReadOnly(readPath + '.bak'); } catch (e) {
+      if (!(e instanceof RepoWriteRefused)) throw e;
+      console.error(`FAIL ${e.message}`);
+      process.exitCode = 1;
+      return;
+    }
     try { mkdirRepoParents(path.dirname(writePath), isGlobal ? null : writeLvl); } catch (e) {
       if (!(e instanceof RepoWriteRefused)) throw e;
       console.error(`FAIL ${e.message}`);

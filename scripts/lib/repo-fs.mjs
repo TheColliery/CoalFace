@@ -105,7 +105,21 @@ export function mkdirRepoParents(dir, root) {
 function modeOf(p) {
   try { const st = fs.lstatSync(p); return st.isFile() ? st.mode & 0o7777 : undefined; } catch { return undefined; }
 }
+// 29mm (CF-RD-2, Z): a target that EXISTS as a regular file with no write bit is refused by name, never chmodded and never replaced. Only "does not exist" passes.
+// On Windows the read-only attribute reads back as the same mode (0o444), so this one check covers both platforms. A lstat that fails for another reason is
+// refused too: an unknown target is not a writable one.
+const READ_ONLY_FIX = 'make the file writable if you mean to change it';
+export function refuseIfReadOnly(target) {
+  let st;
+  try { st = fs.lstatSync(target); } catch (e) {
+    if (e.code === 'ENOENT') return;
+    throw new RepoWriteRefused(target, `it could not be inspected (${e.code || e.message})`);
+  }
+  if (st.isFile() && (st.mode & 0o222) === 0) throw new RepoWriteRefused(target, 'read-only; nothing was written', READ_ONLY_FIX);
+}
+
 export function writeFileAtomic(target, content, modeFrom = target) {
+  refuseIfReadOnly(target); // before the temp exists, so a refusal leaves no temp file behind
   const temp = `${target}.coalface-tmp-${process.pid}`;
   const mode = modeOf(modeFrom);
   let fd;
