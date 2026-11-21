@@ -301,14 +301,17 @@ async function main() {
       try {
         fs.renameSync(readPath, bak);
       } catch (e) {
-        // 29md F1: "kept" is said only when an lstat after the failed rename still finds the legacy file at its path. A rename that failed because another
-        // writer moved the file away says so, and this run moved nothing. The new config was already written in both cases.
-        let stillThere = true;
-        try { stillThere = fs.lstatSync(readPath, { throwIfNoEntry: false }) !== undefined; } catch { stillThere = true; }
+        // 29md round 3: three states, each decided by the lstat itself. "kept" is said only when the lstat finds the legacy file at its path; "no longer at
+        // that path" only when it finds nothing; when the lstat throws, the run says it could not check. No verdict is set before the check that decides it.
         const cause = e.code || e.message;
-        console.error(stillThere
-          ? `Error: could not move the legacy config ${readPath} aside (${cause}); it was kept. The new config at ${writePath} was already written: compare the two, then move ${readPath} by hand.`
-          : `Error: the legacy config ${readPath} is no longer at that path (moved or removed by something else during the run), so this run moved nothing (${cause}). The new config at ${writePath} was already written: compare it with what the other writer left.`);
+        let present;
+        let checkCode = null;
+        try { present = fs.lstatSync(readPath, { throwIfNoEntry: false }) !== undefined; } catch (le) { checkCode = le.code || le.message; }
+        console.error(checkCode !== null
+          ? `Error: could not move the legacy config ${readPath} aside (${cause}), and the run could not check whether it is still at that path (${checkCode}). The new config at ${writePath} was already written: compare the two, then check ${readPath} by hand.`
+          : present
+            ? `Error: could not move the legacy config ${readPath} aside (${cause}); it was kept. The new config at ${writePath} was already written: compare the two, then move ${readPath} by hand.`
+            : `Error: the legacy config ${readPath} is no longer at that path (moved or removed by something else during the run), so this run moved nothing (${cause}). The new config at ${writePath} was already written: compare it with what the other writer left.`);
         process.exitCode = 1;
         return;
       }

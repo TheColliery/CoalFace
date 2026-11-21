@@ -4,6 +4,11 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- **The migration's refusal no longer says the old config was kept when it could not check.** If the move fails and the run cannot check whether the old config is still at its path, it says so, names the cause, and says the new config was already written. — test: scripts/configure-migrate.test.mjs
+
 ## [0.15.13] - 2026-11-21
 
 The migration keeps the old config as a .bak backup and no longer deletes it

@@ -30,11 +30,15 @@ const PRELOAD_SRC = [
   "const newHome = path.join('coal', 'coalface.json');",
   'let newHomeWritten = false;',
   'let renamed = false;',
+  'let lstatDenied = false;',
   'let done = false;',
   'const origRename = fs.renameSync;',
   'const origLstat = fs.lstatSync;',
   'const origOpen = fs.openSync;',
   'fs.lstatSync = function patchedLstat(p) {',
+  "  if (legacy && mode === 'lstat-denied' && lstatDenied && String(p) === legacy) {",
+  "    const e = new Error('EACCES: permission denied, lstat'); e.code = 'EACCES'; throw e;",
+  '  }',
   '  const r = origLstat.apply(this, arguments);',
   "  if (legacy && mode === 'w-c1' && newHomeWritten && !done && String(p) === legacy) {",
   '    done = true;',
@@ -51,6 +55,10 @@ const PRELOAD_SRC = [
   'fs.renameSync = function patchedRename(from, to) {',
   '  const f = String(from);',
   '  const t = String(to);',
+  "  if (legacy && mode === 'lstat-denied' && f === legacy) {",
+  '    lstatDenied = true;',
+  "    const e = new Error('EBUSY: resource busy or locked, rename'); e.code = 'EBUSY'; throw e;",
+  '  }',
   "  if (legacy && mode === 'ebusy' && f === legacy) {",
   "    const e = new Error('EBUSY: resource busy or locked, rename'); e.code = 'EBUSY'; throw e;",
   '  }',
@@ -249,4 +257,16 @@ test('a legacy config another writer moved away during the run is named as no lo
   assert.equal(r.stdout.includes('Successfully updated') || r.stdout.includes('Migrated'), false, `a success line was printed after a failed move: ${show(r)}`);
   assert.ok(r.stderr.includes('no longer at'), `stderr does not say the legacy file is no longer at its path: ${show(r)}`);
   assert.equal(r.stderr.includes('it was kept'), false, `stderr says the legacy file was kept although it is gone: ${show(r)}`);
+});
+
+test('a legacy config whose move fails and whose presence cannot be checked is named as unchecked, never as kept: the run exits 1, prints no success line and keeps the legacy bytes', (t) => {
+  const s = sandbox(t);
+  const legacy = path.join(s.proj, '.coalface.json');
+  fs.writeFileSync(legacy, LEGACY_BODY);
+  const r = runConfigure(s, legacy, 'lstat-denied');
+  assert.equal(r.status, 1, show(r));
+  assert.equal(fs.readFileSync(legacy, 'utf8'), LEGACY_BODY, 'the legacy bytes changed after a refused move');
+  assert.equal(r.stdout.includes('Successfully updated') || r.stdout.includes('Migrated'), false, `a success line was printed after a failed move: ${show(r)}`);
+  assert.ok(r.stderr.includes('could not check'), `stderr does not say the legacy file could not be checked: ${show(r)}`);
+  assert.equal(r.stderr.includes('it was kept'), false, `stderr says the legacy file was kept though nothing checked it: ${show(r)}`);
 });
