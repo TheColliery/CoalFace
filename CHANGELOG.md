@@ -4,6 +4,13 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.15.15] - 2026-11-22
+
+The listing icon moves to the plugin root and is named in plugin.json
+
+### Changed
+- **The listing icon is named in the manifest.** The icon file moves from `v0.15.14:.claude-plugin/icon.png` to `icon.png` at the plugin root, and `plugin.json` now sets `"icon": "./icon.png"`, the field Anthropic's plugin directory reads for the listing. Claude Code does not read that field, and nothing you run changes: the Antigravity logo and `assets/logo.svg` are unchanged.
+
 ## [0.15.14] - 2026-11-21
 
 An unreadable or read-only config is refused by name and never replaced
