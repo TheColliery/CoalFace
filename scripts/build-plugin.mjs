@@ -17,8 +17,8 @@ const dist = path.join(repo, 'plugin');
 // that a CC user does not need.
 export const DIST_ITEMS = [
   path.join('.claude-plugin', 'plugin.json'),
-  // BB-520: the plugin folder's listing icon, shipped beside its manifest (no manifest key names it: the portal takes it at the first save).
-  path.join('.claude-plugin', 'icon.png'),
+  // 29mx: the listing icon sits at the plugin root, named by the manifest's icon key ("./icon.png"); never inside .claude-plugin/.
+  'icon.png',
   'skills',
   'hooks',
   'commands',

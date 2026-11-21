@@ -5,6 +5,7 @@
   "author": {
     "name": "HetCreep"
   },
+  "icon": "./icon.png",
   "homepage": "https://github.com/TheColliery/CoalFace",
   "repository": "https://github.com/TheColliery/CoalFace",
   "license": "Apache-2.0",

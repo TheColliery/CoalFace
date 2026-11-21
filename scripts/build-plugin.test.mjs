@@ -209,3 +209,22 @@ test('buildDist refuses a root whose parent folder does not exist, and creates n
   assert.throws(() => buildDist(path.join(parent, 'plugin')), /refuses to remove or rebuild/);
   assert.equal(fs.existsSync(parent), false, 'a refused build must not create the parent folder');
 });
+
+// 29mx: the listing icon sits at the plugin root in source and in dist, with equal bytes; both manifests name it with the icon key; no copy sits under .claude-plugin/.
+test('the listing icon sits at the plugin root in source and dist with equal bytes, the manifests name it with the icon key, and no copy sits under .claude-plugin/', () => {
+  const distRoot = mkTmp();
+  buildDist(distRoot);
+  const committedPlugin = path.join(repoRoot, 'plugin');
+  const roots = [repoRoot, committedPlugin, distRoot];
+  assert.ok(fs.existsSync(path.join(repoRoot, 'icon.png')), 'icon.png is missing at the source root');
+  const srcIcon = fs.readFileSync(path.join(repoRoot, 'icon.png'));
+  for (const root of [committedPlugin, distRoot]) {
+    assert.ok(fs.existsSync(path.join(root, 'icon.png')), `icon.png is missing at the plugin root ${root}`);
+    assert.ok(fs.readFileSync(path.join(root, 'icon.png')).equals(srcIcon), `the icon.png in ${root} differs from the source icon.png`);
+  }
+  for (const root of roots) {
+    assert.equal(fs.existsSync(path.join(root, '.claude-plugin', 'icon.png')), false, `a copy of the icon sits under .claude-plugin/ in ${root}`);
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, '.claude-plugin', 'plugin.json'), 'utf8'));
+    assert.equal(manifest.icon, './icon.png', `the manifest in ${root} does not name the icon with the icon key`);
+  }
+});
