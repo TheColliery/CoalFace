@@ -343,3 +343,14 @@ test('the spawn wrapper refuses a child that would see the operator environment:
   assert.throws(() => spawnNode(args, { timeout: 60000, env: half }), /TMPDIR that is not the sandbox/);
   assert.equal(spawnNode(args, { timeout: 60000, env: sandboxEnv(t) }).status, 0, 'a real sandbox passes');
 });
+
+// 29lu (LOW-1, the 16f open ticket): every child of this file goes through spawnNode, which runs assertSandboxed before the call. A direct spawn
+// added later would skip that check and this suite would stay green. The needle is joined so that this test's own text does not count itself.
+test('every child of this file goes through spawnNode: the direct spawn call appears once, inside spawnNode', () => {
+  const needle = ['spawnSync', '('].join('');
+  const text = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8');
+  const count = text.split(needle).length - 1;
+  assert.equal(count, 1, `the direct spawn call appears ${count} times, not once: a child started outside spawnNode skips assertSandboxed`);
+  const line = text.split('\n').find((l) => l.includes(needle));
+  assert.ok(line && line.includes('const spawnNode'), 'the one direct spawn call must be inside spawnNode');
+});
