@@ -4,9 +4,13 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [0.15.14] - 2026-11-21
+
+An unreadable or read-only config is refused by name and never replaced
 
 ### Fixed
+- **A config that exists but cannot be read is left untouched.** A read failure other than "not found" was treated as an empty config, so the next write replaced the file with only the key just set, and the run exited 0. Now the run names the file and the error code, writes nothing and exits 1. — test: scripts/configure-reader.test.mjs
+- **A read-only config is refused by name, never replaced.** A target with no write bit (on Windows, the read-only attribute) is refused with one sentence, nothing is written and the mode is not changed; a read-only backup path is refused before the new home is written. — test: scripts/configure-reader.test.mjs
 - **The migration's refusal no longer says the old config was kept when it could not check.** If the move fails and the run cannot check whether the old config is still at its path, it says so, names the cause, and says the new config was already written. — test: scripts/configure-migrate.test.mjs
 
 ## [0.15.13] - 2026-11-21
