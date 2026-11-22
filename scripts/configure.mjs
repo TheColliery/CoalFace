@@ -313,8 +313,8 @@ async function main() {
       }
       const tracked = trackedByGit(readPath);
       // 29ng (N): the legacy file's mode is read BEFORE the move, for the one success line. An unreadable mode says nothing; it is never a guess.
-      let legacyReadOnly = false;
-      try { legacyReadOnly = (fs.lstatSync(readPath).mode & 0o222) === 0; } catch (me) { legacyReadOnly = false; }
+      let legacyReadOnly; // set on both paths below: an unreadable mode is false, a read mode is the test (29ng F3)
+      try { legacyReadOnly = (fs.lstatSync(readPath).mode & 0o222) === 0; } catch { legacyReadOnly = false; }
       // 29md F2: hadBak is read one step before the rename below, which replaces whatever sits at .bak by then. A .bak made in that gap is replaced and this
       // line still says "no earlier backup": a stated limit, reported here, not closed (the form's replace is the sanctioned act).
       let hadBak = false;

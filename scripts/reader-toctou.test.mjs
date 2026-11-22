@@ -116,12 +116,13 @@ test('R2 SessionStart hook: a config swapped for an outside file between the che
 test('R3 admission: a project config swapped for an outside file between the check and the open is not read (thresholds equal a run with no project config)', async (t) => {
   const { readThresholds } = await import(pathToFileURL(ADMISSION).href);
   const s = sandbox(t);
-  // the inside file sets a threshold the outside file does not; the outside file sets another
-  fs.writeFileSync(s.inside, '{"cpuMaxPct": 30}\n');
+  // 29ng F1: the keys admission reads (admission.mjs KEY_RANGE). The project file may only TIGHTEN, so the inside file (30 / 50) and the outside
+  // file (20 / 60) both move the result off the defaults (80 / 10): an old reader takes the outside values, a refusing one takes the defaults.
+  fs.writeFileSync(s.inside, '{"admitCpuBusyMaxPct": 30, "admitMemFreeMinPct": 50}\n');
   const bare = sandbox(t); // no project config at all: the defaults the reader must fall back to
   const expected = readThresholds({ cwd: bare.proj, home: bare.home });
   const outside = path.join(s.root, 'outside.json');
-  fs.writeFileSync(outside, '{"cpuMaxPct": 77}\n');
+  fs.writeFileSync(outside, '{"admitCpuBusyMaxPct": 20, "admitMemFreeMinPct": 60}\n');
   const origOpen = fs.openSync;
   let swapped = false;
   fs.openSync = function patchedOpen(p, ...rest) {
@@ -138,10 +139,10 @@ test('R3 admission: a project config swapped for an outside file between the che
     fs.openSync = origOpen;
   }
   assert.equal(swapped, true, 'the swap did not happen (the seam is not in the run)');
-  assert.notEqual(got.cpuMaxPct, 77, 'the swapped-in threshold was read');
-  // `file` is where the walk found the project config (provenance), set in both runs' shape as an unreadable config is: compare the values.
-  const { file: gotFile, ...gotValues } = got;
-  const { file: expectedFile, ...expectedValues } = expected;
-  assert.ok(gotFile === s.inside || gotFile === null, 'the provenance names an unexpected file');
-  assert.deepEqual(gotValues, expectedValues, 'the thresholds differ from a run with no project config');
+  // `file` is the provenance (where the walk found the config); the values are what the reader took. Equal to the defaults means neither
+  // the outside values (20 / 60) nor the inside ones (30 / 50) were read.
+  const gotValues = { cpuMaxPct: got.cpuMaxPct, memMinPct: got.memMinPct };
+  const expectedValues = { cpuMaxPct: expected.cpuMaxPct, memMinPct: expected.memMinPct };
+  assert.ok(got.file === s.inside || got.file === null, 'the provenance names an unexpected file');
+  assert.deepEqual(gotValues, expectedValues, 'the thresholds differ from a run with no project config: the swapped-in file was read');
 });
