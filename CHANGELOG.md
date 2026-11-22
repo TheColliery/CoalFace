@@ -4,6 +4,13 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.15.17] - 2026-11-22
+
+The config reads now state the folder-swap limit they cannot close
+
+### Changed
+- **The config reads say a folder swapped during the read is not caught.** The security notes and the code at each config read now state that a folder swapped for a link during the read is not caught, and that Node's file API on Windows and macOS cannot close it. Nothing a user runs changes.
+
 ## [0.15.16] - 2026-11-22
 
 The config readers refuse a file swapped in after the check
