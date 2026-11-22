@@ -4,6 +4,13 @@ All notable changes to CoalFace are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.15.18] - 2026-11-22
+
+A project config swapped at its name after the check is refused, not read
+
+### Fixed
+- **A project config replaced at its name after the containment check is refused.** A link, or another file, put there between the check and the read was read; the three config readers now compare the file they open with the one the check admitted, and refuse it otherwise. — test: scripts/reader-identity.test.mjs
+
 ## [0.15.17] - 2026-11-22
 
 The config reads now state the folder-swap limit they cannot close
