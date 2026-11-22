@@ -24,9 +24,21 @@ export const MAX_CONFIG_BYTES = 1024 * 1024;
 // descriptor (fstat), then the same descriptor is read, so nothing is read that was not judged.
 // A directory keeps EISDIR, a non-file gets ENOTFILE, and an oversize file is refused with
 // ECONFIGTOOLARGE and a message that names the file.
-export function readConfigBounded(file) {
+// 29ng (T): the NAME is judged by lstat before the open, and the OPENED handle is judged after it: its dev and ino must equal the identity the name had.
+// A link is followed (the expected identity is its target's, as the open follows it). ino 0 on either side means the volume reports no identity: the compare
+// is skipped, as the old name check was. A mismatch closes the handle and refuses with ECHANGED; nothing is read from a file swapped in between the two.
+// The lstat runs first and its own error (ENOENT included) is the caller's, the same code the open would have raised.
+export function readConfigBoundedBuffer(file) {
+  let expected = fs.lstatSync(file, { bigint: true });
+  if (expected.isSymbolicLink()) expected = fs.statSync(file, { bigint: true });
   const fd = fs.openSync(file, 'r');
   try {
+    const id = fs.fstatSync(fd, { bigint: true });
+    if (expected.ino !== 0n && id.ino !== 0n && (id.dev !== expected.dev || id.ino !== expected.ino)) {
+      const e = new Error(`${file}: the file changed between the check and the read`);
+      e.code = 'ECHANGED';
+      throw e;
+    }
     const st = fs.fstatSync(fd);
     if (!st.isFile()) {
       const e = new Error(`${file}: not a regular file`);
@@ -45,10 +57,15 @@ export function readConfigBounded(file) {
       if (n === 0) break;
       got += n;
     }
-    return buf.subarray(0, got).toString('utf8');
+    return buf.subarray(0, got);
   } finally {
     fs.closeSync(fd);
   }
+}
+
+// The text of readConfigBoundedBuffer: the same judged bytes, decoded.
+export function readConfigBounded(file) {
+  return readConfigBoundedBuffer(file).toString('utf8');
 }
 
 // A relative path escapes its root when its FIRST SEGMENT is `..` (or it is absolute, a different drive on Windows). A lexical `startsWith('..')` would also refuse a real
@@ -108,6 +125,9 @@ function modeOf(p) {
 // 29mm (CF-RD-2, Z): a target that EXISTS as a regular file with no write bit is refused by name, never chmodded and never replaced. Only "does not exist" passes.
 // On Windows the read-only attribute reads back as the same mode (0o444), so this one check covers both platforms. A lstat that fails for another reason is
 // refused too: an unknown target is not a writable one.
+// 29ng (N, the writer's stated limit): the read-only check and the rename are two acts on the name. On POSIX, a config made read-only between them is still
+// replaced, because a rename needs write permission on the folder only, not on the file. Windows refuses that rename itself. A file that is already
+// read-only when the run starts is always refused.
 const READ_ONLY_FIX = 'make the file writable if you mean to change it';
 export function refuseIfReadOnly(target) {
   let st;

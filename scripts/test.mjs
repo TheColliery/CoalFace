@@ -62,6 +62,8 @@ const TESTS = [
   'scripts/configure-migrate.test.mjs',
   // 29mm (CF-RD-1, CF-RD-2): a config that exists but cannot be read is left untouched and the run says so; a read-only target is refused by name.
   'scripts/configure-reader.test.mjs',
+  // 29ng (T): the three config readers compare the opened handle with the file they checked (dev and ino); a swapped-in file is refused, never read.
+  'scripts/reader-toctou.test.mjs',
   'scripts/link-check.test.mjs',
   // 16f item 1: the canon's front-door-links (the outward half of the link check), adopted byte-identical from .github's templates/published-code/.
   'scripts/front-door-links.test.mjs',

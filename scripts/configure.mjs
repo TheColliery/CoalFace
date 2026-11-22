@@ -38,7 +38,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { CONFIG_SCHEMA, validateValue } from './lib/config-schema.mjs';
 import { parseJsonc } from './lib/jsonc.mjs';
-import { mkdirRepoParents, writeFileAtomic, refuseIfReadOnly, RepoWriteRefused, readConfigBounded } from './lib/repo-fs.mjs';
+import { mkdirRepoParents, writeFileAtomic, refuseIfReadOnly, RepoWriteRefused, readConfigBounded, readConfigBoundedBuffer } from './lib/repo-fs.mjs';
 import { execFileSync } from 'node:child_process';
 import { gitEnv } from './lib/git-env.mjs';
 
@@ -192,9 +192,12 @@ async function main() {
   let rawConfig = null;
   // The legacy file's text as the seeding read saw it (before the BOM strip): the migration compares its backup with this, never removes anything.
   let legacySnapshot = null;
+  // 29ng: the first read's judged bytes, kept so the malformed-config backup is made from them and not from a second open of the name.
+  let firstBytes = null;
   if (readPath !== null) {
     try {
-      let content = readConfigBounded(readPath);
+      firstBytes = readConfigBoundedBuffer(readPath);
+      let content = firstBytes.toString('utf8');
       if (readIsLegacy) legacySnapshot = content;
       if (content.charCodeAt(0) === 0xfeff) content = content.slice(1);
       rawConfig = content;
@@ -240,7 +243,7 @@ async function main() {
         // 17c (d): the backup goes through the same temp-then-rename route as the config (writeFileAtomic), never a copyFileSync that follows a link at the destination after the pin.
         // 29mm (Z): a read-only config is refused before its backup is written, so the FAIL line's "nothing was written" is true.
         if (writePath === readPath) refuseIfReadOnly(readPath);
-        writeFileAtomic(readPath + '.bak', fs.readFileSync(readPath), readPath); // the backup takes the mode of the config it copies, as copyFileSync did
+        writeFileAtomic(readPath + '.bak', firstBytes, readPath); // the backup takes the mode of the config it copies, as copyFileSync did; 29ng: its bytes are the first read's
         console.warn(`Warning: existing config is malformed — backed it up to ${readPath}.bak and rebuilding.`);
       } catch (e) {
         // 17c bounce LOW-2: a config we cannot back up is NOT overwritten. The malformed original may be the only copy the user can repair, so the run refuses, writes nothing and

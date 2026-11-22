@@ -41,11 +41,17 @@ function parseJsonc(text) {
 }
 
 // One descriptor: the file type and the size are judged on it, then the same descriptor is read. Unreadable = null.
+// 29ng (T): the NAME is judged by lstat before the open (a link followed: its target's identity), and the OPENED handle must have the same dev and ino. A file
+// swapped in between is unreadable (null), the same path a failed read takes. ino 0 on either side skips the compare, as the old name check did.
 function readConfig(file) {
   try {
+    let expected = fs.lstatSync(file, { bigint: true });
+    if (expected.isSymbolicLink()) expected = fs.statSync(file, { bigint: true });
     const fd = fs.openSync(file, 'r');
     let text;
     try {
+      const id = fs.fstatSync(fd, { bigint: true });
+      if (expected.ino !== 0n && id.ino !== 0n && (id.dev !== expected.dev || id.ino !== expected.ino)) return null;
       const st = fs.fstatSync(fd);
       if (!st.isFile() || st.size > MAX_CONFIG_BYTES) return null;
       const buf = Buffer.alloc(st.size);

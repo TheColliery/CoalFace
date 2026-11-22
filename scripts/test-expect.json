@@ -29,6 +29,7 @@
   "scripts/configure.test.mjs": 35,
   "scripts/configure-migrate.test.mjs": 13,
   "scripts/configure-reader.test.mjs": 8,
+  "scripts/reader-toctou.test.mjs": 3,
   "scripts/link-check.test.mjs": 36,
   "scripts/front-door-links.test.mjs": 5,
   "scripts/decide-upload.test.mjs": 6,
