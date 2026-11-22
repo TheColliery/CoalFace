@@ -29,6 +29,8 @@ export const MAX_CONFIG_BYTES = 1024 * 1024;
 // is skipped, as the old name check was. A mismatch closes the handle and refuses with ECHANGED; nothing is read from a file swapped in between the two.
 // The lstat runs first and its own error (ENOENT included) is the caller's, the same code the open would have raised.
 export function readConfigBoundedBuffer(file) {
+  // 29nr: the lstat judges the NAME, not the folders above it. A folder in the config's chain swapped for a link before this lstat is followed, and the
+  // dev/ino compare below cannot see it: Node's file API has no open relative to a folder handle on Windows or macOS. See SECURITY.md, Planted Links.
   let expected = fs.lstatSync(file, { bigint: true });
   if (expected.isSymbolicLink()) expected = fs.statSync(file, { bigint: true });
   const fd = fs.openSync(file, 'r');

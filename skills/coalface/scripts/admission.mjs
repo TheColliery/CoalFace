@@ -45,6 +45,8 @@ function parseJsonc(text) {
 // swapped in between is unreadable (null), the same path a failed read takes. ino 0 on either side skips the compare, as the old name check did.
 function readConfig(file) {
   try {
+    // 29nr: the lstat judges the NAME, not the folders above it. A folder in the config's chain swapped for a link before this lstat is followed, and the
+    // dev/ino compare below cannot see it: Node's file API has no open relative to a folder handle on Windows or macOS. See SECURITY.md, Planted Links.
     let expected = fs.lstatSync(file, { bigint: true });
     if (expected.isSymbolicLink()) expected = fs.statSync(file, { bigint: true });
     const fd = fs.openSync(file, 'r');

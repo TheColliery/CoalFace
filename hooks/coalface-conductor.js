@@ -42,6 +42,8 @@ const MAX_CONFIG_BYTES = 1024 * 1024;
 // swapped in between is refused with ECHANGED, which readConfigFile already treats as an unreadable config: the hook stays silent (Phoenix #4, #13). ino 0 on
 // either side skips the compare, as the old name check did.
 function readBoundedConfig(file) {
+  // 29nr: the lstat judges the NAME, not the folders above it. A folder in the config's chain swapped for a link before this lstat is followed, and the
+  // dev/ino compare below cannot see it: Node's file API has no open relative to a folder handle on Windows or macOS. See SECURITY.md, Planted Links.
   let expected = fs.lstatSync(file, { bigint: true });
   if (expected.isSymbolicLink()) expected = fs.statSync(file, { bigint: true });
   const fd = fs.openSync(file, 'r');
