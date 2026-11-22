@@ -312,6 +312,9 @@ async function main() {
         return;
       }
       const tracked = trackedByGit(readPath);
+      // 29ng (N): the legacy file's mode is read BEFORE the move, for the one success line. An unreadable mode says nothing; it is never a guess.
+      let legacyReadOnly = false;
+      try { legacyReadOnly = (fs.lstatSync(readPath).mode & 0o222) === 0; } catch (me) { legacyReadOnly = false; }
       // 29md F2: hadBak is read one step before the rename below, which replaces whatever sits at .bak by then. A .bak made in that gap is replaced and this
       // line still says "no earlier backup": a stated limit, reported here, not closed (the form's replace is the sanctioned act).
       let hadBak = false;
@@ -344,7 +347,7 @@ async function main() {
         console.error(`Warning: the backup ${bak} holds a change the new config ${writePath} does not have (written after the move). Merge it by hand; the backup is yours to keep or delete.`);
         process.exitCode = 1;
       } else {
-        console.log(`Migrated the project config to ${writePath}; the old file is kept as ${bak}${hadBak ? ' (replaced an earlier backup)' : ' (no earlier backup)'}.`);
+        console.log(`Migrated the project config to ${writePath}; the old file is kept as ${bak}${hadBak ? ' (replaced an earlier backup)' : ' (no earlier backup)'}${legacyReadOnly ? ', read-only as it was' : ''}.`);
         if (tracked) console.log(`${readPath} is tracked by git: commit its removal (git add -A -- ${readPath}). ${bak} is untracked and yours to keep or delete.`);
       }
     }

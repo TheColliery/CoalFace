@@ -270,3 +270,37 @@ test('a legacy config whose move fails and whose presence cannot be checked is n
   assert.ok(r.stderr.includes('could not check'), `stderr does not say the legacy file could not be checked: ${show(r)}`);
   assert.equal(r.stderr.includes('it was kept'), false, `stderr says the legacy file was kept though nothing checked it: ${show(r)}`);
 });
+
+// 29ng (N): the migration's one success line says the old config was read-only when it had no write bit (read BEFORE the move). The file is still moved,
+// and the backup keeps the mode it had. POSIX: mode 0o444 as a non-root user (root writes through it: a visible skip). Windows: the read-only attribute,
+// which chmod 0o444 sets; the attribute is cleared in finally, so the sandbox can be removed.
+test('a read-only legacy config is moved to its backup as it was, and the migration line says it was read-only (29ng N)', (t) => {
+  const isRoot = typeof process.getuid === 'function' && process.getuid() === 0;
+  if (process.platform !== 'win32' && isRoot) { t.skip('root writes through a 0o444 file, so the mode bits do not hold it read-only here: the ubuntu and macos legs run it as non-root'); return; }
+  const s = sandbox(t);
+  const legacy = path.join(s.proj, '.coalface.json');
+  const bak = legacy + '.bak';
+  fs.writeFileSync(legacy, LEGACY_BODY);
+  fs.chmodSync(legacy, 0o444);
+  let r;
+  let bakWriteBits;
+  try {
+    r = runConfigure(s, legacy, null);
+    bakWriteBits = fs.lstatSync(bak).mode & 0o222;
+  } finally {
+    if (fs.existsSync(bak)) fs.chmodSync(bak, 0o666); // the attribute cleared before the sandbox is removed
+  }
+  assert.equal(r.status, 0, show(r));
+  assert.equal(fs.existsSync(legacy), false, `the read-only legacy config is still at its name: ${show(r)}`);
+  assert.equal(bakWriteBits, 0, 'the backup gained a write bit: the mode it had was not kept');
+  assert.ok(r.stdout.includes(', read-only as it was.'), `the migration line does not say the old config was read-only: ${show(r)}`);
+});
+
+test('a writable legacy config is moved to its backup, and the migration line does not say read-only (29ng N)', (t) => {
+  const s = sandbox(t);
+  const legacy = path.join(s.proj, '.coalface.json');
+  fs.writeFileSync(legacy, LEGACY_BODY);
+  const r = runConfigure(s, legacy, null);
+  assert.equal(r.status, 0, show(r));
+  assert.equal(r.stdout.includes('read-only'), false, `the migration line says read-only for a writable config: ${show(r)}`);
+});
