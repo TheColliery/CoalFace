@@ -37,23 +37,52 @@ function parseJsonc(text) {
 // witness test keeps the two equal. An oversize config reads as the defaults, silently.
 const MAX_CONFIG_BYTES = 1024 * 1024;
 
+// ino 0 on either side means the volume reports no file identity: the compare is skipped, as the old name check was.
+function sameFileId(a, b) {
+  return a.ino === 0n || b.ino === 0n || (a.dev === b.dev && a.ino === b.ino);
+}
+
+function changedError() {
+  const e = new Error('the file changed between the check and the read');
+  e.code = 'ECHANGED';
+  return e;
+}
+
+// 29ny (CF-ID-1): the pin of a PROJECT candidate, and the identity it takes. Returns the name's bigint lstat when the candidate is admitted, else null (fail closed).
+// The lstat is taken BEFORE the realpath: a name replaced after this realpath resolves to the new file, but the identity already taken is the admitted file's, and the
+// reader's compare refuses the new one. A link at the name is refused here, as the realpath equality always refused it (its lstat is the link itself).
+// The expectation stays the hand-joined literal (the allowlist form); only the candidate is canonicalised. Any throw is a refusal.
+function pinProjectFile(lvl, file) {
+  try {
+    if (typeof lvl !== 'string' || typeof file !== 'string' || !lvl || !file) return null;
+    const rel = path.relative(lvl, file);
+    if (!rel || rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) return null;
+    const id = fs.lstatSync(file, { bigint: true });
+    if (id.isSymbolicLink()) return null; // a link at the name is never admitted; a directory is the reader's own refusal (EISDIR), never this one
+    return fs.realpathSync.native(file) === path.join(fs.realpathSync.native(lvl), rel) ? id : null;
+  } catch { return null; }
+}
+
 // One descriptor: the file type and the size are judged on it, then the same descriptor is read.
-// 29ng (T): the NAME is judged by lstat before the open (a link followed: its target's identity), and the OPENED handle must have the same dev and ino. A file
-// swapped in between is refused with ECHANGED, which readConfigFile already treats as an unreadable config: the hook stays silent (Phoenix #4, #13). ino 0 on
-// either side skips the compare, as the old name check did.
-function readBoundedConfig(file) {
-  // 29nr: the lstat judges the NAME, not the folders above it. A folder in the config's chain swapped for a link before this lstat is followed, and the
-  // dev/ino compare below cannot see it: Node's file API has no open relative to a folder handle on Windows or macOS. See SECURITY.md, Planted Links.
-  let expected = fs.lstatSync(file, { bigint: true });
-  if (expected.isSymbolicLink()) expected = fs.statSync(file, { bigint: true });
+// 29ny (CF-ID-1): a PINNED read (the project config) compares both its lstat and its opened handle with the identity the pin took, never with an identity taken
+// here. A link at the name is refused (the pin never admits one). Without a pin (the global config, the user's own folder) the name's own identity is judged and a link
+// is followed, as before. A file swapped in after the pin is refused with ECHANGED, which readConfigFile already treats as an unreadable config: the hook stays silent
+// (Phoenix #4, #13). The lstat and the open of the name stay in this one function.
+// 29nr: a folder in the config's chain swapped for a link AFTER the pin is followed by the open, and the compare with the pin's identity refuses it when the link leads to
+// a different file (a hard link to the same file it cannot see). Node's file API has no open relative to a folder handle on Windows or macOS. See SECURITY.md, Planted Links.
+function readBoundedConfig(file, pin) {
+  const named = fs.lstatSync(file, { bigint: true });
+  let expected;
+  if (pin) {
+    if (named.isSymbolicLink() || !sameFileId(named, pin)) throw changedError();
+    expected = pin;
+  } else {
+    expected = named.isSymbolicLink() ? fs.statSync(file, { bigint: true }) : named;
+  }
   const fd = fs.openSync(file, 'r');
   try {
     const id = fs.fstatSync(fd, { bigint: true });
-    if (expected.ino !== 0n && id.ino !== 0n && (id.dev !== expected.dev || id.ino !== expected.ino)) {
-      const e = new Error('the file changed between the check and the read');
-      e.code = 'ECHANGED';
-      throw e;
-    }
+    if (!sameFileId(id, expected)) throw changedError();
     const st = fs.fstatSync(fd);
     if (!st.isFile()) {
       const e = new Error('not a regular file');
@@ -86,10 +115,10 @@ function readBoundedConfig(file) {
 // sees a genuine parse failure). Branches on the fs error's CODE, never its message
 // (node/runtime.md §7: `error.message` is not a stable API). Any OTHER fs error (a race,
 // an exotic code) stays silent -- unchanged behaviour, never a fourth reason invented for it.
-function readConfigFile(file) {
+function readConfigFile(file, pin) {
   let text;
   try {
-    text = readBoundedConfig(file);
+    text = readBoundedConfig(file, pin);
   } catch (e) {
     if (e && e.code === 'EISDIR') return { cfg: {}, reason: 'a directory' };
     if (e && e.code === 'ECONFIGTOOLARGE') return { cfg: {}, reason: null };
@@ -230,14 +259,10 @@ function findProjectHit(ownAgentDir) {
 // expectation with it). Both sides go through realpathSync.native (an 8.3 alias spells one folder two ways under plain realpath). Any throw is a refusal, never a lexical
 // fallback (fail closed). A link to ANOTHER folder inside the project is refused too: the pin is the literal folder, not "inside the project". A differently cased
 // spelling of an existing folder on a case-insensitive volume never matches the literal either, which is the safe direction (the config is not read, nothing is written).
-// Residue, named: the check and the read are two acts, so a link swapped in between them is not caught (microseconds; the same window CoalHearth names).
+// Residue, named: 29ny (CF-ID-1) closed the swap of the NAME after the pin, since the read compares the identity the pin took. What stays is a folder in the chain
+// swapped in the same window (29nr; SECURITY.md, Planted Links), which the compare refuses unless the link leads to a hard link of the same file.
 function containedProjectFile(lvl, file) {
-  try {
-    if (typeof lvl !== 'string' || typeof file !== 'string' || !lvl || !file) return false;
-    const rel = path.relative(lvl, file);
-    if (!rel || rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) return false;
-    return fs.realpathSync.native(file) === path.join(fs.realpathSync.native(lvl), rel);
-  } catch { return false; }
+  return pinProjectFile(lvl, file) !== null;
 }
 
 // The write twin, for a target that may not exist yet (scripts/configure.mjs): every entry from the level down to the target that EXISTS must resolve to its literal
@@ -343,7 +368,8 @@ function loadCfg(ownAgentDir, probeStrays) {
   const hit = walkProject(ownAgentDir, probeStrays); // never throws (its own try/catch)
   try {
     if (hit.file && fs.existsSync(hit.file)) {
-      const r = containedProjectFile(hit.dir, hit.file) ? readConfigFile(hit.file) : { cfg: {}, reason: refusalReason(hit.file) };
+      const pin = pinProjectFile(hit.dir, hit.file); // 29ny: the identity is taken by the pin, and the read compares with it
+      const r = pin ? readConfigFile(hit.file, pin) : { cfg: {}, reason: refusalReason(hit.file) };
       projectCfg = r.cfg;
       if (probeStrays && r.reason) notices.push(`UNREADABLE: ${hit.file} exists but is not a readable config (${r.reason}); it was skipped — canonical = ${CANONICAL_PATH}`);
     }
@@ -511,7 +537,7 @@ function main() {
 // scripts/configure.mjs's WRITE path resolves through the SAME candidate-search-and-
 // stop-at-home walk this hook's own READ path already uses -- the identical bridge
 // pointer-check.mjs already crosses for AGENT_DIR_ORDER, not a second copy of the walk.
-module.exports = { readCfg, loadCfg, appendNotices, directiveFor, languageLock, AGENT_DIR_ORDER, findProjectHit, containedProjectFile, containedWriteTarget, refusalReason, NOT_FOLDER_REASON, physical };
+module.exports = { readCfg, loadCfg, appendNotices, directiveFor, languageLock, AGENT_DIR_ORDER, findProjectHit, containedProjectFile, pinProjectFile, containedWriteTarget, refusalReason, NOT_FOLDER_REASON, physical };
 
 if (require.main === module) {
   try { main(); } catch { /* Phoenix #4: fail-silent, never crash the host */ }

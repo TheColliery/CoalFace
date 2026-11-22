@@ -64,6 +64,8 @@ const TESTS = [
   'scripts/configure-reader.test.mjs',
   // 29ng (T): the three config readers compare the opened handle with the file they checked (dev and ino); a swapped-in file is refused, never read.
   'scripts/reader-toctou.test.mjs',
+  // 29ny (CF-ID-1): a pinned project read compares the opened file with the identity the PIN took; a file swapped in after the pin is refused (the seam legs, and the REAL-LINK leg where a symlink can be made).
+  'scripts/reader-identity.test.mjs',
   'scripts/link-check.test.mjs',
   // 16f item 1: the canon's front-door-links (the outward half of the link check), adopted byte-identical from .github's templates/published-code/.
   'scripts/front-door-links.test.mjs',

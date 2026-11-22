@@ -24,23 +24,24 @@ export const MAX_CONFIG_BYTES = 1024 * 1024;
 // descriptor (fstat), then the same descriptor is read, so nothing is read that was not judged.
 // A directory keeps EISDIR, a non-file gets ENOTFILE, and an oversize file is refused with
 // ECONFIGTOOLARGE and a message that names the file.
-// 29ng (T): the NAME is judged by lstat before the open, and the OPENED handle is judged after it: its dev and ino must equal the identity the name had.
-// A link is followed (the expected identity is its target's, as the open follows it). ino 0 on either side means the volume reports no identity: the compare
-// is skipped, as the old name check was. A mismatch closes the handle and refuses with ECHANGED; nothing is read from a file swapped in between the two.
-// The lstat runs first and its own error (ENOENT included) is the caller's, the same code the open would have raised.
-export function readConfigBoundedBuffer(file) {
-  // 29nr: the lstat judges the NAME, not the folders above it. A folder in the config's chain swapped for a link before this lstat is followed, and the
-  // dev/ino compare below cannot see it: Node's file API has no open relative to a folder handle on Windows or macOS. See SECURITY.md, Planted Links.
-  let expected = fs.lstatSync(file, { bigint: true });
-  if (expected.isSymbolicLink()) expected = fs.statSync(file, { bigint: true });
+// 29ny (CF-ID-1): a PINNED read (pin = the bigint lstat the containment pin took, scripts/configure.mjs) compares its own lstat and the opened handle with that
+// identity, never with one taken here: a link at the name is refused, and a file swapped in after the pin is refused with ECHANGED. Without a pin (the global config)
+// the name's own identity is judged and a link is followed, as before. ino 0 on either side skips a compare, as the old name check did. The lstat and the open of
+// the name stay in this one function. Its own lstat error (ENOENT included) is the caller's, the same code the open would have raised.
+// 29nr: a folder in the chain swapped for a link after the pin is followed by the open; the compare refuses it when the link leads to a different file.
+export function readConfigBoundedBuffer(file, pin) {
+  const named = fs.lstatSync(file, { bigint: true });
+  let expected;
+  if (pin) {
+    if (named.isSymbolicLink() || !sameFileId(named, pin)) throw changedError(file);
+    expected = pin;
+  } else {
+    expected = named.isSymbolicLink() ? fs.statSync(file, { bigint: true }) : named;
+  }
   const fd = fs.openSync(file, 'r');
   try {
     const id = fs.fstatSync(fd, { bigint: true });
-    if (expected.ino !== 0n && id.ino !== 0n && (id.dev !== expected.dev || id.ino !== expected.ino)) {
-      const e = new Error(`${file}: the file changed between the check and the read`);
-      e.code = 'ECHANGED';
-      throw e;
-    }
+    if (!sameFileId(id, expected)) throw changedError(file);
     const st = fs.fstatSync(fd);
     if (!st.isFile()) {
       const e = new Error(`${file}: not a regular file`);
@@ -63,6 +64,17 @@ export function readConfigBoundedBuffer(file) {
   } finally {
     fs.closeSync(fd);
   }
+}
+
+// ino 0 on either side means the volume reports no file identity: the compare is skipped (the old behaviour).
+function sameFileId(a, b) {
+  return a.ino === 0n || b.ino === 0n || (a.dev === b.dev && a.ino === b.ino);
+}
+
+function changedError(file) {
+  const e = new Error(`${file}: the file changed between the check and the read`);
+  e.code = 'ECHANGED';
+  return e;
 }
 
 // The text of readConfigBoundedBuffer: the same judged bytes, decoded.

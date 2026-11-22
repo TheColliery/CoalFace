@@ -40,20 +40,43 @@ function parseJsonc(text) {
   } catch { return null; }
 }
 
-// One descriptor: the file type and the size are judged on it, then the same descriptor is read. Unreadable = null.
-// 29ng (T): the NAME is judged by lstat before the open (a link followed: its target's identity), and the OPENED handle must have the same dev and ino. A file
-// swapped in between is unreadable (null), the same path a failed read takes. ino 0 on either side skips the compare, as the old name check did.
-function readConfig(file) {
+// ino 0 on either side means the volume reports no file identity: the compare is skipped, as the old name check was. (29ny: the same helper as the hook's.)
+function sameFileId(a, b) {
+  return a.ino === 0n || b.ino === 0n || (a.dev === b.dev && a.ino === b.ino);
+}
+
+// 29ny (CF-ID-1): the pin of a PROJECT candidate and the identity it takes, the same logic as hooks/coalface-conductor.js's pinProjectFile. The lstat is taken BEFORE the realpath, so a name replaced after the realpath is refused by the reader's compare. Returns null when refused (fail closed).
+export function pinProjectFile(lvl, file) {
   try {
-    // 29nr: the lstat judges the NAME, not the folders above it. A folder in the config's chain swapped for a link before this lstat is followed, and the
-    // dev/ino compare below cannot see it: Node's file API has no open relative to a folder handle on Windows or macOS. See SECURITY.md, Planted Links.
-    let expected = fs.lstatSync(file, { bigint: true });
-    if (expected.isSymbolicLink()) expected = fs.statSync(file, { bigint: true });
+    if (typeof lvl !== 'string' || typeof file !== 'string' || !lvl || !file) return null;
+    const rel = path.relative(lvl, file);
+    if (!rel || rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) return null;
+    const id = fs.lstatSync(file, { bigint: true });
+    if (id.isSymbolicLink()) return null; // a link at the name is never admitted; a directory is the reader's own refusal (EISDIR), never this one
+    return fs.realpathSync.native(file) === path.join(fs.realpathSync.native(lvl), rel) ? id : null;
+  } catch { return null; }
+}
+
+// One descriptor: the file type and the size are judged on it, then the same descriptor is read. Unreadable = null.
+// 29ny (CF-ID-1): a PINNED read compares its lstat and its opened handle with the identity the pin took; a link at the name is unreadable (the pin never admits one).
+// Without a pin (the global config) the name's own identity is judged and a link is followed, as before. A file swapped in after the pin is unreadable (null), the
+// same path a failed read takes. The lstat and the open of the name stay in this one function.
+// 29nr: a folder in the chain swapped for a link after the pin is followed by the open; the compare refuses it when the link leads to a different file.
+function readConfig(file, pin) {
+  try {
+    const named = fs.lstatSync(file, { bigint: true });
+    let expected;
+    if (pin) {
+      if (named.isSymbolicLink() || !sameFileId(named, pin)) return null;
+      expected = pin;
+    } else {
+      expected = named.isSymbolicLink() ? fs.statSync(file, { bigint: true }) : named;
+    }
     const fd = fs.openSync(file, 'r');
     let text;
     try {
       const id = fs.fstatSync(fd, { bigint: true });
-      if (expected.ino !== 0n && id.ino !== 0n && (id.dev !== expected.dev || id.ino !== expected.ino)) return null;
+      if (!sameFileId(id, expected)) return null;
       const st = fs.fstatSync(fd);
       if (!st.isFile() || st.size > MAX_CONFIG_BYTES) return null;
       const buf = Buffer.alloc(st.size);
@@ -102,12 +125,7 @@ export function findProjectFile({ cwd, home }) {
 // The literal-location pin the hook uses: the candidate's realpath must be exactly the level's realpath joined with the
 // candidate's relative path. Only the candidate is canonicalised; the expectation is the hand-joined literal. Fail closed.
 export function containedProjectFile(lvl, file) {
-  try {
-    if (typeof lvl !== 'string' || typeof file !== 'string' || !lvl || !file) return false;
-    const rel = path.relative(lvl, file);
-    if (!rel || rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) return false;
-    return fs.realpathSync.native(file) === path.join(fs.realpathSync.native(lvl), rel);
-  } catch { return false; }
+  return pinProjectFile(lvl, file) !== null;
 }
 
 // An integer in range, or undefined (ignored: the default or the other layer stands).
@@ -134,7 +152,8 @@ export function thresholdsFrom({ globalCfg = null, projectCfg = null } = {}) {
 export function readThresholds({ cwd = process.cwd(), home = os.homedir() } = {}) {
   const globalCfg = readConfig(path.join(home, '.claude', '.coalface.json'));
   const hit = findProjectFile({ cwd, home });
-  const projectCfg = hit.file && fs.existsSync(hit.file) && containedProjectFile(hit.dir, hit.file) ? readConfig(hit.file) : null;
+  const projectPin = hit.file && fs.existsSync(hit.file) ? pinProjectFile(hit.dir, hit.file) : null; // 29ny: the identity is taken by the pin
+  const projectCfg = projectPin ? readConfig(hit.file, projectPin) : null;
   return { ...thresholdsFrom({ globalCfg, projectCfg }), file: hit.file };
 }
 

@@ -119,7 +119,7 @@ async function main() {
   // configure.mjs under Claude Code is the only supported entry today (same assumption
   // the hook's own `main()` makes at its one call site), so 'claude' is hardcoded here
   // exactly as it is there.
-  const { findProjectHit, containedWriteTarget, refusalReason, NOT_FOLDER_REASON, AGENT_DIR_ORDER, physical } = await import(pathToFileURL(path.join(repo, 'hooks', 'coalface-conductor.js')).href);
+  const { findProjectHit, containedWriteTarget, pinProjectFile, refusalReason, NOT_FOLDER_REASON, AGENT_DIR_ORDER, physical } = await import(pathToFileURL(path.join(repo, 'hooks', 'coalface-conductor.js')).href);
 
   // --global targets ~/.claude/.coalface.json (readCfg's own hardcoded global home);
   // default targets the project config. The hook merges the two per key
@@ -156,7 +156,7 @@ async function main() {
   // copy and the write outside the project. Every project path this run touches is pinned to its literal location BEFORE anything is read or written (the check lives in
   // hooks/coalface-conductor.js beside the read-side twin): the config found by the walk is checked against the level the walk found it at, the write target against the level it
   // will be created under (cwd for a new config, the found level for a migrated one). A refused path writes nothing, removes nothing, and ends the run with one clean FAIL line. The global file is the
-  // user's own and is not a project path. Residue, named: check and use are two acts, so a link swapped in between is not caught (microseconds).
+  // user's own and is not a project path. Residue, named (29ny): the project config's read compares the opened file with the identity its pin took, so a name swapped between the pin and the read is refused; a folder in the chain swapped in that window is refused too, unless the link leads to a hard link of the same file (29nr).
   // 17c (a): the reason comes from the conductor's refusalReason, the one place that names it (a file in the chain is not "a link").
   const refuse = (p) => {
     const why = refusalReason(p);
@@ -169,8 +169,25 @@ async function main() {
     process.exitCode = 1;
   };
   const writeLvl = readPath === null ? cwd : (hit && hit.dir);
+  // 29ny (CF-ID-1): the project config's identity is taken by its pin, BEFORE the name is resolved again; the read below compares the opened file with it. The global
+  // config is the user's own file and has no pin (its read follows a link, as before).
+  let readPin = null;
   if (!isGlobal) {
-    if (readPath !== null && !containedWriteTarget(hit.dir, readPath)) return refuse(readPath);
+    if (readPath !== null) {
+      readPin = pinProjectFile(hit.dir, readPath);
+      if (!readPin) {
+        // A name the walk found and that is gone by the pin (removed or moved in between) is not a link: say so, never the link sentence.
+        let gone = false;
+        try { fs.lstatSync(readPath); } catch (e) { gone = !!e && e.code === 'ENOENT'; }
+        if (gone) {
+          console.error(`FAIL ${readPath}: it is no longer at that path (removed or moved during the run); nothing was written`);
+          process.exitCode = 1;
+          return;
+        }
+        return refuse(readPath);
+      }
+      if (!containedWriteTarget(hit.dir, readPath)) return refuse(readPath);
+    }
     if (!containedWriteTarget(writeLvl, writePath)) return refuse(writePath);
   }
 
@@ -196,7 +213,7 @@ async function main() {
   let firstBytes = null;
   if (readPath !== null) {
     try {
-      firstBytes = readConfigBoundedBuffer(readPath);
+      firstBytes = readConfigBoundedBuffer(readPath, readPin); // 29ny: a project read compares with the identity its pin took (null for the global config)
       let content = firstBytes.toString('utf8');
       if (readIsLegacy) legacySnapshot = content;
       if (content.charCodeAt(0) === 0xfeff) content = content.slice(1);
