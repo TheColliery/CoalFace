@@ -278,5 +278,5 @@ test('REAL-LINK: configure refuses a symlink swapped in after the pin, and the o
   assert.equal(r.status, 1, `configure followed the symlink and did not refuse: ${show(r)}`);
   // Either refusal is correct: the write-pin's realpath runs AFTER the identity pin and sees the symlink first ("resolves outside its folder"); a read that
   // reaches the reader refuses with ECHANGED. Neither writes.
-  assert.match(r.stderr, /(could not be read \(ECHANGED\)|resolves outside its folder); nothing was written/, show(r));
+  assert.match(r.stderr, /(could not be read \(ECHANGED\)|resolves outside its folder \(a link at the file or at a folder above it\)); nothing was written/, show(r));
 });
