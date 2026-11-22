@@ -9,7 +9,7 @@ All notable changes to CoalFace are documented here. Format follows
 The config readers refuse a file swapped in after the check
 
 ### Fixed
-- **The three config readers compare the file they opened with the one they checked.** A config swapped in between the name check and the read is refused, not used: the configure tool fails with one sentence and writes nothing, and the session hook and the admission check treat it as absent. — test: scripts/reader-toctou.test.mjs
+- **The three config readers refuse a config file swapped in after the check.** A different file at the name is refused, not used: the configure tool fails with one sentence and writes nothing, and the session hook and the admission check treat it as absent. A folder swapped for a link around the check is a known limit, not yet closed. — test: scripts/reader-toctou.test.mjs
 - **The migration says when the old config was read-only.** The success line adds "read-only as it was" when the legacy file had no write bit, and its backup keeps that mode. — test: scripts/configure-migrate.test.mjs
 
 ## [0.15.15] - 2026-11-22
