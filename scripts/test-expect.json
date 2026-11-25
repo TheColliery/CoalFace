@@ -32,7 +32,7 @@
   "scripts/reader-toctou.test.mjs": 3,
   "scripts/reader-identity.test.mjs": 12,
   "scripts/link-check.test.mjs": 36,
-  "scripts/front-door-links.test.mjs": 5,
+  "scripts/front-door-links.test.mjs": 20,
   "scripts/decide-upload.test.mjs": 6,
   "scripts/prune-release-zips.test.mjs": 10,
   "scripts/release-notes.test.mjs": 38,
