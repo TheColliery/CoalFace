@@ -22,7 +22,7 @@
   "scripts/lib/suite-run.test.mjs": 15,
   "scripts/secret-scan.test.mjs": 105,
   "scripts/secret-gate.test.mjs": 18,
-  "scripts/skill-evaluator-pin.test.mjs": 36,
+  "scripts/skill-evaluator-pin.test.mjs": 43,
   "scripts/build-plugin.test.mjs": 10,
   "scripts/verify.test.mjs": 23,
   "scripts/build-claude-ai-zips.test.mjs": 18,

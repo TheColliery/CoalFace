@@ -7,12 +7,12 @@
 // repository but the upstream it reads.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { gitEnv } from './lib/git-env.mjs';
 
 const REPO = 'NVIDIA/SkillEvaluator';
 const DEFAULT_WORKFLOW = '.github/workflows/skill-checks.yml';
-const DEPENDABOT_FILE = '.github/dependabot.yml';
 const TIMEOUT_MS = 30000;
 const MAX_BODY_BYTES = 256 * 1024; // 29qo: a body over this is unreadable, so it is never read to the end
 const DAY_MS = 86400000;
@@ -27,7 +27,7 @@ const IMAGE_RE = /^[ \t]*image:[ \t]*ghcr\.io\/nvidia\/skillevaluator-tier1@sha2
 const USES_LINE_G = /^([ \t]*uses:[ \t]*NVIDIA\/SkillEvaluator\/\.github\/workflows\/evaluate-skills\.yml@)([^\s#]+)([^\r\n]*)(\r?)$/gm;
 const IMAGE_LINE_G = /^([ \t]*image:[ \t]*ghcr\.io\/nvidia\/skillevaluator-tier1@sha256:)([0-9a-f]{64})((?:[ \t]+#[^\r\n]*)?[ \t]*)(\r?)$/gm;
 const COOLDOWN_LINE_G = /^[ \t]*default-days:[ \t]*(\d+)[ \t]*\r?$/gm;
-const GITHUB_ACTIONS_RE = /package-ecosystem:[ \t]*github-actions[ \t]*\r?$/m;
+const DEPENDABOT_ITEM_G = /^[ \t]*-[ \t]+package-ecosystem:[ \t]*([^\s#]+)/gm;
 
 const USAGE = [
   'usage: node scripts/skill-evaluator-pin.mjs [workflow.yml]',
@@ -35,7 +35,7 @@ const USAGE = [
   '  Checks the SkillEvaluator reusable-workflow pin of a caller workflow (default ' + DEFAULT_WORKFLOW + ').',
   '  Its uses: commit and image digest must match the release its version comment names. Reads only public upstream files.',
   '  --move writes the uses: commit (the release tag commit) and the image digest (the release bundle) from one release,',
-  '  and writes nothing unless every check passes; the cooldown comes from .github/dependabot.yml.',
+  '  and writes nothing unless every check passes; the cooldown comes from ../dependabot.yml, relative to the workflow folder.',
   '  example: node scripts/skill-evaluator-pin.mjs ' + DEFAULT_WORKFLOW,
   '  example: node scripts/skill-evaluator-pin.mjs --move v1.2.1 ' + DEFAULT_WORKFLOW,
   '  report a problem at the issue tracker of the repository this script lives in.',
@@ -97,10 +97,18 @@ export function parseReleaseJson(text) {
   return ref && image ? { workflowRef: ref, digest: image[1] } : null;
 }
 
-// 29qo: the one default-days value of the github-actions entry; none or two is no reading.
+// 29qo: the one default-days value inside the github-actions entry's own block (from its item line to the next item); a
+// missing, duplicated or value-less entry is no reading, and another ecosystem's value is never taken.
 export function parseCooldownDays(text) {
-  if (!text || !GITHUB_ACTIONS_RE.test(text)) return null;
-  const values = [...text.matchAll(COOLDOWN_LINE_G)].map((m) => Number(m[1]));
+  if (!text) return null;
+  const items = [...text.matchAll(DEPENDABOT_ITEM_G)];
+  const blocks = items.map((m, i) => ({
+    ecosystem: m[1],
+    body: text.slice(m.index, i + 1 < items.length ? items[i + 1].index : text.length),
+  }));
+  const own = blocks.filter((b) => b.ecosystem === 'github-actions');
+  if (own.length !== 1) return null;
+  const values = [...own[0].body.matchAll(COOLDOWN_LINE_G)].map((m) => Number(m[1]));
   return values.length === 1 ? values[0] : null;
 }
 
@@ -244,11 +252,24 @@ async function readBlobSha(ref) {
   }
 }
 
-function readCooldownDays() {
+// 29qo INSPECT: the cooldown is the one in the workflow's own repository (../dependabot.yml from the workflow's folder),
+// never the one in the working directory.
+export function readCooldownDays(workflowFile) {
   try {
-    return parseCooldownDays(fs.readFileSync(DEPENDABOT_FILE, 'utf8'));
+    return parseCooldownDays(fs.readFileSync(path.resolve(path.dirname(workflowFile), '../dependabot.yml'), 'utf8'));
   } catch {
     return null;
+  }
+}
+
+// 29qo INSPECT: temp-then-rename (node/runtime.md §5). A failed rename leaves the target as it was, and no temp file behind.
+export function writeAtomic(file, text) {
+  const tmp = `${file}.${process.pid}.tmp`;
+  try {
+    fs.writeFileSync(tmp, text, { flag: 'wx' });
+    fs.renameSync(tmp, file);
+  } finally {
+    fs.rmSync(tmp, { force: true });
   }
 }
 
@@ -291,7 +312,7 @@ async function moveMain(args) {
     tagCommit,
     blobAtTag,
     blobAtRef,
-    cooldownDays: readCooldownDays(),
+    cooldownDays: readCooldownDays(file),
     now: Date.now(),
   });
   if (!result.ok) {
@@ -299,7 +320,13 @@ async function moveMain(args) {
     process.exitCode = 1;
     return;
   }
-  fs.writeFileSync(file, result.text);
+  try {
+    writeAtomic(file, result.text);
+  } catch (e) {
+    process.stdout.write(`FAIL skill-evaluator move: cannot write ${file} (${e.code || e.message}); the file is unchanged\n`);
+    process.exitCode = 1;
+    return;
+  }
   process.stdout.write(`PASS skill-evaluator move: v${version} ${short(tagCommit)} ${short(parseCaller(result.text).digest)} written to ${file}\n`);
 }
 

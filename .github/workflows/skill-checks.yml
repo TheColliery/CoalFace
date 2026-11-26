@@ -7,11 +7,12 @@
 # the keyless Tier 1 security scan reports pattern matches on skill text as findings (read in this suite
 # as false positives, first at CoalFace v0.15.6), so a push to main that touches a skill would leave a
 # standing red. Ends when the upstream rule is fixed or LLM verification is adopted: then restore `push`.
-# SECOND DIVERGENCE: `uses:` pins the release TAG's commit, where the bundle pins that tag's parent (the tag commit only
-# adds the bundle, so upstream's bundle can never name its own commit). Reason: Dependabot follows a commented SHA to the
-# next tag only when the SHA is a tag's commit; scripts/skill-evaluator-pin.mjs accepts either. Ends if we choose upstream
-# parity: then pin the bundle's commit and drop this paragraph. `scripts/skill-evaluator-pin.mjs --move` refuses a move
-# unless evaluate-skills.yml is the same blob at both commits, which is what makes pinning the tag commit safe.
+# SECOND DIVERGENCE: `uses:` pins the release TAG's commit, where the bundle pins that tag's parent (the tag commit is the one
+# that adds the bundle, so the bundle can only name its parent). Reason (our reading; GitHub's docs do not say whether Dependabot
+# follows a commented SHA that is not a tag's commit): the tag commit is the one Dependabot can follow to the next tag.
+# scripts/skill-evaluator-pin.mjs accepts either. Ends if we choose upstream parity: then pin the bundle's commit and drop this
+# paragraph. `scripts/skill-evaluator-pin.mjs --move` refuses a move unless evaluate-skills.yml is the same blob at both commits,
+# which is what makes pinning the tag commit safe.
 name: Skill checks
 on:
   pull_request:

@@ -330,11 +330,77 @@ test('move: a version that is not X.Y.Z refuses before anything is planned', () 
   assert.match(r.problems.join('\n'), /not X\.Y\.Z/);
 });
 
+// 29qo INSPECT: each refusal below had no leg; each leg is shown RED by its mutant (scratchpad/29qo/mut-fix.txt).
+test('move: a draft or prerelease flag that is not readable as false refuses', () => {
+  for (const over of [{ draft: null }, { prerelease: undefined }]) {
+    const r = move({ release: { ...releaseObj(), ...over } });
+    assert.equal(r.ok, false, JSON.stringify(over));
+    assert.match(r.problems.join('\n'), /flags are not readable as false/);
+  }
+});
+
+test('move: a published_at that is not a date, or is missing, refuses', () => {
+  for (const over of [{ published_at: 'x' }, { published_at: undefined }]) {
+    const r = move({ release: { ...releaseObj(), ...over } });
+    assert.equal(r.ok, false, JSON.stringify(over));
+    assert.match(r.problems.join('\n'), /published_at is not a date/);
+  }
+});
+
+test('move: a caller with two uses: lines, or two image: lines, refuses', () => {
+  const usesTwice = callerYaml().replace(/^(    uses:.*)$/m, '$1\n$1');
+  const r1 = move({ workflowText: usesTwice });
+  assert.equal(r1.ok, false);
+  assert.match(r1.problems.join('\n'), /the caller has 2 uses: line/);
+  const imageTwice = callerYaml().replace(/^(      image:.*)$/m, '$1\n$1');
+  const r2 = move({ workflowText: imageTwice });
+  assert.equal(r2.ok, false);
+  assert.match(r2.problems.join('\n'), /the caller has 2 image: line/);
+});
+
 test('parseCooldownDays reads the one default-days value and refuses when there is none or two', () => {
   const one = ['version: 2', 'updates:', '  - package-ecosystem: github-actions', '    cooldown:', '      default-days: 7', ''].join('\n');
   assert.equal(pin.parseCooldownDays(one), 7);
   assert.equal(pin.parseCooldownDays(one.replace('default-days: 7', 'default-days: 7\n      default-days: 3')), null);
   assert.equal(pin.parseCooldownDays(one.replace('      default-days: 7', '      interval: weekly')), null);
+});
+
+test('parseCooldownDays takes default-days from the github-actions entry only, whichever entry comes first', () => {
+  const npmFirst = ['version: 2', 'updates:', '  - package-ecosystem: npm', '    cooldown:', '      default-days: 3', '  - package-ecosystem: github-actions', '    cooldown:', '      default-days: 7', ''].join('\n');
+  assert.equal(pin.parseCooldownDays(npmFirst), 7);
+  const ghaFirst = ['version: 2', 'updates:', '  - package-ecosystem: github-actions', '    cooldown:', '      default-days: 7', '  - package-ecosystem: npm', '    cooldown:', '      default-days: 3', ''].join('\n');
+  assert.equal(pin.parseCooldownDays(ghaFirst), 7);
+  const npmOnly = ['version: 2', 'updates:', '  - package-ecosystem: npm', '    cooldown:', '      default-days: 3', ''].join('\n');
+  assert.equal(pin.parseCooldownDays(npmOnly), null);
+});
+
+test('readCooldownDays reads the cooldown of the repository the workflow sits in, not the working directory', (t) => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-evaluator-cooldown-'));
+  t.after(() => fs.rmSync(repo, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(repo, '.github', 'workflows'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.github', 'dependabot.yml'), ['version: 2', 'updates:', '  - package-ecosystem: github-actions', '    cooldown:', '      default-days: 3', ''].join('\n'));
+  // The working directory's own .github/dependabot.yml says 7, so a read from the working directory cannot return 3.
+  assert.equal(pin.readCooldownDays(path.join(repo, '.github', 'workflows', 'skill-checks.yml')), 3);
+});
+
+test('writeAtomic replaces the file and leaves no temp file beside it', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-evaluator-atomic-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'skill-checks.yml');
+  fs.writeFileSync(file, 'old\n');
+  pin.writeAtomic(file, 'new\n');
+  assert.equal(fs.readFileSync(file, 'utf8'), 'new\n');
+  assert.deepEqual(fs.readdirSync(dir), ['skill-checks.yml']);
+});
+
+test('writeAtomic whose rename fails leaves the target as it was and no temp file behind', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-evaluator-atomic-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const target = path.join(dir, 'skill-checks.yml');
+  fs.mkdirSync(target); // a folder where the file must be: the rename over it cannot succeed
+  assert.throws(() => pin.writeAtomic(target, 'new\n'));
+  assert.deepEqual(fs.readdirSync(dir), ['skill-checks.yml']);
+  assert.ok(fs.statSync(target).isDirectory());
 });
 
 async function* chunksOf(...sizes) {
