@@ -263,13 +263,16 @@ export function readCooldownDays(workflowFile) {
 }
 
 // 29qo INSPECT: temp-then-rename (node/runtime.md §5). A failed rename leaves the target as it was, and no temp file behind.
+// 29sj N1: the exclusive open comes first and sits outside the try, so a temp file this run did not create is refused and left as it was.
 export function writeAtomic(file, text) {
   const tmp = `${file}.${process.pid}.tmp`;
+  const fd = fs.openSync(tmp, 'wx');
   try {
-    fs.writeFileSync(tmp, text, { flag: 'wx' });
+    try { fs.writeFileSync(fd, text); } finally { fs.closeSync(fd); }
     fs.renameSync(tmp, file);
-  } finally {
+  } catch (e) {
     fs.rmSync(tmp, { force: true });
+    throw e;
   }
 }
 

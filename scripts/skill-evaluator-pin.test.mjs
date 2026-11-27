@@ -403,6 +403,19 @@ test('writeAtomic whose rename fails leaves the target as it was and no temp fil
   assert.ok(fs.statSync(target).isDirectory());
 });
 
+// 29sj N1: a temp file this run did NOT create (the exclusive open fails on it) is left as it was, and the move refuses with the target unchanged.
+test('writeAtomic leaves a temp file it did not create, and refuses with the target unchanged', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-evaluator-atomic-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'skill-checks.yml');
+  fs.writeFileSync(file, 'old\n');
+  const stale = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(stale, 'someone else\n');
+  assert.throws(() => pin.writeAtomic(file, 'new\n'));
+  assert.equal(fs.readFileSync(file, 'utf8'), 'old\n', 'the target changed');
+  assert.equal(fs.readFileSync(stale, 'utf8'), 'someone else\n', 'the temp file this run did not create was deleted');
+});
+
 async function* chunksOf(...sizes) {
   for (const n of sizes) yield new Uint8Array(n).fill(97);
 }
