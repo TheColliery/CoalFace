@@ -52,7 +52,7 @@ The flow is fixed—a swarm never skips a step:
 |---|---|---|
 | 1 | **Scout** (mandatory) | Survey the worksite before sizing anything: the spot list, the dependency graph, the invariants to lock (your standing rules, glossary, API/style), the end-of-run domain gate, the swarm mode, and the **shared-digest**—the common context paid for once and shipped to every worker (never N workers re-reading the same files). |
 | 2 | **Partition** (deterministic) | An interval-intersection check merges overlapping spots and chains dependent ones—a rule table, not model judgment. A unit smaller than spawn overhead merges with a neighbor (the min-unit floor). |
-| 3 | **Heads-up** (conditional) | If the job dwarfs the prompt, one NON-blocking line ("found N spots, ~est X—starting; Esc to stop")—never a question-box. |
+| 3 | **Heads-up** (conditional) | If the job dwarfs the prompt, one NON-blocking line ("found N spots, ~est X — starting; Esc to stop")—never a question-box. |
 | 4 | **Waves** | Worker-wave width = max(1, floor(platform width × `bandwidth`%)), never above the platform width—`maxLocalWorkers` never enters it. Separately, before each apply-time domain-gate run (main's own step-7 build/test, or a depth-1 nested conductor's own) and each wave of heavy local work, the agent runs `skills/coalface/scripts/admission.mjs`, which reads your thresholds from the config and then your CPU and memory now (through `machine-reading.mjs`): BREATHE starts the run, WAIT holds it (and names why) and reads again; at least one unit always runs, and a reading your machine cannot give never blocks, so a machine that cannot be read at all releases one unit at a time. AIMD backoff: a 429 shrinks the next wave, clear stretches re-grow—a `bandwidth` set above your account's real capacity simply settles AT the real capacity, nothing breaks. |
 | 5 | **Orders as text** | Workers return **anchor-edits** (`old-text → new-text`, exact-match, position-independent—that is why 100 spots in ONE file works) or the completed unit as text. Propose-not-execute: workers never touch the tree. |
 | 6 | **QC at collection** | Mechanical, before any apply: SCOPE (every anchor inside the assigned range, no foreign files) + SPEC (locked invariants grep-verifiable). Reject → quarantine + ONE bounded rework; a 2nd fail goes to you via the receipt. |
@@ -72,7 +72,7 @@ The flow is fixed—a swarm never skips a step:
 | Global invariant (glossary/style/totals) | Lock first → ship in the shared-digest → consistency sweep at the end |
 | Holistic quality (voice/architecture) | Analyze-swarm only—ONE voice writes |
 | Side-effects | Closed by propose-not-execute—side-effects fire only at the consented apply |
-| Non-decomposable | Honest refusal: "not swarmable—solo" |
+| Non-decomposable | Honest refusal: "not swarmable — solo" |
 
 **The QC ceiling (honesty).** QC is mechanical. An in-scope, on-spec, semantically-WRONG return with no covering test can pass—the receipt flags those test-uncovered spots, and the escalation for that class is [CoalBoard](https://github.com/TheColliery/CoalBoard) (the error-not-allowed lane), never another swarm. On error-not-allowed work CoalBoard wins outright: critical work goes to consensus, not throughput.
 
