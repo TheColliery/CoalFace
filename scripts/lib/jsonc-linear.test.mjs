@@ -8,8 +8,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { stripJsonc } from './jsonc.mjs';
+import { testChildEnv } from './test-child-env.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const JSONC = path.join(repo, 'scripts', 'lib', 'jsonc.mjs');
@@ -29,17 +31,37 @@ const SHAPES = {
   // A string opener whose body ends in a lone backslash: the string branch fails there and restarts two characters on.
   danglingBackslash: '"\\'.repeat(SIZE / 2),
 };
-const BUDGET_MS = 50;
+// 29sj t218-a (the reviewer's row 9): the claim is TERMINATION, not a wall clock. Each shape of 1 MiB runs in its own child with a heap cap
+// and a timeout that kills it; a child the timeout kills fails the leg. The super-linear regex from before the fix (f71f720) never finishes
+// on this input, so the leg is red on it. The child builds its shape itself: a 1 MiB argument would not fit a Windows command line.
+const TERMINATION_TIMEOUT_MS = 30000;
+const CHILD_HEAP_MB = 2048;
+const MEGABYTE = 1024 * 1024;
+const CHILD_SRC = `import { pathToFileURL } from 'node:url';
+const { stripJsonc } = await import(pathToFileURL(process.argv[2]).href);
+const n = Number(process.argv[4]);
+const shapes = {
+  unclosedBlockOpeners: '/* a'.repeat(n / 4),
+  unclosedStringEscapes: '"' + '\\\\"'.repeat(Math.floor(n / 3)),
+  danglingBackslash: '"\\\\'.repeat(n / 2),
+};
+stripJsonc(shapes[process.argv[3]]);
+`;
 
-test('config comment stripping stays under 50 ms on 48 KB of unclosed input (best of 3 runs)', () => {
-  for (const [name, input] of Object.entries(SHAPES)) {
-    const times = [];
-    for (let i = 0; i < 3; i++) {
-      const t0 = process.hrtime.bigint();
-      stripJsonc(input);
-      times.push(Number(process.hrtime.bigint() - t0) / 1e6);
-    }
-    assert.ok(Math.min(...times) < BUDGET_MS, `${name}: best of 3 = ${Math.min(...times).toFixed(1)} ms, budget ${BUDGET_MS} ms`);
+test('config comment stripping terminates on 1 MiB of unclosed input, checked by a child that a timeout kills (no clock)', (t) => {
+  const dir = fs.mkdtempSync(path.join(fs.realpathSync.native(os.tmpdir()), 'cf-strip-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const child = path.join(dir, 'strip-child.mjs');
+  fs.writeFileSync(child, CHILD_SRC);
+  for (const name of Object.keys(SHAPES)) {
+    const r = spawnSync(process.execPath, [child, JSONC, name, String(MEGABYTE)], {
+      encoding: 'utf8',
+      timeout: TERMINATION_TIMEOUT_MS,
+      killSignal: 'SIGKILL',
+      env: { ...testChildEnv(), NODE_OPTIONS: `--max-old-space-size=${CHILD_HEAP_MB}` },
+    });
+    assert.equal(r.error, undefined, `${name}: the strip did not finish within ${TERMINATION_TIMEOUT_MS} ms (${r.error ? r.error.code : 'no error'})`);
+    assert.equal(r.status, 0, `${name}: the child exited ${r.status}: ${r.stderr}`);
   }
 });
 
